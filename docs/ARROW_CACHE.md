@@ -67,21 +67,38 @@ The cache is a set of named RecordBatches. Every batch is sorted in a
 canonical order so two equal caches produce byte-identical IPC payloads
 (IICA-friendly determinism).
 
-### 4.1 `hllset_lut`
+Cache objects fall into three classes:
+
+| Class | Objects | Semantics |
+| ----- | ------- | --------- |
+| **content-addressed immutable** | G1/G2/G3, `tf_vec` | named by their SHA1; the name IS the content ID |
+| **append-only** | `lut_g1/g2/g3`, `hllset_lut` | grow monotonically; entries are immutable (hash-determined) |
+| **context-local** | `tf_table` | built for the current context only; ephemeral |
+
+### 4.1 `hllset_lut` — append-only, context-scoped
 
 ```text
 schema: (key: Utf8, th: UInt64)
 sorted by: key
 ```
 
-### 4.2 `tf_table`
+Append-only and held **in memory**; it contains only the HLLSets relevant to
+the current context (not a global registry). Registration is idempotent, TH
+is monotonic.
+
+### 4.2 `tf_table` — current context only
 
 ```text
 schema: (token: Binary, count: UInt64)
 sorted by: token
 ```
 
-### 4.3 token LUTs (`lut_g1`, `lut_g2`, `lut_g3`)
+Built for the **current context** (the working set of the active turns), not
+a global table. It is the token-level TF that materialize uses for
+tie-breaking; it may be rebuilt from the LUTs and does not need to survive
+context switches.
+
+### 4.3 token LUTs (`lut_g1`, `lut_g2`, `lut_g3`) — append-only
 
 One batch per channel, so the three channels stay independently readable:
 
@@ -94,16 +111,20 @@ sorted by: (bit, token)
 The pointed-to token is stored, not the n-gram bytes — same convention as
 `hllset-morphisms::api`.
 
-### 4.4 `tf_vec`
+**Append-only immutability due to hash**: a token's fiber is determined by
+its hash, so entries are never updated or removed — the LUT only grows.
+
+### 4.4 `tf_vec` — content-addressed by SHA1
 
 ```text
 schema: (index: UInt32, value: Float64)
 row count: 32768 (index = bit position, 0..32767)
 ```
 
-Dense alternative: a single `FixedSizeList<Float64, 32768>`. The two-column
-form is chosen because it is easier to diff and to read from Python without
-knowing the fixed size in advance.
+The TF vector is an immutable, content-addressed value: its name is its
+SHA1. Dense alternative: a single `FixedSizeList<Float64, 32768>`. The
+two-column form is chosen because it is easier to diff and to read from
+Python without knowing the fixed size in advance.
 
 ### 4.5 `context_tree`
 
@@ -117,16 +138,23 @@ tree_levels:  (level: UInt32, index: UInt32, hash: Utf8)  sorted by: (level, ind
 `tree_leaves` is the flattened leaf/views relation; the tree itself is
 rebuilt canonically from it (`ContextTree::build`).
 
-### 4.6 global slices (`g1`, `g2`, `g3`)
+### 4.6 global slices — G1, G2, G3 are HLLSets
+
+G1, G2, and G3 are **HLLSets**, and their content-addressable IDs are the
+names `G1`, `G2`, `G3`. In the cache they are stored as their Roaring
+serialized bytes under `h:<sha1>`; the manifest binds the logical names to
+those keys.
+
+For columnar interchange a sparse projection is available:
 
 ```text
 schema: (bit: UInt32)
 sorted by: bit
 ```
 
-Sparse set of active bit positions per channel — the natural projection of
-the Roaring bitmap. A dense `Boolean[32768]` view can be derived when a
-consumer needs bitwise work; the sparse form is the interchange form.
+The sparse form is a view; the HLLSet bytes remain the canonical object. A
+dense `Boolean[32768]` view can be derived when a consumer needs bitwise
+work.
 
 ### 4.7 turns
 
@@ -141,34 +169,39 @@ Long form of the turn records (one row per token occurrence).
 
 ```text
 <cache_dir>/
-├── MANIFEST.arrow        # one batch: schema_version, tip, created_at, batch → sha1
-├── hllset_lut.arrow
-├── tf_table.arrow
-├── lut_g1.arrow
-├── lut_g2.arrow
-├── lut_g3.arrow
-├── tf_vec.arrow
-├── tree_leaves.arrow
-├── tree_levels.arrow
-├── g1.arrow
-├── g2.arrow
-├── g3.arrow
-└── turns.arrow
+├── MANIFEST.arrow        # one batch: schema_version, tip, created_at, name → sha1
+├── objects/
+│   ├── <sha1>.hllset     # Roaring bytes of G1 / G2 / G3, named by their content ID
+│   └── <sha1>.tfvec      # TFVec bytes, named by its content ID
+└── tables/
+    ├── hllset_lut.arrow  # append-only, context-scoped
+    ├── lut_g1.arrow      # append-only
+    ├── lut_g2.arrow      # append-only
+    ├── lut_g3.arrow      # append-only
+    ├── tree_leaves.arrow
+    ├── tree_levels.arrow
+    └── turns.arrow
 ```
+
+`tf_table` is **not spilled**: it is context-local and rebuilt with the
+current context.
 
 Rules:
 
 1. **One IPC file per batch.** Partial updates rewrite only the changed
    batch; no whole-cache rewrite.
-2. **`MANIFEST.arrow` is the atomic commit point** of a cache snapshot: it
-   names the tip and the SHA1 of every batch. A snapshot is valid iff all
-   referenced batches match their SHA1.
-3. **Schema version** is a soldered constant, `ARROW_CACHE_SCHEMA_VERSION = 1`
+2. **Content-addressed objects live under their SHA1** (`objects/`): G1, G2,
+   G3, and `tf_vec` are immutable values; their file name is their identity.
+3. **`MANIFEST.arrow` is the atomic commit point** of a cache snapshot: it
+   binds the logical names (`G1`, `G2`, `G3`, `tf_vec`) to their SHA1s and
+   names the tip + the SHA1 of every table batch. A snapshot is valid iff all
+   referenced objects and batches match their SHA1.
+4. **Schema version** is a soldered constant, `ARROW_CACHE_SCHEMA_VERSION = 1`
    (to live in `hllset-contracts` when the cache crate is implemented).
-4. **Restore order**: read `MANIFEST` → verify batch SHA1s → rebuild the
-   native `StateCache` (the cache is derived data; any corrupt batch can be
+5. **Restore order**: read `MANIFEST` → verify SHA1s → rebuild the native
+   `StateCache` (the cache is derived data; any corrupt batch can be
    recomputed from the `ewm-git` store).
-5. The cache directory may carry a content key (`c:<sha1>` over the
+6. The cache directory may carry a content key (`c:<sha1>` over the
    manifest) so snapshots are addressable like everything else.
 
 ## 6. `StateCache` integration sketch

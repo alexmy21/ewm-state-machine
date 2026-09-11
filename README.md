@@ -80,3 +80,12 @@ ewm-state-machine/
 The Arrow cache layer is designed but not implemented; see
 [`docs/ARROW_CACHE.md`](docs/ARROW_CACHE.md) for the boundary, schemas, and
 the IPC extended-cache layout.
+
+## Notebooks
+
+The notebook is the application: each code cell is a step, and the [UM] runs
+the cells.
+
+| # | Notebook | Description |
+| - | -------- | ----------- |
+| 01 | `ingest_materialize_um` | morphisms step by step — ingest (SHA1 + three pointers + hllsetLUT), materialize (ordered / `no_order`), then the [UM] loop and recovery |
