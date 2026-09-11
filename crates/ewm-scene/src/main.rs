@@ -13,7 +13,7 @@
 
 use std::io::{BufRead, Write};
 
-use ewm_scene::{restore, Frame, FrameSet};
+use ewm_scene::{restore_with, Frame, FrameSet};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -78,11 +78,12 @@ fn run(args: &[String]) -> Result<(), String> {
             })
         }
         "materialize" => {
+            let beam = arg_usize(args, "--beam")?.unwrap_or(2);
             let frames: Vec<serde_json::Value> = fs
                 .frames
                 .iter()
                 .map(|f| {
-                    let r = restore(f);
+                    let r = restore_with(f, beam);
                     serde_json::json!({
                         "id": r.id,
                         "ordered": r.ordered,

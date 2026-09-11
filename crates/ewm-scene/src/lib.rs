@@ -186,18 +186,27 @@ pub struct NoetherOut {
     pub ind3: Vec<f64>,
 }
 
-/// Restore one frame's token collection: greedy order, plain set, beam-2.
+/// Restore one frame's token collection: greedy order, plain set, beam.
 pub fn restore(frame: &Frame) -> Restored {
+    restore_with(frame, 2)
+}
+
+/// Restore with a configurable beam width (the beam path is bounded; the
+/// greedy path carries its own node budget and falls back when exceeded).
+pub fn restore_with(frame: &Frame, beam: usize) -> Restored {
     let ing = ingest(frame.tokens.iter());
     let to_str = |v: Vec<u8>| String::from_utf8_lossy(&v).into_owned();
+    let beam_n = materialize_beam(&ing, beam.max(1))
+        .into_iter()
+        .map(to_str)
+        .collect();
     let ordered = materialize(&ing).into_iter().map(to_str).collect();
     let set: Vec<String> = materialize_no_order(&ing).into_iter().map(to_str).collect();
-    let beam2 = materialize_beam(&ing, 2).into_iter().map(to_str).collect();
     Restored {
         id: frame.id,
         ordered,
         set,
-        beam2,
+        beam2: beam_n,
     }
 }
 

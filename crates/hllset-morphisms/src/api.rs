@@ -46,15 +46,17 @@
 //! The three `(sketch, LUT)` pairs are materialized LUT-first, **keeping
 //! every reference**: a collided bit restores all of its candidate tokens
 //! (probabilistic restoration — no TF filtering). The default result is
-//! **ordered**: the original sequence is reconstructed by following the
-//! 3-gram chain anchored at the start pad (`(PAD, t1, t2)`, then
-//! `(t_{i-1}, t_i, t_{i+1})` until the trailing pad). The chain is a De
-//! Bruijn walk, and TF **scores the transitions** (greedy decoding, like
-//! LLM token generation) — TF ranks paths, never filters candidates. Pass
-//! [`MaterializeOptions::no_order`] for the plain (bytewise-sorted) set
+//! **ordered**: the original sequence is reconstructed by a De Bruijn walk
+//! anchored at the start pad. The walk is **count-constrained** (every token
+//! restores exactly as many times as TF observed it) and checks **joint
+//! 2-/3-/4-gram edges** (the 4-gram side channel makes transitions
+//! essentially collision-free on dense frames). TF **scores the
+//! transitions** — greedy decoding with backtracking, or beam search via
+//! [`MaterializeOptions::beam`]. TF ranks paths, never filters candidates.
+//! Pass [`MaterializeOptions::no_order`] for the plain (bytewise-sorted) set
 //! instead.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ::hllset_lut::LutIndex;
 use hllset_contracts::BitAddress;
@@ -105,6 +107,10 @@ pub struct Ingested {
     pub tokens: usize,
     /// The pad token used at the boundaries.
     pub pad: Vec<u8>,
+    /// The 4-gram order side channel (n-gram only, seed 3). It is not part
+    /// of the shared G1/G2/G3 projection; the ordered materializer uses it
+    /// to make De Bruijn transitions essentially collision-free.
+    pub g4: HLLSet,
     /// The projection HLLSet of the collection: `G1 ∪ G2 ∪ G3`
     /// (`pr-HLLSet(L) = ingest(L)` — the new HLLSet the default ingest
     /// returns the key of).
@@ -137,6 +143,7 @@ impl Ingested {
             tf: TfTable::new(),
             tokens: 0,
             pad: PAD.to_vec(),
+            g4: HLLSet::new(),
             projection: empty,
             key,
             keys: std::array::from_fn(|_| String::new()),
@@ -223,6 +230,14 @@ where
                     .insert_token_at(window[0].to_vec(), addr.bit());
             }
         }
+    }
+
+    // The 4-gram order side channel: set atoms for every 4-gram window (no
+    // LUT insert — it is used only for order restoration).
+    for window in padded.windows(4) {
+        let ngram = join(window);
+        let addr = BitAddress::of_token_seeded(&ngram, 3);
+        out.g4.add_bit(addr.bit());
     }
 
     for token in &real {
@@ -395,12 +410,13 @@ pub fn gate(gx: &HLLSet, h: &HLLSet) -> HLLSet {
 /// the start pad: `(PAD, t1, t2)`, then `(t_{i-1}, t_i, t_{i+1})`, until the
 /// chain reaches the trailing pad.
 ///
-/// Order restoration is **TF-scored decoding** over the De Bruijn graph: the
-/// 1-gram channel is the vocabulary, the 2-/3-gram channels are the edges,
-/// and TF scores the transitions (descending; bytewise tie-break). `beam == 1`
-/// is greedy decoding with backtracking; `beam > 1` keeps the top-k partial
-/// paths by cumulative TF score. This is the same shape as LLM token
-/// generation — greedy and beam now, sampling later.
+/// Order restoration is **count-constrained TF-scored decoding** over the De
+/// Bruijn graph: the 1-gram channel is the vocabulary, the 2-/3-gram
+/// channels are the edges, TF scores the transitions, and the **multiset from
+/// TF** constrains every token to its exact observation count — a token can
+/// never be reused more times than it appeared. `beam == 1` is greedy
+/// decoding with backtracking; `beam > 1` keeps the top-k partial paths by
+/// cumulative TF score. This is the same shape as LLM token generation.
 fn order_tokens(
     tokens: &BTreeSet<Vec<u8>>,
     ingested: &Ingested,
@@ -410,9 +426,16 @@ fn order_tokens(
         return Vec::new();
     }
 
-    // Beam search first when requested; the greedy DFS is the fallback.
+    // The count constraint: every token restores exactly as many times as it
+    // was observed (TF counts observations, not n-grams).
+    let remaining: BTreeMap<Vec<u8>, usize> = tokens
+        .iter()
+        .map(|t| (t.clone(), ingested.tf.count(t) as usize))
+        .filter(|(_, n)| *n > 0)
+        .collect();
+
     if beam > 1 {
-        if let Some(path) = beam_search(tokens, ingested, beam) {
+        if let Some(path) = beam_search(tokens, ingested, beam, &remaining) {
             return path;
         }
     }
@@ -420,9 +443,10 @@ fn order_tokens(
     let pad = ingested.pad.as_slice();
 
     // Anchor: the real token with the start-pad bigram `(PAD, t)` set, most
-    // frequent first.
+    // frequent first, and with remaining count available.
     let mut starts: Vec<&Vec<u8>> = tokens
         .iter()
+        .filter(|t| remaining.get(*t).copied().unwrap_or(0) > 0)
         .filter(|t| sketch_contains(ingested, 1, &join2(pad, t)))
         .collect();
     starts.sort_by(|a, b| {
@@ -433,13 +457,31 @@ fn order_tokens(
             .then(a.cmp(b))
     });
 
+    // Node budget: the DFS is complete in principle but collision edges can
+    // blow up on dense frames; give up and fall back instead of hanging.
+    let mut budget = 20_000usize;
     for start in starts {
-        let mut path = vec![start.clone()];
         if ingested.tokens == 1 {
+            return vec![start.clone()];
+        }
+        let mut path = vec![start.clone()];
+        let mut rem = remaining.clone();
+        if let Some(n) = rem.get_mut(start) {
+            *n -= 1;
+        }
+        if walk(
+            tokens,
+            ingested,
+            pad.to_vec(),
+            start.clone(),
+            &mut path,
+            &mut rem,
+            &mut budget,
+        ) {
             return path;
         }
-        if walk(tokens, ingested, pad.to_vec(), start.clone(), &mut path) {
-            return path;
+        if budget == 0 {
+            break;
         }
     }
 
@@ -447,25 +489,42 @@ fn order_tokens(
     tokens.iter().cloned().collect()
 }
 
+/// One beam-search hypothesis: its path, cumulative TF score, and the
+/// remaining token counts.
+struct BeamState {
+    path: Vec<Vec<u8>>,
+    score: u64,
+    remaining: BTreeMap<Vec<u8>, usize>,
+}
+
 /// Beam search over the De Bruijn graph: keep the top-`width` partial paths
-/// by cumulative TF score, expand them one token at a time, and return the
-/// highest-scoring completed sequence.
+/// by cumulative TF score, expand them one token at a time under the
+/// count constraint, and return the highest-scoring completed sequence.
 fn beam_search(
     tokens: &BTreeSet<Vec<u8>>,
     ingested: &Ingested,
     width: usize,
+    initial_remaining: &BTreeMap<Vec<u8>, usize>,
 ) -> Option<Vec<Vec<u8>>> {
     let pad = ingested.pad.as_slice();
     let n = ingested.tokens as usize;
     let width = width.max(1);
 
     // Initial hypotheses: the start anchors, scored by their own TF.
-    let mut beam: Vec<(Vec<Vec<u8>>, u64)> = tokens
+    let mut beam: Vec<BeamState> = tokens
         .iter()
+        .filter(|t| initial_remaining.get(*t).copied().unwrap_or(0) > 0)
         .filter(|t| sketch_contains(ingested, 1, &join2(pad, t)))
         .map(|t| {
-            let score = ingested.tf.count(t);
-            (vec![t.clone()], score)
+            let mut rem = initial_remaining.clone();
+            if let Some(n) = rem.get_mut(t) {
+                *n -= 1;
+            }
+            BeamState {
+                path: vec![t.clone()],
+                score: ingested.tf.count(t),
+                remaining: rem,
+            }
         })
         .collect();
     if beam.is_empty() {
@@ -474,7 +533,7 @@ fn beam_search(
     sort_beam(&mut beam);
     beam.truncate(width);
 
-    let mut seen: BTreeSet<Vec<Vec<u8>>> = beam.iter().map(|(p, _)| p.clone()).collect();
+    let mut seen: BTreeSet<Vec<Vec<u8>>> = beam.iter().map(|s| s.path.clone()).collect();
     let mut completed: Vec<(Vec<Vec<u8>>, u64)> = Vec::new();
 
     for _ in 0..=n {
@@ -482,34 +541,71 @@ fn beam_search(
             break;
         }
 
-        let mut next: Vec<(Vec<Vec<u8>>, u64)> = Vec::new();
-        for (path, score) in &beam {
-            if path.len() == n {
-                // Complete hypothesis: it must terminate at the trailing pad.
-                let prev = &path[path.len() - 2];
-                let cur = &path[path.len() - 1];
-                if sketch_contains(ingested, 2, &join3(prev, cur, pad)) {
-                    completed.push((path.clone(), *score));
+        let mut next: Vec<BeamState> = Vec::new();
+        for st in &beam {
+            if st.path.len() == n {
+                // Complete hypothesis: all trailing edges must be set.
+                let prev = &st.path[st.path.len() - 2];
+                let cur = &st.path[st.path.len() - 1];
+                let base = sketch_contains(ingested, 1, &join2(cur, pad))
+                    && sketch_contains(ingested, 2, &join3(prev, cur, pad));
+                let ok = if st.path.len() < 2 {
+                    base
+                } else {
+                    let prevprev: Vec<u8> = if st.path.len() == 2 {
+                        ingested.pad.to_vec()
+                    } else {
+                        st.path[st.path.len() - 3].clone()
+                    };
+                    base && sketch4_contains(ingested, &join4(&prevprev, prev, cur, pad))
+                };
+                if ok {
+                    completed.push((st.path.clone(), st.score));
                 }
                 continue;
             }
 
-            let prev: Vec<u8> = if path.len() == 1 {
+            let prev: Vec<u8> = if st.path.len() == 1 {
                 pad.to_vec()
             } else {
-                path[path.len() - 2].clone()
+                st.path[st.path.len() - 2].clone()
             };
-            let cur = path[path.len() - 1].clone();
+            let cur = st.path[st.path.len() - 1].clone();
 
             for c in tokens {
-                if sketch_contains(ingested, 2, &join3(&prev, &cur, c)) {
-                    let mut new_path = path.clone();
-                    new_path.push(c.clone());
-                    if seen.insert(new_path.clone()) {
-                        let new_score = *score + ingested.tf.count(c);
-                        next.push((new_path, new_score));
-                    }
+                if st.remaining.get(c).copied().unwrap_or(0) == 0 {
+                    continue;
                 }
+                let base = sketch_contains(ingested, 1, &join2(&cur, c))
+                    && sketch_contains(ingested, 2, &join3(&prev, &cur, c));
+                let ok = if st.path.len() < 2 {
+                    base
+                } else {
+                    let prevprev: Vec<u8> = if st.path.len() == 2 {
+                        ingested.pad.to_vec()
+                    } else {
+                        st.path[st.path.len() - 3].clone()
+                    };
+                    base && sketch4_contains(ingested, &join4(&prevprev, &prev, &cur, c))
+                };
+                if !ok {
+                    continue;
+                }
+                let mut new_path = st.path.clone();
+                new_path.push(c.clone());
+                if !seen.insert(new_path.clone()) {
+                    continue;
+                }
+                let mut new_rem = st.remaining.clone();
+                if let Some(n) = new_rem.get_mut(c) {
+                    *n -= 1;
+                }
+                let new_score = st.score + ingested.tf.count(c);
+                next.push(BeamState {
+                    path: new_path,
+                    score: new_score,
+                    remaining: new_rem,
+                });
             }
         }
 
@@ -527,41 +623,71 @@ fn beam_search(
 }
 
 /// Sort a beam by score (descending), then lexicographically for ties.
-fn sort_beam(beam: &mut [(Vec<Vec<u8>>, u64)]) {
-    beam.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+fn sort_beam(beam: &mut [BeamState]) {
+    beam.sort_by(|a, b| b.score.cmp(&a.score).then(a.path.cmp(&b.path)));
 }
 
-/// Depth-first walk along the 3-gram chain. `prev` and `cur` are the last
-/// two restored tokens; `path` holds the real tokens restored so far (the
-/// pads are never pushed).
+/// Depth-first walk along the 3-gram chain under the count constraint.
+/// `prev` and `cur` are the last two restored tokens; `path` holds the real
+/// tokens restored so far (the pads are never pushed); `remaining` holds the
+/// still-unrestored observation counts.
 fn walk(
     tokens: &BTreeSet<Vec<u8>>,
     ingested: &Ingested,
     prev: Vec<u8>,
     cur: Vec<u8>,
     path: &mut Vec<Vec<u8>>,
+    remaining: &mut BTreeMap<Vec<u8>, usize>,
+    budget: &mut usize,
 ) -> bool {
     let pad = ingested.pad.as_slice();
 
-    if path.len() > ingested.tokens {
+    if *budget == 0 {
         return false;
     }
+    *budget -= 1;
+
     if path.len() == ingested.tokens {
-        // The chain must terminate at the trailing pad: the final real
-        // 3-gram is `(prev, cur, PAD)`.
-        return sketch_contains(ingested, 2, &join3(&prev, &cur, pad));
+        // Complete: the chain must terminate at the trailing pad — the
+        // 2-gram (cur, PAD), the 3-gram (prev, cur, PAD), and (when the
+        // path is long enough) the 4-gram (prevprev, prev, cur, PAD).
+        let base = sketch_contains(ingested, 1, &join2(&cur, pad))
+            && sketch_contains(ingested, 2, &join3(&prev, &cur, pad));
+        return if path.len() < 2 {
+            base
+        } else {
+            let prevprev: Vec<u8> = if path.len() == 2 {
+                ingested.pad.to_vec()
+            } else {
+                path[path.len() - 3].clone()
+            };
+            base && sketch4_contains(ingested, &join4(&prevprev, &prev, &cur, pad))
+        };
     }
 
-    // TF-ranked greedy decoding: successors by TF (descending), bytewise
-    // tie-break. The trailing pad has TF 0, so it naturally goes last.
+    // TF-ranked greedy decoding: successors with remaining count and BOTH
+    // edges set — the 2-gram (cur, c) and the 3-gram (prev, cur, c). The
+    // joint check multiplies the collision filters, so false successors
+    // essentially vanish on dense frames.
     let mut nexts: Vec<Vec<u8>> = tokens
         .iter()
-        .filter(|c| sketch_contains(ingested, 2, &join3(&prev, &cur, c)))
+        .filter(|c| remaining.get(*c).copied().unwrap_or(0) > 0)
+        .filter(|c| {
+            let base = sketch_contains(ingested, 1, &join2(&cur, c))
+                && sketch_contains(ingested, 2, &join3(&prev, &cur, c));
+            if path.len() < 2 {
+                base
+            } else {
+                let prevprev: Vec<u8> = if path.len() == 2 {
+                    ingested.pad.to_vec()
+                } else {
+                    path[path.len() - 3].clone()
+                };
+                base && sketch4_contains(ingested, &join4(&prevprev, &prev, &cur, c))
+            }
+        })
         .cloned()
         .collect();
-    if sketch_contains(ingested, 2, &join3(&prev, &cur, pad)) {
-        nexts.push(pad.to_vec());
-    }
     nexts.sort_by(|a, b| {
         ingested
             .tf
@@ -571,19 +697,25 @@ fn walk(
     });
 
     for next in nexts {
-        if next.as_slice() == pad {
-            // The chain ends here. It is only the true end when the exact
-            // number of real tokens has been restored.
-            if path.len() == ingested.tokens {
-                return true;
-            }
-            continue;
+        if let Some(n) = remaining.get_mut(&next) {
+            *n -= 1;
         }
         path.push(next.clone());
-        if walk(tokens, ingested, cur.clone(), next, path) {
+        if walk(
+            tokens,
+            ingested,
+            cur.clone(),
+            next.clone(),
+            path,
+            remaining,
+            budget,
+        ) {
             return true;
         }
         path.pop();
+        if let Some(n) = remaining.get_mut(&next) {
+            *n += 1;
+        }
     }
     false
 }
@@ -593,6 +725,13 @@ fn walk(
 fn sketch_contains(ingested: &Ingested, channel: usize, bytes: &[u8]) -> bool {
     let addr = BitAddress::of_token_seeded(bytes, CHANNEL_SEEDS[channel]);
     ingested.sketches[channel].has_bit(addr.reg(), addr.tz())
+}
+
+/// `true` when the 4-gram order side channel contains the atom of `bytes`
+/// (hashed with seed 3).
+fn sketch4_contains(ingested: &Ingested, bytes: &[u8]) -> bool {
+    let addr = BitAddress::of_token_seeded(bytes, 3);
+    ingested.g4.has_bit(addr.reg(), addr.tz())
 }
 
 /// Join tokens with the soldered NUL separator (single tokens pass through
@@ -618,6 +757,10 @@ fn join2(a: &[u8], b: &[u8]) -> Vec<u8> {
 
 fn join3(a: &[u8], b: &[u8], c: &[u8]) -> Vec<u8> {
     join(&[a, b, c])
+}
+
+fn join4(a: &[u8], b: &[u8], c: &[u8], d: &[u8]) -> Vec<u8> {
+    join(&[a, b, c, d])
 }
 
 #[cfg(test)]
@@ -894,6 +1037,35 @@ mod tests {
             ing.sketches[2].add_bit(addr.bit());
         }
 
+        // 4-gram order channel: the joint-check collisions filter.
+        let fours: Vec<Vec<u8>> = vec![
+            join4(&pad, &x, &y, &a),
+            join4(&x, &y, &a, &b),
+            join4(&y, &a, &b, &pad),
+            join4(&pad, &x, &y, &b),
+            join4(&x, &y, &b, &a),
+            join4(&y, &b, &a, &pad),
+        ];
+        for gram in &fours {
+            let addr = BitAddress::of_token_seeded(gram, 3);
+            ing.g4.add_bit(addr.bit());
+        }
+
+        // 2-gram channel: both chains' transitions and terminations.
+        let bigrams: Vec<Vec<u8>> = vec![
+            join2(&x, &y),
+            join2(&y, &a),
+            join2(&a, &b),
+            join2(&b, &pad),
+            join2(&y, &b),
+            join2(&b, &a),
+            join2(&a, &pad),
+        ];
+        for gram in &bigrams {
+            let addr = BitAddress::of_token_seeded(gram, CHANNEL_SEEDS[1]);
+            ing.sketches[1].add_bit(addr.bit());
+        }
+
         // TF scores the transitions: b >> a at the branch point.
         for t in &vocab {
             ing.tf.increment(t);
@@ -950,6 +1122,35 @@ mod tests {
             ing.sketches[2].add_bit(addr.bit());
         }
 
+        // 4-gram order channel: the joint-check collisions filter.
+        let fours: Vec<Vec<u8>> = vec![
+            join4(&pad, &x, &y, &a),
+            join4(&x, &y, &a, &b),
+            join4(&y, &a, &b, &pad),
+            join4(&pad, &x, &y, &c),
+            join4(&x, &y, &c, &d),
+            join4(&y, &c, &d, &pad),
+        ];
+        for gram in &fours {
+            let addr = BitAddress::of_token_seeded(gram, 3);
+            ing.g4.add_bit(addr.bit());
+        }
+
+        // 2-gram channel: both chains' transitions and terminations.
+        let bigrams: Vec<Vec<u8>> = vec![
+            join2(&x, &y),
+            join2(&y, &a),
+            join2(&a, &b),
+            join2(&b, &pad),
+            join2(&y, &c),
+            join2(&c, &d),
+            join2(&d, &pad),
+        ];
+        for gram in &bigrams {
+            let addr = BitAddress::of_token_seeded(gram, CHANNEL_SEEDS[1]);
+            ing.sketches[1].add_bit(addr.bit());
+        }
+
         // TF: the greedy branch has the higher first step (a=5) but the
         // lower total; the beam branch has the higher total (c=2, d=9).
         ing.tf.increment(&x);
@@ -974,5 +1175,104 @@ mod tests {
             vec![x, y, c, d],
             "beam picks the highest-scoring completed path"
         );
+    }
+
+    #[test]
+    fn count_constraint_prevents_token_overuse() {
+        // Vocabulary {a,b,c}, N=3, each observed once. The 3-gram channel
+        // additionally carries trap edges (a,b,a) and (b,a,PAD): without the
+        // count constraint the bytewise-first walk would return [a,b,a] —
+        // reusing `a` twice and never restoring `c`. The constraint forces
+        // the true [a,b,c].
+        let a = b"a".to_vec();
+        let b = b"b".to_vec();
+        let c = b"c".to_vec();
+        let vocab = [&a, &b, &c];
+
+        let mut ing = Ingested::new();
+        ing.tokens = 3;
+
+        for t in &vocab {
+            let addr = BitAddress::of_token_seeded(t, CHANNEL_SEEDS[0]);
+            ing.sketches[0].add_bit(addr.bit());
+            ing.luts[0].insert_token_at((*t).clone(), addr.bit());
+            ing.tf.increment(t);
+        }
+        let start_bigram =
+            BitAddress::of_token_seeded(&join2(ing.pad.as_slice(), &a), CHANNEL_SEEDS[1]);
+        ing.sketches[1].add_bit(start_bigram.bit());
+
+        let pad = ing.pad.clone();
+        // 2-gram channel: true transitions, trap transition, both terminations.
+        let bigrams: Vec<Vec<u8>> = vec![
+            join2(&a, &b),
+            join2(&b, &c),
+            join2(&c, &pad),
+            join2(&b, &a),
+            join2(&a, &pad),
+        ];
+        for gram in &bigrams {
+            let addr = BitAddress::of_token_seeded(gram, CHANNEL_SEEDS[1]);
+            ing.sketches[1].add_bit(addr.bit());
+        }
+
+        let grams: Vec<Vec<u8>> = vec![
+            join3(&pad, &a, &b), // true start
+            join3(&a, &b, &c),   // true chain
+            join3(&b, &c, &pad), // true end
+            join3(&a, &b, &a),   // trap: loops back to a
+            join3(&b, &a, &pad), // trap termination for [a,b,a]
+        ];
+        for gram in &grams {
+            let addr = BitAddress::of_token_seeded(gram, CHANNEL_SEEDS[2]);
+            ing.sketches[2].add_bit(addr.bit());
+        }
+
+        // 4-gram order channel: true transitions, trap transition, and both
+        // terminations.
+        let fours: Vec<Vec<u8>> = vec![
+            join4(&pad, &a, &b, &c),
+            join4(&a, &b, &c, &pad),
+            join4(&pad, &a, &b, &a),
+            join4(&a, &b, &a, &pad),
+        ];
+        for gram in &fours {
+            let addr = BitAddress::of_token_seeded(gram, 3);
+            ing.g4.add_bit(addr.bit());
+        }
+
+        assert_eq!(
+            materialize(&ing),
+            vec![a.clone(), b.clone(), c.clone()],
+            "count constraint defeats the overuse trap"
+        );
+        assert_eq!(
+            materialize_beam(&ing, 2),
+            vec![a, b, c],
+            "beam agrees under the constraint"
+        );
+    }
+
+    #[test]
+    fn exact_order_restoration_of_a_long_duplicated_collection() {
+        // Deterministic pseudo-frame: 200 tokens over 60 distinct tids, with
+        // repeats. The count-constrained De Bruijn walk must restore the
+        // exact sequence — this is the image-application objective.
+        let collection: Vec<String> = (0..200)
+            .map(|i| format!("tid{}", (i * 37 + i / 7) % 60))
+            .collect();
+        let ing = ingest(collection.iter().map(|t| t.as_str()));
+
+        let restored: Vec<String> = materialize(&ing)
+            .into_iter()
+            .map(|t| String::from_utf8_lossy(&t).into_owned())
+            .collect();
+        assert_eq!(restored, collection, "greedy restores the exact order");
+
+        let restored_beam: Vec<String> = materialize_beam(&ing, 3)
+            .into_iter()
+            .map(|t| String::from_utf8_lossy(&t).into_owned())
+            .collect();
+        assert_eq!(restored_beam, collection, "beam-3 agrees");
     }
 }
