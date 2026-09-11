@@ -48,7 +48,9 @@
 //! (probabilistic restoration — no TF filtering). The default result is
 //! **ordered**: the original sequence is reconstructed by following the
 //! 3-gram chain anchored at the start pad (`(PAD, t1, t2)`, then
-//! `(t_{i-1}, t_i, t_{i+1})` until the trailing pad). Pass
+//! `(t_{i-1}, t_i, t_{i+1})` until the trailing pad). The chain is a De
+//! Bruijn walk, and TF **scores the transitions** (greedy decoding, like
+//! LLM token generation) — TF ranks paths, never filters candidates. Pass
 //! [`MaterializeOptions::no_order`] for the plain (bytewise-sorted) set
 //! instead.
 
@@ -357,6 +359,12 @@ pub fn gate(gx: &HLLSet, h: &HLLSet) -> HLLSet {
 /// Reconstruct the original order by following the 3-gram chain anchored at
 /// the start pad: `(PAD, t1, t2)`, then `(t_{i-1}, t_i, t_{i+1})`, until the
 /// chain reaches the trailing pad.
+///
+/// Order restoration is **TF-ranked greedy decoding** over the De Bruijn
+/// graph: the 1-gram channel is the vocabulary, the 2-/3-gram channels are
+/// the edges, and TF scores the transitions (descending; bytewise tie-break).
+/// This is the same shape as LLM token generation — greedy now, beam/sampling
+/// later.
 fn order_tokens(tokens: &BTreeSet<Vec<u8>>, ingested: &Ingested) -> Vec<Vec<u8>> {
     if tokens.is_empty() || ingested.tokens == 0 {
         return Vec::new();
@@ -364,11 +372,19 @@ fn order_tokens(tokens: &BTreeSet<Vec<u8>>, ingested: &Ingested) -> Vec<Vec<u8>>
 
     let pad = ingested.pad.as_slice();
 
-    // Anchor: the real token with the start-pad bigram `(PAD, t)` set.
-    let starts: Vec<&Vec<u8>> = tokens
+    // Anchor: the real token with the start-pad bigram `(PAD, t)` set, most
+    // frequent first.
+    let mut starts: Vec<&Vec<u8>> = tokens
         .iter()
         .filter(|t| sketch_contains(ingested, 1, &join2(pad, t)))
         .collect();
+    starts.sort_by(|a, b| {
+        ingested
+            .tf
+            .count(b)
+            .cmp(&ingested.tf.count(a))
+            .then(a.cmp(b))
+    });
 
     for start in starts {
         let mut path = vec![start.clone()];
@@ -405,8 +421,8 @@ fn walk(
         return sketch_contains(ingested, 2, &join3(&prev, &cur, pad));
     }
 
-    // Real-token successors first (deterministic bytewise order), then the
-    // trailing pad.
+    // TF-ranked greedy decoding: successors by TF (descending), bytewise
+    // tie-break. The trailing pad has TF 0, so it naturally goes last.
     let mut nexts: Vec<Vec<u8>> = tokens
         .iter()
         .filter(|c| sketch_contains(ingested, 2, &join3(&prev, &cur, c)))
@@ -415,6 +431,13 @@ fn walk(
     if sketch_contains(ingested, 2, &join3(&prev, &cur, pad)) {
         nexts.push(pad.to_vec());
     }
+    nexts.sort_by(|a, b| {
+        ingested
+            .tf
+            .count(b)
+            .cmp(&ingested.tf.count(a))
+            .then(a.cmp(b))
+    });
 
     for next in nexts {
         if next.as_slice() == pad {
@@ -694,5 +717,60 @@ mod tests {
             ns.hllset(1).content_key(),
             "gate(G2, H_ns)"
         );
+    }
+
+    #[test]
+    fn tf_ranks_de_bruijn_successors_in_order_restoration() {
+        // Two valid chains of the same length share the start (x, y) and
+        // branch on the next 3-gram: (x,y,a) vs (x,y,b). Bytewise order
+        // would pick `a` first; TF ranking picks the observed `b`.
+        let x = b"x".to_vec();
+        let y = b"y".to_vec();
+        let a = b"a".to_vec();
+        let b = b"b".to_vec();
+        let vocab = [&x, &y, &a, &b];
+
+        let mut ing = Ingested::new();
+        ing.tokens = 4;
+
+        // 1-gram channel: the vocabulary, with LUT fibers pointing at it.
+        for t in &vocab {
+            let addr = BitAddress::of_token_seeded(t, CHANNEL_SEEDS[0]);
+            ing.sketches[0].add_bit(addr.bit());
+            ing.luts[0].insert_token_at((*t).clone(), addr.bit());
+        }
+
+        // 2-gram channel: the start anchor (PAD, x).
+        let start_bigram =
+            BitAddress::of_token_seeded(&join2(ing.pad.as_slice(), &x), CHANNEL_SEEDS[1]);
+        ing.sketches[1].add_bit(start_bigram.bit());
+
+        // 3-gram channel: both full chains.
+        // Chain A (bytewise-first): x y a b
+        // Chain B (observed):       x y b a
+        let pad = ing.pad.clone();
+        let grams: Vec<Vec<u8>> = vec![
+            join3(&pad, &x, &y),
+            join3(&x, &y, &a),
+            join3(&y, &a, &b),
+            join3(&a, &b, &pad),
+            join3(&x, &y, &b),
+            join3(&y, &b, &a),
+            join3(&b, &a, &pad),
+        ];
+        for gram in &grams {
+            let addr = BitAddress::of_token_seeded(gram, CHANNEL_SEEDS[2]);
+            ing.sketches[2].add_bit(addr.bit());
+        }
+
+        // TF scores the transitions: b >> a at the branch point.
+        for t in &vocab {
+            ing.tf.increment(t);
+        }
+        ing.tf.increment(&b);
+        ing.tf.increment(&b);
+
+        // Greedy TF-ranked De Bruijn decode restores the observed chain.
+        assert_eq!(materialize(&ing), vec![x, y, b, a], "TF picks the observed branch");
     }
 }

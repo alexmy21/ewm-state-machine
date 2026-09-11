@@ -130,10 +130,12 @@ sorted by: token
 ```
 
 Built for the **current context** (the working set of the active turns), not
-a global table. It holds the token-level TF for **ranking only** —
-materialization never uses TF to filter candidates (collided bits keep
-every reference, probabilistic restoration). It may be rebuilt from the
-LUTs and does not need to survive context switches.
+a global table. It holds the token-level TF for **ranking and order
+restoration**: the set path never uses TF to filter candidates (collided
+bits keep every reference — probabilistic restoration), but the De Bruijn
+order walk uses TF to **score transitions** (greedy decoding, like LLM
+token generation). It may be rebuilt from the LUTs and does not need to
+survive context switches.
 
 ### 4.3 token LUTs (`ng:G1` … `ng:G3`, `ns:G1` … `ns:G3`) — append-only
 
