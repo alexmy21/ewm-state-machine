@@ -40,7 +40,8 @@ cargo run -p ewm-sm-explore -- snapshot /tmp/demo/snapshot.json
 - `context bits` — the G1 lattice top popcount;
 - `lattice tops` — G1/G2/G3 popcounts (the union of all committed states);
 - `hllsetLUT (repo registry)` — the repo's `<SHA1, TH>` touch registry;
-- `commits (tip-first)` — per commit: id, parents, message, **G1/G2/G3 keys**
+- `commits (tip-first)` — per commit: id, parents, message, **G1 bits** (the
+  monotone gate — candidates available at that commit), **G1/G2/G3 keys**
   (`Repository::state_keys` — the named Gx versions), and the G1 D/R/N view.
 
 ### 3.2 `snapshot` — the S(t) run-time area

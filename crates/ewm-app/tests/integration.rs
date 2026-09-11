@@ -131,6 +131,34 @@ fn recovery_reads_tip_and_resumes_without_replay() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+// ── 2b. Gn are monotonic — history is implicit ──────────────────────────────
+
+#[test]
+fn gn_channels_are_monotonic_across_commits() {
+    // Encoding: tid{n}.
+    let mut app = StateMachine::new(MemoryStore::default());
+    let mut cache = StateCache::empty();
+
+    let out1 = app.run_turn(&mut cache, &[10u32, 20, 30]).expect("turn 1");
+    let c1 = out1.commit.expect("commit 1");
+    let out2 = app.run_turn(&mut cache, &[20u32, 30, 40]).expect("turn 2");
+    let c2 = out2.commit.expect("commit 2");
+
+    // Gn(t) = Gn(S(t)) ∪ Gn(t-1): the channel only grows.
+    let g1_t_minus_1 = app.repo().state(&c1).expect("G1(t-1)");
+    let g1_t = app.repo().state(&c2).expect("G1(t)");
+    assert_eq!(
+        g1_t_minus_1.difference(&g1_t).popcount(),
+        0,
+        "G1(t-1) ⊆ G1(t) — the channel is monotonic"
+    );
+    assert!(g1_t.popcount() > g1_t_minus_1.popcount(), "new bits joined");
+
+    // G1(t-k): the 1-gram (seed-0) candidates available k commits back.
+    assert_eq!(g1_t_minus_1.popcount(), 3, "three candidates one commit back");
+    assert_eq!(g1_t.popcount(), 4, "four candidates now");
+}
+
 // ── 3. The [UM] never blocks on the token source ────────────────────────────
 
 #[test]

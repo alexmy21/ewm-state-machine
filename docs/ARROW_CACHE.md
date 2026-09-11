@@ -189,6 +189,18 @@ addressable. Because the token LUTs are append-only, the pair
 `(Gx version of commit t, current token LUTs)` restores the tokenLUT state
 at any past commit point: materialize that commit's Gx over the LUTs.
 
+**Gn are monotonic — history is implicit.** By definition:
+
+```text
+Gn(t) = Gn(S(t)) ∪ Gn(t-1)
+```
+
+`Gn(S(t))` is the n-gram (or n-seed) bits extracted from the tokens ingested
+in the current session S(t); the channel only grows. Therefore `G1(t-k)`
+represents the 1-gram (seed-0) token candidates available in the system k
+commits back — the channel carries its own history, and the per-commit Gx
+keys address each point of it.
+
 For columnar interchange a sparse projection is available:
 
 ```text

@@ -65,12 +65,16 @@ pub fn render_store<S: ObjectStore>(repo: &Repository<S>, store_label: &str) -> 
                 let v = view(repo, cid)
                     .map(|v| format!("D={} R={} N={}", v.departed.popcount(), v.retained.popcount(), v.new.popcount()))
                     .unwrap_or_else(|_| "unreadable".to_string());
+                let g1_bits = repo
+                    .state(cid)
+                    .map(|hll| hll.popcount().to_string())
+                    .unwrap_or_else(|_| "?".to_string());
                 let commit = repo
                     .read_commit(cid)
                     .map(|c| {
                         let parents: Vec<String> = c.parents.iter().map(|p| short(&p.to_string(), 8)).collect();
                         format!(
-                            "  #{n} {}  parents=[{}]\n      message: {}\n      G1={} G2={} G3={}\n      G1 view: {v}",
+                            "  #{n} {}  parents=[{}]\n      message: {}\n      G1 bits = {g1_bits}  (monotone gate; candidates available here)\n      G1={} G2={} G3={}\n      G1 view: {v}",
                             short(&cid.to_string(), 8),
                             parents.join(", "),
                             truncate(&c.message, 60),
