@@ -39,8 +39,9 @@ pub mod tf;
 
 pub use api::{
     ingest, ingest_key, ingest_with_pad, materialize, materialize_no_order, materialize_with,
-    unordered_tokens, Ingested, MaterializeOptions, Order, CHANNELS, CHANNEL_SEEDS, PAD,
+    unordered_tokens, Ingested, MaterializeOptions, Order, CHANNELS, CHANNEL_NAMES, CHANNEL_SEEDS,
+    PAD,
 };
-pub use hllset_lut::HllsetLut;
+pub use hllset_lut::{HllsetLut, UNNAMED};
 pub use ingest::{Ingest, N_SEEDS, SEEDS};
 pub use tf::TfTable;

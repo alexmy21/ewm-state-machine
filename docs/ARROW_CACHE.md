@@ -75,16 +75,19 @@ Cache objects fall into three classes:
 | **append-only** | `lut_g1/g2/g3`, `hllset_lut` | grow monotonically; entries are immutable (hash-determined) |
 | **context-local** | `tf_table` | built for the current context only; ephemeral |
 
-### 4.1 `hllset_lut` — append-only, context-scoped
+### 4.1 `hllset_lut` — named HLLSets, append-only, context-scoped
 
 ```text
-schema: (key: Utf8, th: UInt64)
-sorted by: key
+schema: (name: Utf8, key: Utf8, th: UInt64)
+sorted by: (name, key)
 ```
 
-Append-only and held **in memory**; it contains only the HLLSets relevant to
-the current context (not a global registry). Registration is idempotent, TH
-is monotonic.
+Named HLLSets are registered **under their name**: G1, G2, G3 are the names
+of the channel HLLSets created by ingest. A named HLLSet is immutable —
+updating any Gx creates a **new** Gx HLLSet (new SHA1); the old entry stays
+registered and addressable. Append-only and held **in memory**; contains
+only the HLLSets relevant to the current context (not a global registry).
+Registration is idempotent, TH is monotonic.
 
 ### 4.2 `tf_table` — current context only
 
@@ -144,6 +147,13 @@ G1, G2, and G3 are **HLLSets**, and their content-addressable IDs are the
 names `G1`, `G2`, `G3`. In the cache they are stored as their Roaring
 serialized bytes under `h:<sha1>`; the manifest binds the logical names to
 those keys.
+
+**Gx versioning per commit.** Each commit records the G1/G2/G3 SHA1s it
+committed (`ewm-git::Repository::state_keys`, `CommitView::state_key`).
+Updating any Gx creates a new immutable Gx HLLSet — the old version remains
+addressable. Because the token LUTs are append-only, the pair
+`(Gx version of commit t, current token LUTs)` restores the tokenLUT state
+at any past commit point: materialize that commit's Gx over the LUTs.
 
 For columnar interchange a sparse projection is available:
 

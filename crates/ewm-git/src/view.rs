@@ -35,6 +35,8 @@ pub struct CommitView {
     pub channel: Gx,
     /// `S(t)` — the channel state at this commit.
     pub state: HLLSet,
+    /// The content key of `state` — the Gx version recorded by this commit.
+    pub state_key: String,
     /// `H(t-1)` — the join of the parents' same-channel states (empty for root).
     pub parent_state: HLLSet,
     /// `D` — departed bits.
@@ -55,6 +57,7 @@ pub fn view_channel<S: ObjectStore>(
 ) -> Result<CommitView> {
     let commit = repo.read_commit(commit_id)?;
     let state = repo.state_channel(commit_id, gx)?;
+    let state_key = state.content_key();
 
     let mut parent_state = HLLSet::new();
     for parent in &commit.parents {
@@ -69,6 +72,7 @@ pub fn view_channel<S: ObjectStore>(
         commit: commit_id.clone(),
         channel: gx,
         state,
+        state_key,
         parent_state,
         departed,
         retained,

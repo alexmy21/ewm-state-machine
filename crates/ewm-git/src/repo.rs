@@ -295,6 +295,18 @@ impl<S: ObjectStore> Repository<S> {
         Ok(out.try_into().expect("three channels"))
     }
 
+    /// The G1/G2/G3 content keys of a commit — the **named HLLSet versions**
+    /// recorded by that commit.
+    ///
+    /// Gx are immutable: each update creates a new Gx HLLSet (new SHA1), and
+    /// the commit stores exactly the version it committed. Together with the
+    /// append-only token LUTs, these keys allow the tokenLUT state at any
+    /// past commit to be restored by materializing that commit's Gx.
+    pub fn state_keys(&self, commit_id: &ObjectId) -> Result<[String; 3]> {
+        let states = self.states(commit_id)?;
+        Ok(states.map(|hll| hll.content_key()))
+    }
+
     /// The `G1` state (default channel, single-seed convenience).
     pub fn state(&self, commit_id: &ObjectId) -> Result<HLLSet> {
         self.state_channel(commit_id, Gx::G1)
@@ -551,6 +563,7 @@ mod tests {
     use super::*;
     use crate::hllset_lut::BitTf;
     use crate::store::{MemoryStore, ObjectStore};
+    use crate::view;
 
     fn hll(tokens: &[&str]) -> HLLSet {
         HLLSet::from_tokens(tokens.iter())
@@ -582,6 +595,30 @@ mod tests {
         assert_eq!(repo.state_channel(&c, Gx::G1).unwrap().popcount(), state.g1.popcount());
         assert_eq!(repo.state_channel(&c, Gx::G2).unwrap().popcount(), state.g2.popcount());
         assert_eq!(repo.state_channel(&c, Gx::G3).unwrap().popcount(), state.g3.popcount());
+    }
+
+    #[test]
+    fn state_keys_are_the_named_gx_versions_per_commit() {
+        let mut repo = Repository::new(MemoryStore::default());
+        let a = repo
+            .commit(&LatticeState::single(&hll(&["a", "b"])), &[], "early")
+            .unwrap();
+        let b = repo
+            .commit(&LatticeState::single(&hll(&["b", "c"])), &[a.clone()], "later")
+            .unwrap();
+
+        let keys_a = repo.state_keys(&a).unwrap();
+        let keys_b = repo.state_keys(&b).unwrap();
+        assert_eq!(keys_a[0], repo.state(&a).unwrap().content_key());
+        assert_eq!(keys_b[0], repo.state(&b).unwrap().content_key());
+        assert_ne!(
+            keys_a[0], keys_b[0],
+            "updating G1 creates a new immutable G1 HLLSet (new SHA1)"
+        );
+
+        // The CommitView carries the same Gx version.
+        let view = view(&repo, &b).unwrap();
+        assert_eq!(view.state_key, keys_b[0]);
     }
 
     #[test]

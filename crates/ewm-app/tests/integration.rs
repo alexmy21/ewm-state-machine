@@ -273,10 +273,14 @@ fn direct_ingest_materialize_roundtrips_in_order() {
     assert_eq!(ing.key, ing.projection.content_key());
 
     // Preservation side effect: all three channel HLLSets are registered in
-    // the hllsetLUT with one touch each.
+    // the hllsetLUT under their names (G1/G2/G3) with one touch each.
     assert_eq!(ing.hllset_lut.len(), 3);
-    for key in &ing.keys {
-        assert_eq!(ing.hllset_lut.th(key), 1, "one touch per created HLLSet");
+    for (ch, key) in ing.keys.iter().enumerate() {
+        assert_eq!(
+            ing.hllset_lut.th_named(ewm_app::CHANNEL_NAMES[ch], key),
+            1,
+            "one touch per created named HLLSet"
+        );
     }
 }
 

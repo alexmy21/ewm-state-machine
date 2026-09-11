@@ -67,6 +67,11 @@ pub const CHANNELS: usize = 3;
 /// soldered n-seed seed set: one seed per encoding channel).
 pub const CHANNEL_SEEDS: [u64; CHANNELS] = [0, 1, 2];
 
+/// The names of the channel HLLSets — named HLLSets on the hllsetLUT.
+/// G1/G2/G3 are immutable: each ingest creates a new Gx HLLSet (new SHA1);
+/// old versions stay registered and remain addressable.
+pub const CHANNEL_NAMES: [&str; CHANNELS] = ["G1", "G2", "G3"];
+
 /// The result of default ingestion: three sketches, three LUTs, TF, and the
 /// preservation side effects.
 ///
@@ -211,11 +216,15 @@ where
     out.key = out.projection.content_key();
 
     // Preservation side effects: every created channel HLLSet is registered
-    // and touch-counted in the hllsetLUT, keyed by its SHA1.
+    // and touch-counted in the hllsetLUT under its **name** (G1/G2/G3), keyed
+    // by its SHA1. Named HLLSets are immutable: the next ingest creates new
+    // Gx HLLSets (new keys); the old ones stay registered.
     for (ch, sketch) in out.sketches.iter().enumerate() {
         out.keys[ch] = sketch.content_key();
-        out.hllset_lut.register(&out.keys[ch]);
-        out.hllset_lut.touch(&out.keys[ch]);
+        out.hllset_lut
+            .register_named(CHANNEL_NAMES[ch], &out.keys[ch]);
+        out.hllset_lut
+            .touch_named(CHANNEL_NAMES[ch], &out.keys[ch]);
     }
 
     out
@@ -567,11 +576,20 @@ mod tests {
         }
 
         // Preservation side effect: all three new HLLSets are in the hllsetLUT
-        // with TH = 1 (register + touch).
+        // under their names (G1/G2/G3) with TH = 1 (register + touch).
         assert_eq!(ing.hllset_lut.len(), 3);
-        for key in &ing.keys {
-            assert_eq!(ing.hllset_lut.th(key), 1, "one touch per created HLLSet");
+        for (ch, key) in ing.keys.iter().enumerate() {
+            assert_eq!(
+                ing.hllset_lut.th_named(CHANNEL_NAMES[ch], key),
+                1,
+                "one touch per created named HLLSet"
+            );
         }
+        assert_eq!(
+            ing.hllset_lut.ranked().len(),
+            3,
+            "ranked() reports (name, key, th) entries"
+        );
     }
 
     #[test]
