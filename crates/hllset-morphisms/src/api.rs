@@ -327,24 +327,24 @@ pub fn unordered_tokens(ingested: &Ingested) -> BTreeSet<Vec<u8>> {
     materialize_lut_first(&pairs, &ingested.tf)
 }
 
-/// The Gn gate: `Gx ∩ H` — extract the Gx channel component of any HLLSet H.
+/// The Gn gate: `Gx ∩ H` — extract the Gx channel bits of any HLLSet H.
 ///
 /// Gn channels are shared gate masks, one per channel:
 ///
 /// ```text
-/// G1 = G1_ng ∪ G1_ns      (1-gram atoms and seed-0 atoms)
-/// G2 = G2_ng ∪ G2_ns      (2-gram atoms and seed-1 atoms)
-/// G3 = G3_ng ∪ G3_ns      (3-gram atoms and seed-2 atoms)
+/// G1 = G1_ng ∪ G1_ns      G2 = G2_ng ∪ G2_ns      G3 = G3_ng ∪ G3_ns
 /// ```
 ///
-/// Intersecting a Gn channel with an HLLSet H extracts H's atoms for that
-/// channel — and the bootstrap scheme of H decides what those atoms mean:
+/// **Bits are anonymous.** A bit does not remember which token — or which
+/// bootstrap scheme — set it. The same bit may have been set by a 1-gram,
+/// a seed-0 hash, or PAD; a collision is fine, and resolving it is the
+/// **materializer's** problem (bootstrapping + disambiguation), not the
+/// gate's.
 ///
-/// - H built from n-grams → `G1 ∩ H` returns its **1-gram** atoms;
-/// - H built from n-seeds → `G1 ∩ H` returns its **seed-0** atoms.
-///
-/// The gate is symmetric lattice intersection; the naming makes the channel
-/// role explicit in the same way `project` does for time travel.
+/// The gate only extracts bits. Interpreting them (1-gram vs seed-0 atoms)
+/// happens in materialization, in the context of a specific HLLSet and a
+/// chosen LUT. The gate is symmetric lattice intersection; the naming makes
+/// the channel role explicit in the same way `project` does for time travel.
 pub fn gate(gx: &HLLSet, h: &HLLSet) -> HLLSet {
     gx.intersection(h)
 }

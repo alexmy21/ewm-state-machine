@@ -100,12 +100,13 @@ order; `ns` means only the set survives.
 G1 = G1_ng ∪ G1_ns      G2 = G2_ng ∪ G2_ns      G3 = G3_ng ∪ G3_ns
 ```
 
-`gate(Gx, H) = Gx ∩ H` extracts H's channel component. If H was built from
-n-grams, `G1 ∩ H` returns its 1-gram atoms; if H was built from n-seeds,
-`G1 ∩ H` returns its seed-0 atoms. For real tokens the two coincide (a
-1-gram atom is the seed-0 hash of the same token); the n-gram G1
-additionally carries the PAD atom as its chain anchor. For G2/G3 the two
-schemes genuinely differ (joined n-gram vs single-token seeded hash).
+`gate(Gx, H) = Gx ∩ H` extracts H's channel component — it extracts bits,
+nothing more. **Bits are anonymous**: a bit does not remember its parent —
+the same bit may have been set by a 1-gram, a seed-0 hash, or PAD
+(collisions are fine; resolving them is the materializer's problem, solved
+by bootstrapping + disambiguation). Interpreting the extracted bits
+(1-gram vs seed-0 atoms) happens only in materialization, in the context
+of a specific HLLSet and a chosen LUT.
 
 ### 4.1 `hllset_lut` — named HLLSets, append-only, context-scoped
 

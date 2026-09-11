@@ -4,8 +4,10 @@
 //! in an HLLSet. The HLLSet itself is bootstrap-scheme agnostic, and there is
 //! **one G1, one G2, one G3** — the same channels serve both schemes.
 //!
-//! The token LUTs are kept **separate per scheme**, and the scheme prefix
-//! lives on the **LUT name**, not on the Gn HLLSet key:
+//! **Bits are anonymous**: a bit does not remember which token or which
+//! scheme set it. The token LUTs restore the origin of each bit in the
+//! context of a specific HLLSet. The LUTs are kept **separate per scheme**,
+//! and the scheme prefix lives on the **LUT name**, not on the Gn HLLSet key:
 //!
 //! ```text
 //! G1/G2/G3         h:<sha1>    scheme-agnostic channel HLLSets (shared)
