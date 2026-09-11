@@ -281,39 +281,74 @@ pub enum Order {
 }
 
 /// Options for [`materialize_with`].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MaterializeOptions {
     pub order: Order,
+    /// Beam width for ordered restoration: `1` = greedy De Bruijn walk,
+    /// `> 1` = keep the top-k partial paths by cumulative TF score.
+    pub beam: usize,
+}
+
+impl Default for MaterializeOptions {
+    fn default() -> Self {
+        Self::ordered()
+    }
 }
 
 impl MaterializeOptions {
-    /// Default options: ordered restoration.
+    /// Default options: ordered restoration, greedy De Bruijn walk.
     pub const fn ordered() -> Self {
-        Self { order: Order::Ordered }
+        Self {
+            order: Order::Ordered,
+            beam: 1,
+        }
     }
 
     /// Plain set restoration (`no_order`).
     pub const fn no_order() -> Self {
-        Self { order: Order::NoOrder }
+        Self {
+            order: Order::NoOrder,
+            beam: 1,
+        }
+    }
+
+    /// Ordered restoration with beam search: keep the top-`width` partial
+    /// paths by cumulative TF score. `width == 1` is the greedy walk.
+    pub const fn beam(width: usize) -> Self {
+        Self {
+            order: Order::Ordered,
+            beam: width,
+        }
     }
 }
 
 /// Materialize with default options: LUT-first over the three channels,
-/// then ordered reconstruction via the 3-gram chain.
+/// then ordered reconstruction via the 3-gram chain (greedy De Bruijn walk).
 pub fn materialize(ingested: &Ingested) -> Vec<Vec<u8>> {
     materialize_with(ingested, &MaterializeOptions::ordered())
 }
 
 /// Materialize with explicit options.
 ///
-/// - [`Order::Ordered`] (default): reconstructs the original sequence.
+/// - [`Order::Ordered`] (default): reconstructs the original sequence via a
+///   De Bruijn walk; [`MaterializeOptions::beam`] `> 1` keeps the top-k
+///   partial paths by cumulative TF score (beam search).
 /// - [`Order::NoOrder`]: returns the restored set in bytewise order.
 pub fn materialize_with(ingested: &Ingested, opts: &MaterializeOptions) -> Vec<Vec<u8>> {
     let tokens = unordered_tokens(ingested);
     match opts.order {
-        Order::Ordered => order_tokens(&tokens, ingested),
+        Order::Ordered => order_tokens(&tokens, ingested, opts.beam.max(1)),
         Order::NoOrder => tokens.into_iter().collect(),
     }
+}
+
+/// Ordered restoration with beam search of the given width.
+///
+/// Keeps the top-`width` partial De Bruijn paths by cumulative TF score and
+/// returns the best completed sequence. Falls back to the greedy walk, then
+/// to the unordered set, if no beam hypothesis completes.
+pub fn materialize_beam(ingested: &Ingested, width: usize) -> Vec<Vec<u8>> {
+    materialize_with(ingested, &MaterializeOptions::beam(width))
 }
 
 /// The `no_order` restoration: the plain set, bytewise-sorted.
@@ -360,14 +395,26 @@ pub fn gate(gx: &HLLSet, h: &HLLSet) -> HLLSet {
 /// the start pad: `(PAD, t1, t2)`, then `(t_{i-1}, t_i, t_{i+1})`, until the
 /// chain reaches the trailing pad.
 ///
-/// Order restoration is **TF-ranked greedy decoding** over the De Bruijn
-/// graph: the 1-gram channel is the vocabulary, the 2-/3-gram channels are
-/// the edges, and TF scores the transitions (descending; bytewise tie-break).
-/// This is the same shape as LLM token generation — greedy now, beam/sampling
-/// later.
-fn order_tokens(tokens: &BTreeSet<Vec<u8>>, ingested: &Ingested) -> Vec<Vec<u8>> {
+/// Order restoration is **TF-scored decoding** over the De Bruijn graph: the
+/// 1-gram channel is the vocabulary, the 2-/3-gram channels are the edges,
+/// and TF scores the transitions (descending; bytewise tie-break). `beam == 1`
+/// is greedy decoding with backtracking; `beam > 1` keeps the top-k partial
+/// paths by cumulative TF score. This is the same shape as LLM token
+/// generation — greedy and beam now, sampling later.
+fn order_tokens(
+    tokens: &BTreeSet<Vec<u8>>,
+    ingested: &Ingested,
+    beam: usize,
+) -> Vec<Vec<u8>> {
     if tokens.is_empty() || ingested.tokens == 0 {
         return Vec::new();
+    }
+
+    // Beam search first when requested; the greedy DFS is the fallback.
+    if beam > 1 {
+        if let Some(path) = beam_search(tokens, ingested, beam) {
+            return path;
+        }
     }
 
     let pad = ingested.pad.as_slice();
@@ -398,6 +445,90 @@ fn order_tokens(tokens: &BTreeSet<Vec<u8>>, ingested: &Ingested) -> Vec<Vec<u8>>
 
     // Fallback: cannot anchor/follow the chain — return the unordered set.
     tokens.iter().cloned().collect()
+}
+
+/// Beam search over the De Bruijn graph: keep the top-`width` partial paths
+/// by cumulative TF score, expand them one token at a time, and return the
+/// highest-scoring completed sequence.
+fn beam_search(
+    tokens: &BTreeSet<Vec<u8>>,
+    ingested: &Ingested,
+    width: usize,
+) -> Option<Vec<Vec<u8>>> {
+    let pad = ingested.pad.as_slice();
+    let n = ingested.tokens as usize;
+    let width = width.max(1);
+
+    // Initial hypotheses: the start anchors, scored by their own TF.
+    let mut beam: Vec<(Vec<Vec<u8>>, u64)> = tokens
+        .iter()
+        .filter(|t| sketch_contains(ingested, 1, &join2(pad, t)))
+        .map(|t| {
+            let score = ingested.tf.count(t);
+            (vec![t.clone()], score)
+        })
+        .collect();
+    if beam.is_empty() {
+        return None;
+    }
+    sort_beam(&mut beam);
+    beam.truncate(width);
+
+    let mut seen: BTreeSet<Vec<Vec<u8>>> = beam.iter().map(|(p, _)| p.clone()).collect();
+    let mut completed: Vec<(Vec<Vec<u8>>, u64)> = Vec::new();
+
+    for _ in 0..=n {
+        if beam.is_empty() {
+            break;
+        }
+
+        let mut next: Vec<(Vec<Vec<u8>>, u64)> = Vec::new();
+        for (path, score) in &beam {
+            if path.len() == n {
+                // Complete hypothesis: it must terminate at the trailing pad.
+                let prev = &path[path.len() - 2];
+                let cur = &path[path.len() - 1];
+                if sketch_contains(ingested, 2, &join3(prev, cur, pad)) {
+                    completed.push((path.clone(), *score));
+                }
+                continue;
+            }
+
+            let prev: Vec<u8> = if path.len() == 1 {
+                pad.to_vec()
+            } else {
+                path[path.len() - 2].clone()
+            };
+            let cur = path[path.len() - 1].clone();
+
+            for c in tokens {
+                if sketch_contains(ingested, 2, &join3(&prev, &cur, c)) {
+                    let mut new_path = path.clone();
+                    new_path.push(c.clone());
+                    if seen.insert(new_path.clone()) {
+                        let new_score = *score + ingested.tf.count(c);
+                        next.push((new_path, new_score));
+                    }
+                }
+            }
+        }
+
+        if next.is_empty() {
+            break;
+        }
+        sort_beam(&mut next);
+        next.truncate(width);
+        beam = next;
+    }
+
+    // Best completed hypothesis, cumulative TF first, then lexicographic.
+    completed.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    completed.into_iter().next().map(|(path, _)| path)
+}
+
+/// Sort a beam by score (descending), then lexicographically for ties.
+fn sort_beam(beam: &mut [(Vec<Vec<u8>>, u64)]) {
+    beam.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
 }
 
 /// Depth-first walk along the 3-gram chain. `prev` and `cur` are the last
@@ -772,5 +903,76 @@ mod tests {
 
         // Greedy TF-ranked De Bruijn decode restores the observed chain.
         assert_eq!(materialize(&ing), vec![x, y, b, a], "TF picks the observed branch");
+    }
+
+    #[test]
+    fn beam_search_keeps_hypotheses_and_returns_the_best_completed_path() {
+        // Two valid chains branch at (x, y). The greedy walk follows the
+        // highest-TF successor `a` and returns [x, y, a, b] (total TF 8);
+        // beam width 2 keeps the other hypothesis [x, y, c, d] (total TF 13)
+        // and returns it as the best completed path.
+        let x = b"x".to_vec();
+        let y = b"y".to_vec();
+        let a = b"a".to_vec();
+        let b = b"b".to_vec();
+        let c = b"c".to_vec();
+        let d = b"d".to_vec();
+        let vocab = [&x, &y, &a, &b, &c, &d];
+
+        let mut ing = Ingested::new();
+        ing.tokens = 4;
+
+        // 1-gram channel: the vocabulary, with LUT fibers.
+        for t in &vocab {
+            let addr = BitAddress::of_token_seeded(t, CHANNEL_SEEDS[0]);
+            ing.sketches[0].add_bit(addr.bit());
+            ing.luts[0].insert_token_at((*t).clone(), addr.bit());
+        }
+
+        // 2-gram channel: the start anchor (PAD, x).
+        let start_bigram =
+            BitAddress::of_token_seeded(&join2(ing.pad.as_slice(), &x), CHANNEL_SEEDS[1]);
+        ing.sketches[1].add_bit(start_bigram.bit());
+
+        // 3-gram channel: both full chains.
+        let pad = ing.pad.clone();
+        let grams: Vec<Vec<u8>> = vec![
+            join3(&pad, &x, &y),
+            join3(&x, &y, &a),
+            join3(&y, &a, &b),
+            join3(&a, &b, &pad),
+            join3(&x, &y, &c),
+            join3(&y, &c, &d),
+            join3(&c, &d, &pad),
+        ];
+        for gram in &grams {
+            let addr = BitAddress::of_token_seeded(gram, CHANNEL_SEEDS[2]);
+            ing.sketches[2].add_bit(addr.bit());
+        }
+
+        // TF: the greedy branch has the higher first step (a=5) but the
+        // lower total; the beam branch has the higher total (c=2, d=9).
+        ing.tf.increment(&x);
+        ing.tf.increment(&y);
+        for _ in 0..5 {
+            ing.tf.increment(&a);
+        }
+        ing.tf.increment(&b);
+        for _ in 0..2 {
+            ing.tf.increment(&c);
+        }
+        for _ in 0..9 {
+            ing.tf.increment(&d);
+        }
+
+        // Greedy (beam width 1) follows the highest-TF successor first.
+        assert_eq!(materialize(&ing), vec![x.clone(), y.clone(), a, b], "greedy path");
+
+        // Beam width 2 keeps both hypotheses and returns the best complete.
+        assert_eq!(
+            materialize_beam(&ing, 2),
+            vec![x, y, c, d],
+            "beam picks the highest-scoring completed path"
+        );
     }
 }

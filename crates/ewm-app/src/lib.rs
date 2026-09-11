@@ -42,6 +42,6 @@ pub use token::TokenEncoding;
 // is needed, an application calls `ingest` / `materialize` directly.
 pub use hllset_morphisms::{
     gate, ingest, ingest_key, ingest_with_pad, lut_name, lut_scheme, materialize,
-    materialize_no_order, materialize_with, unordered_tokens, HllsetLut, Ingested,
-    MaterializeOptions, Order, CHANNEL_NAMES, NG, NS, PAD,
+    materialize_beam, materialize_no_order, materialize_with, unordered_tokens, HllsetLut,
+    Ingested, MaterializeOptions, Order, CHANNEL_NAMES, NG, NS, PAD,
 };
