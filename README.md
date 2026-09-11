@@ -116,4 +116,4 @@ the cells.
 | # | Notebook | Description |
 | - | -------- | ----------- |
 | 01 | `ingest_materialize_um` | morphisms step by step — ingest (SHA1 + three pointers + hllsetLUT), materialize (ordered / `no_order` / beam), then the [UM] loop and recovery |
-| 02 | `scene_sidecar` | the LLM ↔ HLLSet side-car application rebuilt on ewm-state-machine: vLLM host line + `ewm-scene` direct-morphism side-car (BSSτ, D/R/N, materialize roundtrip) |
+| 02 | `scene_sidecar` | the LLM ↔ HLLSet side-car application rebuilt on ewm-state-machine: vLLM host line + `ewm-scene` direct-morphism side-car (BSSτ, D/R/N, exact materialize roundtrip, restore-from-HLLSet pixel demo) |
