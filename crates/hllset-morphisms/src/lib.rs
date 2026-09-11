@@ -39,7 +39,7 @@ pub mod scheme;
 pub mod tf;
 
 pub use api::{
-    ingest, ingest_key, ingest_with_pad, materialize, materialize_no_order, materialize_with,
+    gate, ingest, ingest_key, ingest_with_pad, materialize, materialize_no_order, materialize_with,
     unordered_tokens, Ingested, MaterializeOptions, Order, CHANNELS, CHANNEL_NAMES, CHANNEL_SEEDS,
     PAD,
 };

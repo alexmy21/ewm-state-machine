@@ -327,6 +327,28 @@ pub fn unordered_tokens(ingested: &Ingested) -> BTreeSet<Vec<u8>> {
     materialize_lut_first(&pairs, &ingested.tf)
 }
 
+/// The Gn gate: `Gx ∩ H` — extract the Gx channel component of any HLLSet H.
+///
+/// Gn channels are shared gate masks, one per channel:
+///
+/// ```text
+/// G1 = G1_ng ∪ G1_ns      (1-gram atoms and seed-0 atoms)
+/// G2 = G2_ng ∪ G2_ns      (2-gram atoms and seed-1 atoms)
+/// G3 = G3_ng ∪ G3_ns      (3-gram atoms and seed-2 atoms)
+/// ```
+///
+/// Intersecting a Gn channel with an HLLSet H extracts H's atoms for that
+/// channel — and the bootstrap scheme of H decides what those atoms mean:
+///
+/// - H built from n-grams → `G1 ∩ H` returns its **1-gram** atoms;
+/// - H built from n-seeds → `G1 ∩ H` returns its **seed-0** atoms.
+///
+/// The gate is symmetric lattice intersection; the naming makes the channel
+/// role explicit in the same way `project` does for time travel.
+pub fn gate(gx: &HLLSet, h: &HLLSet) -> HLLSet {
+    gx.intersection(h)
+}
+
 /// Reconstruct the original order by following the 3-gram chain anchored at
 /// the start pad: `(PAD, t1, t2)`, then `(t_{i-1}, t_i, t_{i+1})`, until the
 /// chain reaches the trailing pad.
@@ -625,5 +647,47 @@ mod tests {
         assert!(ing.key.starts_with("h:"), "empty projection still has a key");
         assert!(ing.hllset_lut.is_empty(), "nothing created → nothing preserved");
         assert!(ing.keys.iter().all(|k| k.is_empty()));
+    }
+
+    #[test]
+    fn gn_is_a_gate_over_both_bootstrap_schemes() {
+        use crate::ingest::Ingest;
+
+        let ng = ingest(["cat", "sat"]);
+        let mut ns = Ingest::new();
+        ns.ingest_tokens([&b"cat"[..], &b"sat"[..]]);
+
+        // The 1-gram of a token IS the seed-0 hash of the same token: both
+        // schemes set the same atom in the shared G1.
+        let addr = BitAddress::of_token_seeded(b"cat", 0);
+        assert!(ng.sketches[0].has_bit(addr.reg(), addr.tz()));
+        assert!(ns.hllset(0).has_bit(addr.reg(), addr.tz()));
+
+        // The gate extracts each scheme's component from the shared channel.
+        let g1_shared = ng.sketches[0].union(ns.hllset(0));
+        assert_eq!(
+            gate(&g1_shared, &ng.sketches[0]).content_key(),
+            ng.sketches[0].content_key(),
+            "gate(G1, H_ng)"
+        );
+        assert_eq!(
+            gate(&g1_shared, ns.hllset(0)).content_key(),
+            ns.hllset(0).content_key(),
+            "gate(G1, H_ns)"
+        );
+
+        // Same gate property on G2, where the schemes genuinely differ
+        // (2-gram "cat|sat" vs seed-1 "cat"/"sat").
+        let g2_shared = ng.sketches[1].union(ns.hllset(1));
+        assert_eq!(
+            gate(&g2_shared, &ng.sketches[1]).content_key(),
+            ng.sketches[1].content_key(),
+            "gate(G2, H_ng)"
+        );
+        assert_eq!(
+            gate(&g2_shared, ns.hllset(1)).content_key(),
+            ns.hllset(1).content_key(),
+            "gate(G2, H_ns)"
+        );
     }
 }

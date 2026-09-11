@@ -94,6 +94,19 @@ matches the requested bootstrap scheme. The prefix also answers the order
 question for recovered tokens: `ng` means the n-gram LUTs know the original
 order; `ns` means only the set survives.
 
+**Gn are gates.** Each channel is the union of its two scheme components:
+
+```text
+G1 = G1_ng ∪ G1_ns      G2 = G2_ng ∪ G2_ns      G3 = G3_ng ∪ G3_ns
+```
+
+`gate(Gx, H) = Gx ∩ H` extracts H's channel component. If H was built from
+n-grams, `G1 ∩ H` returns its 1-gram atoms; if H was built from n-seeds,
+`G1 ∩ H` returns its seed-0 atoms. For real tokens the two coincide (a
+1-gram atom is the seed-0 hash of the same token); the n-gram G1
+additionally carries the PAD atom as its chain anchor. For G2/G3 the two
+schemes genuinely differ (joined n-gram vs single-token seeded hash).
+
 ### 4.1 `hllset_lut` — named HLLSets, append-only, context-scoped
 
 ```text
