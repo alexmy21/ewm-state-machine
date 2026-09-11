@@ -71,3 +71,35 @@ HLLSet (bitmap) + Gn (gates)             unchanged foundation
 
 Everything above the bit is the morphism's business; everything at and
 below the bit is the foundation's business.
+
+## Restoration contract — deferred and structural
+
+- **The LUT digests everything; the decoder receives only what it can
+  process.** Ingest records tokens into the LUT exactly as they arrived
+  (opaque bytes, vocabulary-agnostic). Materialize returns those tokens;
+  the application decides what to do with them — including which decoder
+  (or which vocabulary version) interprets them.
+
+- **The LUT is always ready for an expanded or modified vocabulary.** A
+  new codebook, more anchors, or a different model changes only the token
+  strings; the morphisms digest them the same way. Nothing in the HLLSet or
+  LUT layers needs to know the vocabulary.
+
+- **Ingest does not assume materialize follows.** The normal workflow is
+  ingest → HLLSet analysis (BSSτ, gates, D/R/N, moving averages) →
+  materialize only what the analysis selects. HLLSets are the working set;
+  tokens are produced on demand, at the end.
+
+- **Restoration is structural, not cosmetic.** The requirement is
+  similarity and consistency: *similar should be similar in restoration;
+  different should be different*. Content-addressed keys + the
+  count-constrained walk deliver exactly that — the restored token set is
+  the LUT-faithful interpretation of the HLLSet, so lattice proximity is
+  preserved: near HLLSets restore near token sets, far HLLSets restore far
+  token sets. Perceptual quality is the decoder's concern, not the
+  morphism's.
+
+- **Example (accident):** analyze the frame-HLLSets — the D/R/N spike marks
+  the event — select the few frames before and after, and materialize only
+  those. The side-car hands the host LLM the selected encodings, not the
+  whole clip.
