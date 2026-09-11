@@ -32,6 +32,8 @@
 //! single-touch) and [`materialize::materialize`] (LUT-first pairs).
 
 pub mod api;
+pub mod conv;
+pub mod grid;
 pub mod hllset_lut;
 pub mod ingest;
 pub mod materialize;
@@ -42,6 +44,11 @@ pub use api::{
     gate, ingest, ingest_key, ingest_with_pad, materialize, materialize_beam, materialize_no_order,
     materialize_with, unordered_tokens, Ingested, MaterializeOptions, Order, CHANNELS,
     CHANNEL_NAMES, CHANNEL_SEEDS, PAD,
+};
+pub use conv::{channel_name, seed, ConvSpec};
+pub use grid::{
+    ingest_grid, ingest_grid_with_pad, materialize_grid, materialize_grid_beam,
+    materialize_grid_no_order, Grid, GridIngested, GRID_BORDER, GRID_MAX_N,
 };
 pub use hllset_lut::{HllsetLut, UNNAMED};
 pub use ingest::{Ingest, N_SEEDS, SEEDS};

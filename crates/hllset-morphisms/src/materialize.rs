@@ -99,7 +99,6 @@ mod tests {
 
     #[test]
     fn candidates_come_from_all_pointed_luts() {
-        let ingest = Ingest::new();
         let t0 = token_in_bytes(10);
         let t1 = token_in_bytes(20);
         let t2 = token_in_bytes(30);

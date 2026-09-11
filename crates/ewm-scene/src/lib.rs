@@ -6,7 +6,10 @@
 //! application-level interface — [`ewm_app::ingest`], [`ewm_app::materialize`],
 //! and the HLLSet lattice operations.
 
-use ewm_app::{ingest, materialize, materialize_beam, materialize_no_order};
+use ewm_app::{
+    ingest, ingest_grid, materialize, materialize_beam, materialize_grid,
+    materialize_grid_beam, materialize_grid_no_order, materialize_no_order, Grid,
+};
 use hllset_morphisms::Ingest;
 use hllset_core::HLLSet;
 
@@ -219,6 +222,62 @@ pub struct Restored {
     pub beam2: Vec<String>,
 }
 
+/// One grid frame (row-major cells) for the `conv(n, dim=2)` path.
+#[derive(Clone, Debug)]
+pub struct GridFrame {
+    pub id: u64,
+    pub width: usize,
+    pub height: usize,
+    pub tokens: Vec<String>,
+}
+
+/// The restored presentations of one grid frame.
+#[derive(Clone, Debug)]
+pub struct GridRestored {
+    pub id: u64,
+    pub width: usize,
+    pub height: usize,
+    pub ordered: Vec<String>,
+    pub set: Vec<String>,
+    pub beam2: Vec<String>,
+}
+
+/// Restore one grid frame through the 2D morphisms.
+pub fn grid_restore(frame: &GridFrame) -> GridRestored {
+    grid_restore_with(frame, 2)
+}
+
+/// Restore one grid frame with a configurable beam width.
+pub fn grid_restore_with(frame: &GridFrame, beam: usize) -> GridRestored {
+    let cells: Vec<Vec<u8>> = frame.tokens.iter().map(|t| t.as_bytes().to_vec()).collect();
+    let grid = Grid::new(frame.width, frame.height, cells);
+    let ing = ingest_grid(&grid);
+    let to_str = |v: Vec<u8>| String::from_utf8_lossy(&v).into_owned();
+
+    let ordered = materialize_grid(&ing)
+        .cells
+        .into_iter()
+        .map(to_str)
+        .collect();
+    let beam_n = materialize_grid_beam(&ing, beam.max(1))
+        .cells
+        .into_iter()
+        .map(to_str)
+        .collect();
+    let set = materialize_grid_no_order(&ing)
+        .into_iter()
+        .map(to_str)
+        .collect();
+    GridRestored {
+        id: frame.id,
+        width: frame.width,
+        height: frame.height,
+        ordered,
+        set,
+        beam2: beam_n,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,5 +341,27 @@ mod tests {
         assert_eq!(r.ordered, tokens);
         assert_eq!(r.set.len(), 3, "set keeps distinct tokens");
         assert_eq!(r.beam2, tokens, "beam-2 agrees on the unambiguous chain");
+    }
+
+    #[test]
+    fn grid_restore_recovers_a_16x16_frame_exactly() {
+        let tokens: Vec<String> = (0..256)
+            .map(|i| {
+                let r = i / 16;
+                let c = i % 16;
+                format!("tid{}", (r * 37 + c * 7 + (r + c) / 3) % 60)
+            })
+            .collect();
+        let f = GridFrame {
+            id: 1,
+            width: 16,
+            height: 16,
+            tokens: tokens.clone(),
+        };
+        let r = grid_restore_with(&f, 2);
+        assert_eq!(r.ordered, tokens, "2D morphism restores the exact grid order");
+        assert_eq!(r.beam2, tokens, "beam-2 agrees");
+        assert_eq!(r.width, 16);
+        assert_eq!(r.height, 16);
     }
 }

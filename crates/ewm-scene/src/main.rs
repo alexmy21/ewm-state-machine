@@ -13,7 +13,7 @@
 
 use std::io::{BufRead, Write};
 
-use ewm_scene::{restore_with, Frame, FrameSet};
+use ewm_scene::{grid_restore_with, restore_with, Frame, FrameSet, GridFrame};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -34,7 +34,8 @@ fn run(args: &[String]) -> Result<(), String> {
              \x20 bss <file>                     consecutive BSSτ / Jaccard\n\
              \x20 ma <file> --short N --long N   HLLSet moving averages\n\
              \x20 noether <file>                 D/R/N + three indicators\n\
-             \x20 materialize <file>             ordered / set / beam-2 restoration"
+             \x20 materialize <file>             ordered / set / beam-2 restoration
+             \x20 grid <file> [--beam N]          2D morphisms (conv dim=2) restoration"
         );
         return Ok(());
     }
@@ -77,6 +78,24 @@ fn run(args: &[String]) -> Result<(), String> {
                 "ind1": n.ind1, "ind2": n.ind2, "ind3": n.ind3,
             })
         }
+        "grid" => {
+            let beam = arg_usize(args, "--beam")?.unwrap_or(2);
+            let frames: Vec<serde_json::Value> = read_grid_frames(path)?
+                .iter()
+                .map(|f| {
+                    let r = grid_restore_with(f, beam);
+                    serde_json::json!({
+                        "id": r.id,
+                        "width": r.width,
+                        "height": r.height,
+                        "ordered": r.ordered,
+                        "set": r.set,
+                        "beam2": r.beam2,
+                    })
+                })
+                .collect();
+            serde_json::json!({ "frames": frames })
+        }
         "materialize" => {
             let beam = arg_usize(args, "--beam")?.unwrap_or(2);
             let frames: Vec<serde_json::Value> = fs
@@ -115,6 +134,45 @@ fn arg_usize(args: &[String], name: &str) -> Result<Option<usize>, String> {
         }
     }
     Ok(None)
+}
+
+fn read_grid_frames(path: &str) -> Result<Vec<GridFrame>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    let mut frames = Vec::new();
+    for (lineno, line) in std::io::BufReader::new(file).lines().enumerate() {
+        let line = line.map_err(|e| format!("{path}:{lineno}: {e}"))?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let v: serde_json::Value =
+            serde_json::from_str(&line).map_err(|e| format!("{path}:{lineno}: {e}"))?;
+        let id = v["id"].as_u64().ok_or_else(|| format!("{path}:{lineno}: missing id"))?;
+        let width = v["width"]
+            .as_u64()
+            .ok_or_else(|| format!("{path}:{lineno}: missing width"))?
+            as usize;
+        let height = v["height"]
+            .as_u64()
+            .ok_or_else(|| format!("{path}:{lineno}: missing height"))?
+            as usize;
+        let tokens = v["tokens"]
+            .as_array()
+            .ok_or_else(|| format!("{path}:{lineno}: missing tokens"))?
+            .iter()
+            .map(|t| {
+                t.as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| format!("{path}:{lineno}: token is not a string"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        frames.push(GridFrame {
+            id,
+            width,
+            height,
+            tokens,
+        });
+    }
+    Ok(frames)
 }
 
 fn read_frames(path: &str) -> Result<Vec<Frame>, String> {

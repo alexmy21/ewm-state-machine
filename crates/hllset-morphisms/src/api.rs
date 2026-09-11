@@ -736,7 +736,7 @@ fn sketch4_contains(ingested: &Ingested, bytes: &[u8]) -> bool {
 
 /// Join tokens with the soldered NUL separator (single tokens pass through
 /// unchanged).
-fn join(parts: &[&[u8]]) -> Vec<u8> {
+pub(crate) fn join(parts: &[&[u8]]) -> Vec<u8> {
     if parts.len() == 1 {
         return parts[0].to_vec();
     }

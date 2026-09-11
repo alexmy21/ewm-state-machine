@@ -59,6 +59,7 @@ work is reprocessed — idempotent by IICA.
 | commit | the atomic advance of the tip, recording H(t) |
 | [UM] | the stateless, disposable processing unit |
 | IICA | Idempotence, Immutability, Content Addressability |
+| conv(n, dim) | the channel model: n-grams are conv(n, dim=1); grids are conv(n, dim=2) — shared 1×1 G1, seed(n,dim) = (dim−1)·3 + (n−1) |
 
 Terminology reference:
 `../hllset-next-v2/_DOCS/dev/STANDARD.md`.
@@ -116,4 +117,4 @@ the cells.
 | # | Notebook | Description |
 | - | -------- | ----------- |
 | 01 | `ingest_materialize_um` | morphisms step by step — ingest (SHA1 + three pointers + hllsetLUT), materialize (ordered / `no_order` / beam), then the [UM] loop and recovery |
-| 02 | `scene_sidecar` | the LLM ↔ HLLSet side-car application rebuilt on ewm-state-machine: vLLM host line + `ewm-scene` direct-morphism side-car (BSSτ, D/R/N, exact materialize roundtrip, restore-from-HLLSet pixel demo) |
+| 02 | `scene_sidecar` | the LLM ↔ HLLSet side-car application rebuilt on ewm-state-machine: vLLM host line + `ewm-scene` direct-morphism side-car (BSSτ, D/R/N, exact roundtrip on the conv(n, dim=2) grid path, restore-from-HLLSet pixel demo) |
