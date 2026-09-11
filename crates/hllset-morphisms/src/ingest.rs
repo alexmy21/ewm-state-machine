@@ -4,6 +4,7 @@
 //! sets the atoms, registers the LUT fibers, and increments TF — without
 //! handing the token to anything else.
 
+use crate::scheme::{key_scheme, scheme_key, NS};
 use crate::tf::TfTable;
 use hllset_contracts::BitAddress;
 use hllset_core::HLLSet;
@@ -82,6 +83,25 @@ impl Ingest {
     pub fn tf(&self) -> &TfTable {
         &self.tf
     }
+
+    /// The projection `G1 ∪ G2 ∪ G3` (same Gn channels as the n-gram
+    /// regime — the HLLSet is bootstrap-scheme agnostic).
+    pub fn projection(&self) -> HLLSet {
+        self.hllsets.iter().fold(HLLSet::new(), |acc, s| acc.union(s))
+    }
+
+    /// The scheme-prefixed key of the projection: `h:ns:<sha1>`. The `ns`
+    /// prefix tells materialization to use the **n-seed LUTs** (plain set;
+    /// n-seed carries no order).
+    pub fn key(&self) -> String {
+        scheme_key(NS, &self.projection().content_hash())
+    }
+
+    /// The scheme-prefixed keys of the three channel HLLSets
+    /// (`h:ns:<sha1>` for G1, G2, G3).
+    pub fn keys(&self) -> [String; N_SEEDS] {
+        std::array::from_fn(|i| scheme_key(NS, &self.hllsets[i].content_hash()))
+    }
 }
 
 #[cfg(test)]
@@ -114,5 +134,20 @@ mod tests {
         assert_eq!(ingest.tf().count(&tokens[7]), 1);
         ingest.ingest_token(&tokens[7]);
         assert_eq!(ingest.tf().count(&tokens[7]), 2, "TF is monotonic");
+    }
+
+    #[test]
+    fn n_seed_keys_carry_the_ns_prefix() {
+        let mut ingest = Ingest::new();
+        ingest.ingest_tokens([&b"alpha"[..], &b"beta"[..]]);
+
+        let key = ingest.key();
+        assert!(key.starts_with("h:ns:"), "key = {key}");
+        assert_eq!(key_scheme(&key), Some(NS));
+
+        for k in ingest.keys() {
+            assert!(k.starts_with("h:ns:"));
+            assert_eq!(key_scheme(&k), Some(NS));
+        }
     }
 }

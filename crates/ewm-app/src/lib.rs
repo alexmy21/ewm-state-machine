@@ -39,6 +39,7 @@ pub use token::TokenEncoding;
 // remains the escape hatch for custom HLLSet building; when nothing special
 // is needed, an application calls `ingest` / `materialize` directly.
 pub use hllset_morphisms::{
-    ingest, ingest_key, ingest_with_pad, materialize, materialize_no_order, materialize_with,
-    unordered_tokens, HllsetLut, Ingested, MaterializeOptions, Order, CHANNEL_NAMES, PAD,
+    ingest, ingest_key, ingest_with_pad, key_scheme, materialize, materialize_no_order,
+    materialize_with, scheme_key, unordered_tokens, HllsetLut, Ingested, MaterializeOptions,
+    Order, CHANNEL_NAMES, NG, NS, PAD,
 };

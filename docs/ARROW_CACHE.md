@@ -75,6 +75,22 @@ Cache objects fall into three classes:
 | **append-only** | `lut_g1/g2/g3`, `hllset_lut` | grow monotonically; entries are immutable (hash-determined) |
 | **context-local** | `tf_table` | built for the current context only; ephemeral |
 
+### 4.0 Bootstrap schemes — same Gn, separate LUTs
+
+n-grams and n-seeds are two ways of **bootstrapping token presentation** in
+an HLLSet. The HLLSet itself is bootstrap-scheme agnostic: both schemes set
+bits in the **same Gn channels** (G1/G2/G3). The token LUTs are kept
+**separate per scheme** (n-gram LUTs vs n-seed LUTs), and the SHA1 prefix on
+a Gn key records which LUT materialization must use:
+
+```text
+h:ng:<sha1>   n-gram bootstrapped  — order can be restored (window chain)
+h:ns:<sha1>   n-seed bootstrapped  — plain set only (seeded hashes are orderless)
+```
+
+The prefix also answers the order question for recovered tokens: `ng` means
+the n-gram LUTs know the original order; `ns` means only the set survives.
+
 ### 4.1 `hllset_lut` — named HLLSets, append-only, context-scoped
 
 ```text

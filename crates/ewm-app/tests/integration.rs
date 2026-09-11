@@ -268,9 +268,11 @@ fn direct_ingest_materialize_roundtrips_in_order() {
     assert_eq!(ing.tokens, tokens.len());
     assert_eq!(ing.pad, ewm_app::PAD.to_vec());
 
-    // The default case: ingest exposes the SHA1 of the new HLLSet.
-    assert!(ing.key.starts_with("h:"), "projection key = {}", ing.key);
-    assert_eq!(ing.key, ing.projection.content_key());
+    // The default case: ingest exposes the scheme-prefixed SHA1 of the new
+    // HLLSet (`h:ng:<sha1>` — the prefix selects the n-gram LUTs).
+    assert!(ing.key.starts_with("h:ng:"), "projection key = {}", ing.key);
+    assert_eq!(ing.key, ewm_app::scheme_key(ewm_app::NG, &ing.projection.content_hash()));
+    assert_eq!(ewm_app::key_scheme(&ing.key), Some(ewm_app::NG));
 
     // Preservation side effect: all three channel HLLSets are registered in
     // the hllsetLUT under their names (G1/G2/G3) with one touch each.

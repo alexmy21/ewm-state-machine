@@ -35,6 +35,7 @@ pub mod api;
 pub mod hllset_lut;
 pub mod ingest;
 pub mod materialize;
+pub mod scheme;
 pub mod tf;
 
 pub use api::{
@@ -44,4 +45,5 @@ pub use api::{
 };
 pub use hllset_lut::{HllsetLut, UNNAMED};
 pub use ingest::{Ingest, N_SEEDS, SEEDS};
+pub use scheme::{key_scheme, key_sha1, scheme_key, NG, NS};
 pub use tf::TfTable;
