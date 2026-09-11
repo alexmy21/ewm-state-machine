@@ -201,6 +201,21 @@ represents the 1-gram (seed-0) token candidates available in the system k
 commits back — the channel carries its own history, and the per-commit Gx
 keys address each point of it.
 
+**The inverse — sessions fall out of consecutive differences.** Because the
+recurrence is a monotone union, subtracting adjacent versions recovers each
+session's novel bits (the `N` of the commit view):
+
+```text
+Gn(t)     \ Gn(t-1)     → S(t)    (novel bits of the current session)
+Gn(t-1)   \ Gn(t-2)     → S(t-1)
+...
+Gn(t-k)   \ Gn(t-k-1)   → S(t-k)
+```
+
+Caveat: the difference yields the session's **new** atoms — atoms already
+present in earlier versions are the retained component R, and restoring the
+full token collection still goes through materialization with the LUTs.
+
 For columnar interchange a sparse projection is available:
 
 ```text

@@ -157,6 +157,12 @@ fn gn_channels_are_monotonic_across_commits() {
     // G1(t-k): the 1-gram (seed-0) candidates available k commits back.
     assert_eq!(g1_t_minus_1.popcount(), 3, "three candidates one commit back");
     assert_eq!(g1_t.popcount(), 4, "four candidates now");
+
+    // The inverse: Gn(t) \ Gn(t-1) → S(t)'s novel bits (the N of the view).
+    let novel = g1_t.difference(&g1_t_minus_1);
+    let view = ewm_git::view(app.repo(), &c2).expect("G1 view");
+    assert_eq!(novel.popcount(), view.new.popcount(), "Gn(t) \ Gn(t-1) == N");
+    assert_eq!(novel.popcount(), 1, "only tid40 was novel in turn 2");
 }
 
 // ── 3. The [UM] never blocks on the token source ────────────────────────────
