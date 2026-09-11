@@ -13,7 +13,7 @@
 
 use std::io::{BufRead, Write};
 
-use ewm_scene::{grid_restore_with, restore_with, Frame, FrameSet, GridFrame};
+use ewm_scene::{grid_restore_with, restore_with, subframes, Frame, FrameSet, GridFrame};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -35,7 +35,8 @@ fn run(args: &[String]) -> Result<(), String> {
              \x20 ma <file> --short N --long N   HLLSet moving averages\n\
              \x20 noether <file>                 D/R/N + three indicators\n\
              \x20 materialize <file>             ordered / set / beam-2 restoration
-             \x20 grid <file> [--beam N]          2D morphisms (conv dim=2) restoration"
+             \x20 grid <file> [--beam N]          2D morphisms (conv dim=2) restoration
+             \x20 subframes <file> --i N --j N    D/R/N subframes of a transition"
         );
         return Ok(());
     }
@@ -76,6 +77,27 @@ fn run(args: &[String]) -> Result<(), String> {
             serde_json::json!({
                 "dp": n.dp, "rp": n.rp, "np": n.np,
                 "ind1": n.ind1, "ind2": n.ind2, "ind3": n.ind3,
+            })
+        }
+        "subframes" => {
+            let i = arg_usize(args, "--i")?.ok_or("subframes: missing --i")?;
+            let j = arg_usize(args, "--j")?.ok_or("subframes: missing --j")?;
+            let frames = read_grid_frames(path)?;
+            let a = frames
+                .get(i - 1)
+                .ok_or_else(|| format!("--i {i} out of range ({} frames)", frames.len()))?;
+            let b = frames
+                .get(j - 1)
+                .ok_or_else(|| format!("--j {j} out of range ({} frames)", frames.len()))?;
+            let sf = subframes(a, b);
+            serde_json::json!({
+                "pair": sf.pair,
+                "departed": sf.departed,
+                "retained": sf.retained,
+                "new": sf.new,
+                "dp": sf.dp,
+                "rp": sf.rp,
+                "np": sf.np,
             })
         }
         "grid" => {

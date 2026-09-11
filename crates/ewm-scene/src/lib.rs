@@ -10,6 +10,7 @@ use ewm_app::{
     ingest, ingest_grid, materialize, materialize_beam, materialize_grid,
     materialize_grid_beam, materialize_grid_no_order, materialize_no_order, Grid,
 };
+use hllset_morphisms::materialize::materialize as materialize_lut_first;
 use hllset_morphisms::Ingest;
 use hllset_core::HLLSet;
 
@@ -247,6 +248,71 @@ pub fn grid_restore(frame: &GridFrame) -> GridRestored {
     grid_restore_with(frame, 2)
 }
 
+/// The D/R/N subframes of one transition: the exact token sets restored
+/// from the `1×1` channel differences, plus the per-channel bit counts.
+#[derive(Clone, Debug, Default)]
+pub struct Subframes {
+    pub pair: [u64; 2],
+    /// Tokens present in frame A but not frame B (departed subframe).
+    pub departed: Vec<String>,
+    /// Tokens present in both (retained subframe).
+    pub retained: Vec<String>,
+    /// Tokens present in frame B but not frame A (new subframe).
+    pub new: Vec<String>,
+    /// Per-channel D/R/N popcounts (channels: 1×1, 2×2, 3×3, 4×4).
+    pub dp: [u64; 4],
+    pub rp: [u64; 4],
+    pub np: [u64; 4],
+}
+
+/// Decompose the transition A → B into its three subframes.
+///
+/// The `1×1` channel is the token set, so its set differences are exactly
+/// the departed / retained / new tokens (modulo hash collisions); each is
+/// materialized LUT-first over the frame that holds it.
+pub fn subframes(a: &GridFrame, b: &GridFrame) -> Subframes {
+    let cells = |f: &GridFrame| -> Vec<Vec<u8>> {
+        f.tokens.iter().map(|t| t.as_bytes().to_vec()).collect()
+    };
+    let ia = ingest_grid(&Grid::new(a.width, a.height, cells(a)));
+    let ib = ingest_grid(&Grid::new(b.width, b.height, cells(b)));
+    let to_str = |v: Vec<u8>| String::from_utf8_lossy(&v).into_owned();
+
+    let d1 = ia.channels[0].difference(&ib.channels[0]);
+    let r1 = ia.channels[0].intersection(&ib.channels[0]);
+    let n1 = ib.channels[0].difference(&ia.channels[0]);
+
+    let departed: Vec<String> = materialize_lut_first(&[(&d1, &ia.luts[0])])
+        .into_iter()
+        .map(to_str)
+        .collect();
+    let retained: Vec<String> = materialize_lut_first(&[(&r1, &ia.luts[0])])
+        .into_iter()
+        .map(to_str)
+        .collect();
+    let new: Vec<String> = materialize_lut_first(&[(&n1, &ib.luts[0])])
+        .into_iter()
+        .map(to_str)
+        .collect();
+
+    let (mut dp, mut rp, mut np) = ([0u64; 4], [0u64; 4], [0u64; 4]);
+    for ch in 0..4 {
+        dp[ch] = ia.channels[ch].difference(&ib.channels[ch]).popcount();
+        rp[ch] = ia.channels[ch].intersection(&ib.channels[ch]).popcount();
+        np[ch] = ib.channels[ch].difference(&ia.channels[ch]).popcount();
+    }
+
+    Subframes {
+        pair: [a.id, b.id],
+        departed,
+        retained,
+        new,
+        dp,
+        rp,
+        np,
+    }
+}
+
 /// Restore one grid frame with a configurable beam width.
 pub fn grid_restore_with(frame: &GridFrame, beam: usize) -> GridRestored {
     let cells: Vec<Vec<u8>> = frame.tokens.iter().map(|t| t.as_bytes().to_vec()).collect();
@@ -341,6 +407,32 @@ mod tests {
         assert_eq!(r.ordered, tokens);
         assert_eq!(r.set.len(), 3, "set keeps distinct tokens");
         assert_eq!(r.beam2, tokens, "beam-2 agrees on the unambiguous chain");
+    }
+
+    #[test]
+    fn subframes_split_a_transition_into_d_r_n() {
+        let a = GridFrame {
+            id: 1,
+            width: 2,
+            height: 2,
+            tokens: ["a", "b", "c", "d"].iter().map(|s| s.to_string()).collect(),
+        };
+        let b = GridFrame {
+            id: 2,
+            width: 2,
+            height: 2,
+            tokens: ["b", "d", "e", "f"].iter().map(|s| s.to_string()).collect(),
+        };
+        let sf = subframes(&a, &b);
+        assert_eq!(sf.pair, [1, 2]);
+        assert_eq!(sf.departed, vec!["a".to_string(), "c".to_string()]);
+        assert_eq!(sf.retained, vec!["b".to_string(), "d".to_string()]);
+        assert_eq!(sf.new, vec!["e".to_string(), "f".to_string()]);
+        // Every channel decomposes: D + R = A's channel bits, N + R = B's.
+        for ch in 0..4 {
+            assert!(sf.dp[ch] + sf.rp[ch] > 0, "channel {ch} has A bits");
+            assert!(sf.np[ch] + sf.rp[ch] > 0, "channel {ch} has B bits");
+        }
     }
 
     #[test]
