@@ -61,6 +61,8 @@ Terminology reference:
 ```text
 ewm-state-machine/
 ├── Cargo.toml                 # workspace manifest
+├── docs/
+│   └── ARROW_CACHE.md         # design note: Arrow as the cache-layer substrate
 └── crates/
     ├── hllset-contracts/      # soldered invariants (leaf)
     ├── hllset-cid/            # embedded SHA-1 CIDs
@@ -70,6 +72,11 @@ ewm-state-machine/
     ├── hllset-storage/        # memory + sled content-addressed storage
     ├── context-tree/          # Merkle tree over the working set (S(t) presentation)
     ├── ewm-git/               # the state stack: commit DAG, tip, recovery
-    └── ewm-app/               # the [UM] harness: stateless driver + StateCache
-                               # (S(t) and H(t-1) live in the cache, not the [UM])
+    ├── ewm-app/               # the [UM] harness: stateless driver + StateCache
+    │                          # (S(t) and H(t-1) live in the cache, not the [UM])
+    └── (planned) ewm-cache/   # Arrow-backed cache layer, per docs/ARROW_CACHE.md
 ```
+
+The Arrow cache layer is designed but not implemented; see
+[`docs/ARROW_CACHE.md`](docs/ARROW_CACHE.md) for the boundary, schemas, and
+the IPC extended-cache layout.
