@@ -1,7 +1,7 @@
 //! ewm-sm-explore integration tests — the explorer projects the layers.
 
 use ewm_app::{StateCache, StateMachine};
-use ewm_git::{LatticeState, LooseStore, MemoryStore, Repository};
+use ewm_git::{LooseStore, MemoryStore, Repository};
 
 fn temp_dir(name: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!(

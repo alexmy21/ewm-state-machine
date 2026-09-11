@@ -5,14 +5,13 @@
 //! only removes a LOCAL copy — the canonical data remains in IPFS
 //! or on peer nodes.
 
-use crate::storage::{Result, Storage, StorageError};
+use crate::storage::{Result, Storage};
 use std::collections::{BTreeMap, VecDeque};
 
 /// Cache entry with access tracking.
 #[derive(Clone)]
 struct CacheEntry {
     data: Vec<u8>,
-    last_access: std::time::Instant,
     insert_time: std::time::Instant,
 }
 
@@ -82,7 +81,6 @@ impl<S: Storage + Clone + 'static> Storage for CacheStorage<S> {
             key.to_string(),
             CacheEntry {
                 data: data.to_vec(),
-                last_access: std::time::Instant::now(),
                 insert_time: std::time::Instant::now(),
             },
         );
@@ -121,7 +119,6 @@ impl<S: Storage + Clone + 'static> Storage for CacheStorage<S> {
                 // Cache the fresh data
                 let entry = CacheEntry {
                     data: data.clone(),
-                    last_access: std::time::Instant::now(),
                     insert_time: std::time::Instant::now(),
                 };
                 self.cache.borrow_mut().insert(key.to_string(), entry);

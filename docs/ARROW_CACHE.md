@@ -84,21 +84,36 @@ LUTs are kept **separate per scheme**, and the scheme prefix lives on the
 **LUT name**, not on the Gn HLLSet key:
 
 ```text
-G1/G2/G3         h:<sha1>    scheme-agnostic channel HLLSets (shared)
-ng:G1 … ng:G3    n-gram LUTs — order can be restored (window chain)
-ns:G1 … ns:G3    n-seed LUTs — plain set only (seeded hashes are orderless)
+G1/G2/G3             h:<sha1>    scheme-agnostic 1D channels (shared)
+ng:G1 … ng:G3        n-gram LUTs — order can be restored (window chain)
+ns:G1 … ns:G3        n-seed LUTs — plain set only (seeded hashes are orderless)
+G4_1d                h:<sha1>    1D order side channel (4-gram, seed 3)
+G2_2d … G4_2d        h:<sha1>    grid channels (2×2, 3×3, 4×4; seeds 4, 5, 6)
+G2_3d … G4_3d        h:<sha1>    tensor channels (2^3, 3^3, 4^3; seeds 7, 8, 9)
 ```
+
+The full channel model is `conv(n, dim)`: n-grams are `conv(n, dim=1)`, grids
+`conv(n, dim=2)`, tensors `conv(n, dim=N)`. The `1×…×1` channel is shared in
+every dimension (`seed(1, ·) = 0` — G1 is the token set); for `n ≥ 2` the
+seed is `seed(n, dim) = (dim − 1)·3 + (n − 1)`. Grids/tensors ingest with a
+**full PAD border** (`GRID_BORDER = 3` on every axis) so the candidate cell
+is always the window's bottom-right (or lexicographically-last) corner.
 
 Given a recovered Gx, materialization picks the LUT whose name prefix
 matches the requested bootstrap scheme. The prefix also answers the order
 question for recovered tokens: `ng` means the n-gram LUTs know the original
 order; `ns` means only the set survives.
 
-**Gn are gates.** Each channel is the union of its two scheme components:
+**Gn are gates.** Each channel is the union of its bootstrap-scheme
+components (in 1D):
 
 ```text
 G1 = G1_ng ∪ G1_ns      G2 = G2_ng ∪ G2_ns      G3 = G3_ng ∪ G3_ns
 ```
+
+and, per window size `n` and dimension `dim`, `G{n}_{dim}d` is the gate for
+the `n^dim` convolution channel. The `1×…×1` gate is the shared token gate
+in every dimension.
 
 `gate(Gx, H) = Gx ∩ H` extracts H's channel component — it extracts bits,
 nothing more. **Bits are anonymous**: a bit does not remember its parent —
@@ -137,10 +152,12 @@ order walk uses TF to **score transitions** (greedy decoding, like LLM
 token generation). It may be rebuilt from the LUTs and does not need to
 survive context switches.
 
-### 4.3 token LUTs (`ng:G1` … `ng:G3`, `ns:G1` … `ns:G3`) — append-only
+### 4.3 token LUTs (`ng:G1` … `ng:G3`, `ns:G1` … `ns:G3`, `G2_2d` … `G4_2d`, …) — append-only
 
-Six batches — one LUT per scheme per channel (the Gn HLLSets themselves are
-shared and scheme-agnostic):
+Six 1D batches — one LUT per scheme per channel (the Gn HLLSets themselves
+are shared and scheme-agnostic) — plus, when the cache persists the
+convolution regimes, one LUT per `conv(n, dim)` channel named `G{n}_{dim}d`
+(the `1×…×1` LUT is the shared G1 LUT):
 
 ```text
 schema: (bit: UInt32, token: Binary)
