@@ -1,0 +1,17 @@
+[package]
+name = "ewm-app"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "The [UM] harness: the stateless driver loop of the state machine (read tip -> ingest -> S(t) -> D/R/N -> commit -> advance head)"
+
+[dependencies]
+# ── state crates ──
+ewm-git = { workspace = true }
+context-tree = { workspace = true }
+
+# ── foundation (the state representation + default morphisms) ──
+hllset-core = { workspace = true }
+hllset-contracts = { workspace = true }
+hllset-morphisms = { workspace = true }

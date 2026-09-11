@@ -1,0 +1,51 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/hllset-contracts",
+    "crates/hllset-cid",
+    "crates/hllset-core",
+    "crates/hllset-lut",
+    "crates/hllset-morphisms",
+    "crates/hllset-storage",
+    "crates/context-tree",
+    "crates/ewm-git",
+    "crates/ewm-app",
+]
+
+[workspace.package]
+version = "0.3.0"
+edition = "2021"
+authors = ["EWM State Machine Project"]
+license = "MIT"
+
+[workspace.dependencies]
+# ── foundation crates (moved from hllset-next-v2) ──
+hllset-contracts = { path = "crates/hllset-contracts" }
+hllset-cid = { path = "crates/hllset-cid" }
+hllset-core = { path = "crates/hllset-core" }
+hllset-lut = { path = "crates/hllset-lut" }
+hllset-morphisms = { path = "crates/hllset-morphisms" }
+hllset-storage = { path = "crates/hllset-storage" }
+
+# ── state crates (moved from ewm-cortex-fpga-v2) ──
+context-tree = { path = "crates/context-tree" }
+ewm-git = { path = "crates/ewm-git" }
+ewm-app = { path = "crates/ewm-app" }
+
+# ── external deps used by the moved crates ──
+murmur3 = "0.5"
+sha1 = "0.10"
+hex = "0.4"
+roaring = { version = "0.10", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2"
+sled = "0.34"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+[profile.dev]
+opt-level = 1

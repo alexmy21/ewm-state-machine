@@ -1,0 +1,15 @@
+[package]
+name = "hllset-storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Storage abstraction for HLLSet — content-addressed backends (memory, ipfrs-native via sled)"
+
+[dependencies]
+hllset-core = { workspace = true }
+hllset-cid = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+sled = { workspace = true }

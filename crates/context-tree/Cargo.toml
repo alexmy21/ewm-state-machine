@@ -1,0 +1,11 @@
+[package]
+name = "context-tree"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Merkle tree over the working set of HLLSets, with per-leaf LUT views (LUT_VIEW.md §7)"
+
+[dependencies]
+hex = { workspace = true }
+sha1 = { workspace = true }
