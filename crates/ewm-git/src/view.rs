@@ -22,7 +22,8 @@
 //!
 //! Every component here is an HLLSet — the equation lives entirely at the
 //! bit level. Restoring the original tokens is not the view's job; that is
-//! **materialization** (LUT-first, TF disambiguation).
+//! **materialization** (LUT-first, keeping every candidate — probabilistic
+//! restoration, no TF filtering).
 
 use hllset_core::HLLSet;
 

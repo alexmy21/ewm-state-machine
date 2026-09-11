@@ -1,47 +1,28 @@
-//! Materialization: LUT-first, TF only to resolve ambiguity.
+//! Materialization: LUT-first, keep every reference.
 //!
 //! For each active bit of each sketch, gather candidate tokens from the
-//! **corresponding pointed LUT** (every encoding); only when a bit has more
-//! than one candidate does the LUT's TF decide. Normally people start with
-//! TF — this module never does: TF is consulted exclusively for collided
-//! bits.
+//! **corresponding pointed LUT** (every encoding). A bit with several
+//! candidates restores **all** of them — collisions are normal in large
+//! token collections, and dropping candidates would be an incorrect filter.
+//! TF is never consulted for materialization; it exists for ranking only.
+//! This is **probabilistic restoration**: the LUTs give every token that
+//! could have set the bit; the sketch only says the bit is active.
 
-use crate::tf::TfTable;
 use hllset_core::HLLSet;
 use ::hllset_lut::LutIndex;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 /// `M(H, {L_j})` — materialize across encodings.
 ///
 /// Takes one `(sketch, LUT)` pair per encoding; the LUT of a pair is
-/// addressed by the same seed as its sketch. Candidates are collected per
-/// bit across all pairs, and a bit with several candidates restores the
-/// TF-maximum (ties break deterministically, to the lexicographically
-/// largest token bytes).
-pub fn materialize(pairs: &[(&HLLSet, &LutIndex)], tf: &TfTable) -> BTreeSet<Vec<u8>> {
-    let mut by_bit: BTreeMap<u32, BTreeSet<Vec<u8>>> = BTreeMap::new();
+/// addressed by the same seed as its sketch. Every candidate referenced by
+/// an active bit is restored; a collided bit therefore contributes **all**
+/// of its referenced tokens (probabilistic restoration — no TF filtering).
+pub fn materialize(pairs: &[(&HLLSet, &LutIndex)]) -> BTreeSet<Vec<u8>> {
+    let mut out = BTreeSet::new();
     for (hllset, lut) in pairs {
         for addr in hllset.bit_addresses() {
-            by_bit
-                .entry(addr.bit())
-                .or_default()
-                .extend(lut.fiber(addr.bit()));
-        }
-    }
-
-    let mut out = BTreeSet::new();
-    for (_, candidates) in by_bit {
-        match candidates.len() {
-            0 => {}
-            1 => {
-                out.extend(candidates);
-            }
-            _ => {
-                // Ambiguous bit: the LUT TF is the tie-break.
-                if let Some(winner) = candidates.iter().max_by_key(|t| tf.count(t)) {
-                    out.insert(winner.clone());
-                }
-            }
+            out.extend(lut.fiber(addr.bit()));
         }
     }
     out
@@ -54,7 +35,7 @@ mod tests {
     use hllset_contracts::{token_in_bytes, token_in_bytes_le, BitAddress};
 
     #[test]
-    fn lut_is_first_tf_only_breaks_ambiguity() {
+    fn collided_bit_keeps_all_candidates() {
         let mut ingest = Ingest::new();
         // tid262LE and tid48300LE collide at (759, 0) under seed 0.
         let a = token_in_bytes_le(262).to_vec();
@@ -66,12 +47,17 @@ mod tests {
         let mut sketch = hllset_core::HLLSet::new();
         sketch.add_bit(759 * 32 + 0);
 
-        let restored = materialize(&[(&sketch, ingest.lut(0))], ingest.tf());
-        assert_eq!(restored, BTreeSet::from([a.clone()]), "TF-max wins the collided bit");
+        // No TF filtering: both references to the collided bit survive.
+        let restored = materialize(&[(&sketch, ingest.lut(0))]);
+        assert_eq!(
+            restored,
+            BTreeSet::from([a.clone(), b.clone()]),
+            "a collided bit restores every candidate"
+        );
     }
 
     #[test]
-    fn unambiguous_bit_ignores_tf() {
+    fn unambiguous_bit_restores_the_pointed_token() {
         let mut ingest = Ingest::new();
         let rare = token_in_bytes(1);
         let frequent = token_in_bytes(2);
@@ -80,18 +66,17 @@ mod tests {
             ingest.ingest_token(&frequent);
         }
 
-        // A sketch containing only `rare`'s seed-0 atom restores `rare`,
-        // even though `frequent` has a much higher TF — TF is not the start.
+        // A sketch containing only `rare`'s seed-0 atom restores `rare`.
         let mut sketch = hllset_core::HLLSet::new();
         let rare_bit = BitAddress::of_token_seeded(&rare, 0).bit();
         sketch.add_bit(rare_bit);
 
-        let restored = materialize(&[(&sketch, ingest.lut(0))], ingest.tf());
+        let restored = materialize(&[(&sketch, ingest.lut(0))]);
         assert_eq!(restored, BTreeSet::from([rare]));
     }
 
     #[test]
-    fn high_tf_token_outside_the_luts_never_appears() {
+    fn tokens_outside_the_luts_never_appear() {
         let mut ingest = Ingest::new();
         let in_lut = token_in_bytes(5);
         let outside = token_in_bytes(6);
@@ -108,7 +93,7 @@ mod tests {
         let bit = BitAddress::of_token_seeded(&in_lut, 0).bit();
         sketch.add_bit(bit);
 
-        let restored = materialize(&[(&sketch, &lut_only_in)], ingest.tf());
+        let restored = materialize(&[(&sketch, &lut_only_in)]);
         assert_eq!(restored, BTreeSet::from([in_lut]), "TF cannot conjure tokens absent from the LUTs");
     }
 
@@ -137,9 +122,9 @@ mod tests {
         l2.insert_token_seeded(t2.clone(), 2);
 
         // Only when all three LUTs are pointed are all three restored.
-        let all = materialize(&[(&s0, &l0), (&s1, &l1), (&s2, &l2)], ingest.tf());
+        let all = materialize(&[(&s0, &l0), (&s1, &l1), (&s2, &l2)]);
         assert_eq!(all, BTreeSet::from([t0.clone(), t1.clone(), t2.clone()]));
-        let only_l0 = materialize(&[(&s0, &l0)], ingest.tf());
+        let only_l0 = materialize(&[(&s0, &l0)]);
         assert_eq!(only_l0, BTreeSet::from([t0]));
     }
 }

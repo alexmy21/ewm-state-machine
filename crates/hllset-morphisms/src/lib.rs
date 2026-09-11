@@ -9,11 +9,11 @@
 //! 3. insert the token into the corresponding LUT fiber,
 //! 4. increment TF.
 //!
-//! **Materialize (LUT-first, TF only for ambiguity).** For each active bit
+//! **Materialize (LUT-first, keep every reference).** For each active bit
 //! of the sketch, collect candidate tokens from **all pointed LUTs** across
-//! all encodings; only when a bit resolves to more than one candidate does
-//! the LUT's TF break the tie. TF is never the starting point — normally
-//! people start with TF; this module never does.
+//! all encodings; a bit with several candidates restores **all** of them.
+//! Collisions are normal in large token collections, so TF is never used to
+//! filter — this is probabilistic restoration. TF exists for ranking only.
 //!
 //! # Application-level default interface
 //!

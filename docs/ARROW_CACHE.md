@@ -103,10 +103,10 @@ G1 = G1_ng ∪ G1_ns      G2 = G2_ng ∪ G2_ns      G3 = G3_ng ∪ G3_ns
 `gate(Gx, H) = Gx ∩ H` extracts H's channel component — it extracts bits,
 nothing more. **Bits are anonymous**: a bit does not remember its parent —
 the same bit may have been set by a 1-gram, a seed-0 hash, or PAD
-(collisions are fine; resolving them is the materializer's problem, solved
-by bootstrapping + disambiguation). Interpreting the extracted bits
-(1-gram vs seed-0 atoms) happens only in materialization, in the context
-of a specific HLLSet and a chosen LUT.
+(collisions are fine; the materializer keeps **every** candidate —
+probabilistic restoration, no TF filtering). Interpreting the extracted
+bits (1-gram vs seed-0 atoms) happens only in materialization, in the
+context of a specific HLLSet and a chosen LUT.
 
 ### 4.1 `hllset_lut` — named HLLSets, append-only, context-scoped
 
@@ -130,9 +130,10 @@ sorted by: token
 ```
 
 Built for the **current context** (the working set of the active turns), not
-a global table. It is the token-level TF that materialize uses for
-tie-breaking; it may be rebuilt from the LUTs and does not need to survive
-context switches.
+a global table. It holds the token-level TF for **ranking only** —
+materialization never uses TF to filter candidates (collided bits keep
+every reference, probabilistic restoration). It may be rebuilt from the
+LUTs and does not need to survive context switches.
 
 ### 4.3 token LUTs (`ng:G1` … `ng:G3`, `ns:G1` … `ns:G3`) — append-only
 

@@ -43,12 +43,14 @@
 //!
 //! # Default materialize — LUT-first, ordered
 //!
-//! The three `(sketch, LUT)` pairs are materialized LUT-first with TF
-//! consulted only for collided bits. The default result is **ordered**: the
-//! original sequence is reconstructed by following the 3-gram chain anchored
-//! at the start pad (`(PAD, t1, t2)`, then `(t_{i-1}, t_i, t_{i+1})` until
-//! the trailing pad). Pass [`MaterializeOptions::no_order`] for the plain
-//! (bytewise-sorted) set instead.
+//! The three `(sketch, LUT)` pairs are materialized LUT-first, **keeping
+//! every reference**: a collided bit restores all of its candidate tokens
+//! (probabilistic restoration — no TF filtering). The default result is
+//! **ordered**: the original sequence is reconstructed by following the
+//! 3-gram chain anchored at the start pad (`(PAD, t1, t2)`, then
+//! `(t_{i-1}, t_i, t_{i+1})` until the trailing pad). Pass
+//! [`MaterializeOptions::no_order`] for the plain (bytewise-sorted) set
+//! instead.
 
 use std::collections::BTreeSet;
 
@@ -145,7 +147,8 @@ impl Ingested {
         materialize(self)
     }
 
-    /// The unordered restoration (LUT-first, TF for ambiguity only).
+    /// The unordered restoration (LUT-first; collided bits keep every
+    /// candidate — probabilistic restoration, no TF filtering).
     pub fn materialize_no_order(&self) -> BTreeSet<Vec<u8>> {
         materialize_no_order(self)
     }
@@ -316,15 +319,17 @@ pub fn materialize_no_order(ingested: &Ingested) -> BTreeSet<Vec<u8>> {
     unordered_tokens(ingested)
 }
 
-/// LUT-first materialization over all three `(sketch, LUT)` pairs; TF is
-/// consulted only when a bit has more than one candidate.
+/// LUT-first materialization over all three `(sketch, LUT)` pairs. Every
+/// candidate referenced by an active bit is kept — a collided bit restores
+/// all of its tokens (probabilistic restoration; TF is never used to
+/// filter).
 pub fn unordered_tokens(ingested: &Ingested) -> BTreeSet<Vec<u8>> {
     let pairs: Vec<(&HLLSet, &LutIndex)> = ingested
         .sketches
         .iter()
         .zip(ingested.luts.iter())
         .collect();
-    materialize_lut_first(&pairs, &ingested.tf)
+    materialize_lut_first(&pairs)
 }
 
 /// The Gn gate: `Gx ∩ H` — extract the Gx channel bits of any HLLSet H.
@@ -338,8 +343,8 @@ pub fn unordered_tokens(ingested: &Ingested) -> BTreeSet<Vec<u8>> {
 /// **Bits are anonymous.** A bit does not remember which token — or which
 /// bootstrap scheme — set it. The same bit may have been set by a 1-gram,
 /// a seed-0 hash, or PAD; a collision is fine, and resolving it is the
-/// **materializer's** problem (bootstrapping + disambiguation), not the
-/// gate's.
+/// **materializer's** problem (it keeps every candidate — probabilistic
+/// restoration), not the gate's.
 ///
 /// The gate only extracts bits. Interpreting them (1-gram vs seed-0 atoms)
 /// happens in materialization, in the context of a specific HLLSet and a
