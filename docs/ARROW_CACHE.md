@@ -78,18 +78,21 @@ Cache objects fall into three classes:
 ### 4.0 Bootstrap schemes — same Gn, separate LUTs
 
 n-grams and n-seeds are two ways of **bootstrapping token presentation** in
-an HLLSet. The HLLSet itself is bootstrap-scheme agnostic: both schemes set
-bits in the **same Gn channels** (G1/G2/G3). The token LUTs are kept
-**separate per scheme** (n-gram LUTs vs n-seed LUTs), and the SHA1 prefix on
-a Gn key records which LUT materialization must use:
+an HLLSet. The HLLSet itself is bootstrap-scheme agnostic, and there is
+**one G1, one G2, one G3** — the same channels serve both schemes. The token
+LUTs are kept **separate per scheme**, and the scheme prefix lives on the
+**LUT name**, not on the Gn HLLSet key:
 
 ```text
-h:ng:<sha1>   n-gram bootstrapped  — order can be restored (window chain)
-h:ns:<sha1>   n-seed bootstrapped  — plain set only (seeded hashes are orderless)
+G1/G2/G3         h:<sha1>    scheme-agnostic channel HLLSets (shared)
+ng:G1 … ng:G3    n-gram LUTs — order can be restored (window chain)
+ns:G1 … ns:G3    n-seed LUTs — plain set only (seeded hashes are orderless)
 ```
 
-The prefix also answers the order question for recovered tokens: `ng` means
-the n-gram LUTs know the original order; `ns` means only the set survives.
+Given a recovered Gx, materialization picks the LUT whose name prefix
+matches the requested bootstrap scheme. The prefix also answers the order
+question for recovered tokens: `ng` means the n-gram LUTs know the original
+order; `ns` means only the set survives.
 
 ### 4.1 `hllset_lut` — named HLLSets, append-only, context-scoped
 
@@ -117,9 +120,10 @@ a global table. It is the token-level TF that materialize uses for
 tie-breaking; it may be rebuilt from the LUTs and does not need to survive
 context switches.
 
-### 4.3 token LUTs (`lut_g1`, `lut_g2`, `lut_g3`) — append-only
+### 4.3 token LUTs (`ng:G1` … `ng:G3`, `ns:G1` … `ns:G3`) — append-only
 
-One batch per channel, so the three channels stay independently readable:
+Six batches — one LUT per scheme per channel (the Gn HLLSets themselves are
+shared and scheme-agnostic):
 
 ```text
 schema: (bit: UInt32, token: Binary)
@@ -201,9 +205,12 @@ Long form of the turn records (one row per token occurrence).
 │   └── <sha1>.tfvec      # TFVec bytes, named by its content ID
 └── tables/
     ├── hllset_lut.arrow  # append-only, context-scoped
-    ├── lut_g1.arrow      # append-only
-    ├── lut_g2.arrow      # append-only
-    ├── lut_g3.arrow      # append-only
+    ├── ng:G1.arrow       # n-gram LUTs (order-preserving), append-only
+    ├── ng:G2.arrow
+    ├── ng:G3.arrow
+    ├── ns:G1.arrow       # n-seed LUTs (orderless), append-only
+    ├── ns:G2.arrow
+    ├── ns:G3.arrow
     ├── tree_leaves.arrow
     ├── tree_levels.arrow
     └── turns.arrow

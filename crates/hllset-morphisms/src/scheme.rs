@@ -1,49 +1,56 @@
-//! Bootstrap-scheme prefixes on HLLSet keys.
+//! Bootstrap-scheme prefixes for token LUTs.
 //!
 //! n-grams and n-seeds are two ways of **bootstrapping token presentation**
-//! in an HLLSet. The HLLSet itself is bootstrap-scheme agnostic — both
-//! schemes set bits in the same Gn channels (G1/G2/G3).
+//! in an HLLSet. The HLLSet itself is bootstrap-scheme agnostic, and there is
+//! **one G1, one G2, one G3** — the same channels serve both schemes.
 //!
-//! The token LUTs, however, are kept **separate per scheme**: the n-gram LUT
-//! stores n-gram window relations (order-preserving), the n-seed LUT stores
-//! seeded-hash relations (orderless). The SHA1 prefix on a Gn key records
-//! which scheme's LUT materialization must use:
+//! The token LUTs are kept **separate per scheme**, and the scheme prefix
+//! lives on the **LUT name**, not on the Gn HLLSet key:
 //!
 //! ```text
-//! h:ng:<sha1>   n-gram bootstrapped  — order can be restored
-//! h:ns:<sha1>   n-seed bootstrapped  — plain set only
+//! G1/G2/G3         h:<sha1>    scheme-agnostic channel HLLSets (shared)
+//! ng:G1 … ng:G3    n-gram LUTs — order can be restored (window chain)
+//! ns:G1 … ns:G3    n-seed LUTs — plain set only (seeded hashes are orderless)
 //! ```
+//!
+//! Given a recovered Gx, materialization picks the LUT whose name prefix
+//! matches the requested bootstrap scheme.
 
-/// The n-gram bootstrap prefix (order-preserving LUT).
+/// The n-gram bootstrap prefix (order-preserving LUTs).
 pub const NG: &str = "ng";
 
-/// The n-seed bootstrap prefix (orderless LUT).
+/// The n-seed bootstrap prefix (orderless LUTs).
 pub const NS: &str = "ns";
 
-/// Build a scheme-prefixed HLLSet key from a scheme prefix and a bare SHA1.
-pub fn scheme_key(prefix: &str, sha1: &str) -> String {
-    format!("h:{prefix}:{sha1}")
+/// The scheme-prefixed name of a Gn channel's LUT: `ng:G1`, `ns:G3`, …
+///
+/// `channel` is 0-based (0 = G1, 1 = G2, 2 = G3).
+pub fn lut_name(scheme: &str, channel: usize) -> String {
+    format!("{scheme}:G{}", channel + 1)
 }
 
-/// The bootstrap scheme of a prefixed key (`"ng"` or `"ns"`), if any.
-pub fn key_scheme(key: &str) -> Option<&str> {
-    let rest = key.strip_prefix("h:")?;
-    let (prefix, sha1) = rest.split_once(':')?;
-    if sha1.len() == 40 && sha1.chars().all(|c| c.is_ascii_hexdigit()) {
-        Some(prefix)
+/// The scheme prefix of a LUT name (`"ng"` / `"ns"`), if the name is a
+/// scheme-prefixed Gn LUT name.
+pub fn lut_scheme(name: &str) -> Option<&str> {
+    let (scheme, gn) = name.split_once(':')?;
+    if (scheme == NG || scheme == NS) && matches!(gn, "G1" | "G2" | "G3") {
+        Some(scheme)
     } else {
         None
     }
 }
 
-/// The bare 40-hex SHA1 of a prefixed key, if the key is prefixed.
-pub fn key_sha1(key: &str) -> Option<&str> {
-    let rest = key.strip_prefix("h:")?;
-    let (prefix, sha1) = rest.split_once(':')?;
-    if prefix == NG || prefix == NS {
-        (sha1.len() == 40 && sha1.chars().all(|c| c.is_ascii_hexdigit())).then_some(sha1)
-    } else {
-        None
+/// The 0-based channel index of a scheme-prefixed LUT name, if valid.
+pub fn lut_channel(name: &str) -> Option<usize> {
+    let (scheme, gn) = name.split_once(':')?;
+    if scheme != NG && scheme != NS {
+        return None;
+    }
+    match gn {
+        "G1" => Some(0),
+        "G2" => Some(1),
+        "G3" => Some(2),
+        _ => None,
     }
 }
 
@@ -52,16 +59,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn prefixed_keys_roundtrip() {
-        let key = scheme_key(NG, "a".repeat(40).as_str());
-        assert_eq!(key_scheme(&key), Some(NG));
-        assert_eq!(key_sha1(&key), Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    fn lut_names_carry_the_scheme_and_channel() {
+        assert_eq!(lut_name(NG, 0), "ng:G1");
+        assert_eq!(lut_name(NS, 2), "ns:G3");
+        assert_eq!(lut_scheme("ng:G1"), Some(NG));
+        assert_eq!(lut_scheme("ns:G2"), Some(NS));
+        assert_eq!(lut_channel("ns:G2"), Some(1));
     }
 
     #[test]
-    fn bare_and_malformed_keys_are_rejected() {
-        assert_eq!(key_scheme("h:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), None);
-        assert_eq!(key_scheme("h:xx:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), Some("xx"));
-        assert_eq!(key_sha1("not-a-key"), None);
+    fn bare_or_malformed_names_are_rejected() {
+        assert_eq!(lut_scheme("G1"), None);
+        assert_eq!(lut_scheme("xx:G1"), None);
+        assert_eq!(lut_channel("ng:G4"), None);
+        assert_eq!(lut_channel("h:ng:abc"), None);
     }
 }

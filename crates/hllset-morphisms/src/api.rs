@@ -26,23 +26,20 @@
 //! fiber; TF counts every observation of every real token. The two trailing
 //! pads guarantee the last token still participates in a 3-gram.
 //!
-//! # The default return — the scheme-prefixed SHA1 of the new HLLSet
+//! # The default return — the SHA1 of the new HLLSet
 //!
 //! Ingest's purpose is the **population of LUTs and hllsetLUT** as a side
-//! effect, and its default return is the scheme-prefixed SHA1 of the new
-//! HLLSet:
+//! effect, and its default return is the SHA1 of the new HLLSet:
 //!
-//! - [`Ingested::key`] — `h:ng:<sha1>` of the projection
-//!   `pr-HLLSet(L) = G1 ∪ G2 ∪ G3` (the collection's new HLLSet). The `ng`
-//!   prefix tells materialization to use the **n-gram LUTs** — order can be
-//!   restored;
-//! - [`Ingested::keys`] — the `h:ng:<sha1>` keys of the three channel
+//! - [`Ingested::key`] — `h:<sha1>` of the projection
+//!   `pr-HLLSet(L) = G1 ∪ G2 ∪ G3` (the collection's new HLLSet). G1/G2/G3
+//!   are shared, scheme-agnostic channels;
+//! - [`Ingested::keys`] — the `h:<sha1>` keys of the three channel
 //!   originals;
-//! - [`Ingested::luts`] — the n-gram token LUTs (preserve the processed
-//!   tokens and their order);
+//! - [`Ingested::luts`] — the n-gram token LUTs (named `ng:G1` … `ng:G3`;
+//!   they preserve the processed tokens and their order);
 //! - [`Ingested::hllset_lut`] — the hllsetLUT populated with every created
-//!   channel HLLSet (preserves the new HLLSets by their scheme-prefixed
-//!   SHA1 keys).
+//!   channel HLLSet (preserves the new HLLSets by their SHA1 keys).
 //!
 //! # Default materialize — LUT-first, ordered
 //!
@@ -61,7 +58,7 @@ use hllset_core::HLLSet;
 
 use crate::hllset_lut::HllsetLut;
 use crate::materialize::materialize as materialize_lut_first;
-use crate::scheme::{scheme_key, NG};
+use crate::scheme::{lut_name, NG};
 use crate::tf::TfTable;
 
 /// The default boundary token: one start pad and two end pads.
@@ -84,11 +81,11 @@ pub const CHANNEL_NAMES: [&str; CHANNELS] = ["G1", "G2", "G3"];
 ///
 /// This is the direct-application counterpart of the DSL's `inscribe`: an
 /// ordered token collection, padded and n-gram encoded end-to-end. The
-/// **default case** is [`key`](Self::key) — the scheme-prefixed SHA1
-/// (`h:ng:<sha1>`) of the new HLLSet (`pr-HLLSet = G1 ∪ G2 ∪ G3`). The side
-/// effects preserve the work: the token LUTs keep the processed tokens, and
+/// **default case** is [`key`](Self::key) — the SHA1 (`h:<sha1>`) of the
+/// new HLLSet (`pr-HLLSet = G1 ∪ G2 ∪ G3`). The side effects preserve the
+/// work: the token LUTs keep the processed tokens, and
 /// [`hllset_lut`](Self::hllset_lut) keeps the created channel HLLSets by
-/// their scheme-prefixed SHA1 keys.
+/// their SHA1 keys.
 #[derive(Clone, Debug)]
 pub struct Ingested {
     /// One sketch per n-gram channel (G1, G2, G3). The HLLSet itself is
@@ -108,12 +105,10 @@ pub struct Ingested {
     /// (`pr-HLLSet(L) = ingest(L)` — the new HLLSet the default ingest
     /// returns the key of).
     pub projection: HLLSet,
-    /// Scheme-prefixed SHA1 of the projection (`h:ng:<sha1>`) — **the default
-    /// return of ingest**. The prefix selects the n-gram LUTs at
-    /// materialization time.
+    /// SHA1 of the projection (`h:<sha1>`) — **the default return of
+    /// ingest**. G1/G2/G3 are shared, scheme-agnostic channels.
     pub key: String,
-    /// Scheme-prefixed SHA1 keys of the three channel HLLSets (`h:ng:<sha1>`
-    /// for G1, G2, G3).
+    /// SHA1 keys of the three channel HLLSets (`h:<sha1>` for G1, G2, G3).
     pub keys: [String; CHANNELS],
     /// The hllsetLUT populated by this ingest: every created channel HLLSet
     /// registered under its name and touch-counted (the preservation side
@@ -131,7 +126,7 @@ impl Ingested {
     /// An empty ingestion result with the default pad.
     pub fn new() -> Self {
         let empty = HLLSet::new();
-        let key = scheme_key(NG, &empty.content_hash());
+        let key = empty.content_key();
         Self {
             sketches: std::array::from_fn(|_| HLLSet::new()),
             luts: std::array::from_fn(|_| LutIndex::default()),
@@ -153,6 +148,13 @@ impl Ingested {
     /// The unordered restoration (LUT-first, TF for ambiguity only).
     pub fn materialize_no_order(&self) -> BTreeSet<Vec<u8>> {
         materialize_no_order(self)
+    }
+
+    /// The scheme-prefixed names of the n-gram LUTs: `ng:G1`, `ng:G2`,
+    /// `ng:G3`. The prefix selects the LUT at materialization time; the
+    /// Gn HLLSets themselves are shared and scheme-agnostic.
+    pub fn lut_names(&self) -> [String; CHANNELS] {
+        std::array::from_fn(|ch| lut_name(NG, ch))
     }
 }
 
@@ -228,14 +230,14 @@ where
     // The `ng` prefix tells materialization to use the n-gram LUTs (order
     // can be restored).
     out.projection = out.sketches.iter().fold(HLLSet::new(), |acc, s| acc.union(s));
-    out.key = scheme_key(NG, &out.projection.content_hash());
+    out.key = out.projection.content_key();
 
     // Preservation side effects: every created channel HLLSet is registered
     // and touch-counted in the hllsetLUT under its **name** (G1/G2/G3), keyed
     // by its scheme-prefixed SHA1. Named HLLSets are immutable: the next
     // ingest creates new Gx HLLSets (new keys); the old ones stay registered.
     for (ch, sketch) in out.sketches.iter().enumerate() {
-        out.keys[ch] = scheme_key(NG, &sketch.content_hash());
+        out.keys[ch] = sketch.content_key();
         out.hllset_lut
             .register_named(CHANNEL_NAMES[ch], &out.keys[ch]);
         out.hllset_lut
@@ -246,13 +248,14 @@ where
 }
 
 /// The default case in one call: ingest an ordered token collection and
-/// return the scheme-prefixed SHA1 of the new HLLSet (`h:ng:<sha1>`).
+/// return the SHA1 of the new HLLSet (`h:<sha1>`). G1/G2/G3 are shared,
+/// scheme-agnostic channels; the bootstrap scheme lives on the LUT names.
 ///
 /// ```rust
 /// use hllset_morphisms::ingest_key;
 ///
 /// let key = ingest_key(["the", "cat", "sat"]);
-/// assert!(key.starts_with("h:ng:"));
+/// assert!(key.starts_with("h:"));
 /// ```
 pub fn ingest_key<I, S>(tokens: I) -> String
 where
@@ -575,21 +578,22 @@ mod tests {
         let tokens = bytes(&["a", "b", "c"]);
         let ing = ingest(&tokens);
 
-        // Default case: the scheme-prefixed SHA1 of the new HLLSet. The
-        // `ng` prefix selects the n-gram LUTs at materialization time.
-        assert!(ing.key.starts_with("h:ng:"), "key = {}", ing.key);
-        assert_eq!(ing.key, scheme_key(NG, &ing.projection.content_hash()));
+        // Default case: the SHA1 of the new HLLSet (scheme-agnostic Gx).
+        assert!(ing.key.starts_with("h:"), "key = {}", ing.key);
+        assert_eq!(ing.key, ing.projection.content_key());
         assert_eq!(
             ing.projection.popcount(),
             ing.sketches[0].union(&ing.sketches[1]).union(&ing.sketches[2]).popcount(),
             "projection = G1 ∪ G2 ∪ G3"
         );
 
-        // The three channel originals each have their own scheme-prefixed SHA1.
+        // The three channel originals each have their own SHA1.
         for (ch, key) in ing.keys.iter().enumerate() {
-            assert!(key.starts_with("h:ng:"));
-            assert_eq!(*key, scheme_key(NG, &ing.sketches[ch].content_hash()));
+            assert!(key.starts_with("h:"));
+            assert_eq!(*key, ing.sketches[ch].content_key());
         }
+        // The n-gram LUTs are named by scheme + channel.
+        assert_eq!(ing.lut_names(), ["ng:G1", "ng:G2", "ng:G3"]);
 
         // Preservation side effect: all three new HLLSets are in the hllsetLUT
         // under their names (G1/G2/G3) with TH = 1 (register + touch).
@@ -611,14 +615,14 @@ mod tests {
     #[test]
     fn ingest_key_is_the_default_case() {
         let key = ingest_key(["the", "cat", "sat"]);
-        assert!(key.starts_with("h:ng:"));
+        assert!(key.starts_with("h:"));
         assert_eq!(key, ingest(["the", "cat", "sat"]).key);
     }
 
     #[test]
     fn empty_ingest_has_no_preserved_hllsets() {
         let ing = ingest(Vec::<Vec<u8>>::new());
-        assert!(ing.key.starts_with("h:ng:"), "empty projection still has a key");
+        assert!(ing.key.starts_with("h:"), "empty projection still has a key");
         assert!(ing.hllset_lut.is_empty(), "nothing created → nothing preserved");
         assert!(ing.keys.iter().all(|k| k.is_empty()));
     }

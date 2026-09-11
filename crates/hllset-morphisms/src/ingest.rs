@@ -4,7 +4,7 @@
 //! sets the atoms, registers the LUT fibers, and increments TF — without
 //! handing the token to anything else.
 
-use crate::scheme::{scheme_key, NS};
+use crate::scheme::{lut_name, NS};
 use crate::tf::TfTable;
 use hllset_contracts::BitAddress;
 use hllset_core::HLLSet;
@@ -90,24 +90,28 @@ impl Ingest {
         self.hllsets.iter().fold(HLLSet::new(), |acc, s| acc.union(s))
     }
 
-    /// The scheme-prefixed key of the projection: `h:ns:<sha1>`. The `ns`
-    /// prefix tells materialization to use the **n-seed LUTs** (plain set;
-    /// n-seed carries no order).
+    /// The key of the projection: `h:<sha1>`. G1/G2/G3 are shared,
+    /// scheme-agnostic channels; the bootstrap scheme lives on the LUT
+    /// names, not on the Gn keys.
     pub fn key(&self) -> String {
-        scheme_key(NS, &self.projection().content_hash())
+        self.projection().content_key()
     }
 
-    /// The scheme-prefixed keys of the three channel HLLSets
-    /// (`h:ns:<sha1>` for G1, G2, G3).
+    /// The keys of the three channel HLLSets (`h:<sha1>` for G1, G2, G3).
     pub fn keys(&self) -> [String; N_SEEDS] {
-        std::array::from_fn(|i| scheme_key(NS, &self.hllsets[i].content_hash()))
+        std::array::from_fn(|i| self.hllsets[i].content_key())
+    }
+
+    /// The scheme-prefixed names of the n-seed LUTs: `ns:G1`, `ns:G2`,
+    /// `ns:G3` (orderless — seeded hashes carry no order).
+    pub fn lut_names(&self) -> [String; N_SEEDS] {
+        std::array::from_fn(|i| lut_name(NS, i))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scheme::key_scheme;
 
     #[test]
     fn single_touch_is_complete() {
@@ -138,17 +142,20 @@ mod tests {
     }
 
     #[test]
-    fn n_seed_keys_carry_the_ns_prefix() {
+    fn n_seed_keys_are_scheme_agnostic_and_luts_are_named() {
         let mut ingest = Ingest::new();
         ingest.ingest_tokens([&b"alpha"[..], &b"beta"[..]]);
 
         let key = ingest.key();
-        assert!(key.starts_with("h:ns:"), "key = {key}");
-        assert_eq!(key_scheme(&key), Some(NS));
+        assert!(key.starts_with("h:"), "key = {key}");
+        assert_eq!(key, ingest.projection().content_key());
 
-        for k in ingest.keys() {
-            assert!(k.starts_with("h:ns:"));
-            assert_eq!(key_scheme(&k), Some(NS));
+        for (i, k) in ingest.keys().iter().enumerate() {
+            assert!(k.starts_with("h:"));
+            assert_eq!(*k, ingest.hllset(i).content_key());
         }
+
+        // The scheme prefix lives on the LUT names.
+        assert_eq!(ingest.lut_names(), ["ns:G1", "ns:G2", "ns:G3"]);
     }
 }

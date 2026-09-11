@@ -45,5 +45,5 @@ pub use api::{
 };
 pub use hllset_lut::{HllsetLut, UNNAMED};
 pub use ingest::{Ingest, N_SEEDS, SEEDS};
-pub use scheme::{key_scheme, key_sha1, scheme_key, NG, NS};
+pub use scheme::{lut_channel, lut_name, lut_scheme, NG, NS};
 pub use tf::TfTable;
