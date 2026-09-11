@@ -26,11 +26,13 @@
 
 pub mod app;
 pub mod llm;
+pub mod snapshot;
 pub mod state;
 pub mod token;
 
 pub use app::{AppError, StateMachine, TurnOutcome, APP_ENCODING_NAME};
 pub use llm::{OllamaLlm, StubLlm, TurnSource};
+pub use snapshot::{CacheStub, StateSnapshot, TurnSnapshot};
 pub use state::{StateCache, TurnRecord};
 pub use token::TokenEncoding;
 

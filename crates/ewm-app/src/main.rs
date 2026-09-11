@@ -26,6 +26,7 @@ fn main() {
         .to_string();
     let mut turns = 3usize;
     let mut repo_path: Option<String> = None;
+    let mut snapshot_path: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -63,6 +64,11 @@ fn main() {
                 repo_path = args.get(i).cloned();
                 i += 1;
             }
+            "--snapshot" => {
+                i += 1;
+                snapshot_path = args.get(i).cloned();
+                i += 1;
+            }
             other => {
                 eprintln!("unknown argument: {other}");
                 std::process::exit(2);
@@ -93,12 +99,28 @@ fn main() {
         let mut cache = StateCache::restore(app.repo());
         println!("store        : {path} (recovered tip: {})", head_or_none(&app));
         run_loop(&mut app, &mut cache, &mut *source);
+        if let Some(snap) = snapshot_path {
+            write_snapshot(&app, &cache, &snap);
+        }
     } else {
         let mut app = StateMachine::new(ewm_git::MemoryStore::default());
         let mut cache = StateCache::empty();
         println!("store        : memory");
         run_loop(&mut app, &mut cache, &mut *source);
+        if let Some(snap) = snapshot_path {
+            write_snapshot(&app, &cache, &snap);
+        }
     }
+}
+
+fn write_snapshot<S: ewm_git::ObjectStore>(
+    app: &StateMachine<S>,
+    cache: &ewm_app::StateCache,
+    path: &str,
+) {
+    let json = app.snapshot(cache).to_json();
+    std::fs::write(path, json).expect("write snapshot");
+    println!("snapshot     : {path}");
 }
 
 fn head_or_none<S: ewm_git::ObjectStore>(app: &StateMachine<S>) -> String {

@@ -4,7 +4,7 @@
 //! sets the atoms, registers the LUT fibers, and increments TF — without
 //! handing the token to anything else.
 
-use crate::scheme::{key_scheme, scheme_key, NS};
+use crate::scheme::{scheme_key, NS};
 use crate::tf::TfTable;
 use hllset_contracts::BitAddress;
 use hllset_core::HLLSet;
@@ -107,6 +107,7 @@ impl Ingest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scheme::key_scheme;
 
     #[test]
     fn single_touch_is_complete() {

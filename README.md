@@ -62,7 +62,8 @@ Terminology reference:
 ewm-state-machine/
 ├── Cargo.toml                 # workspace manifest
 ├── docs/
-│   └── ARROW_CACHE.md         # design note: Arrow as the cache-layer substrate
+│   ├── ARROW_CACHE.md         # design note: Arrow as the cache-layer substrate
+│   └── EXPLORER.md            # the read-only explorer contract
 └── crates/
     ├── hllset-contracts/      # soldered invariants (leaf)
     ├── hllset-cid/            # embedded SHA-1 CIDs
@@ -74,12 +75,30 @@ ewm-state-machine/
     ├── ewm-git/               # the state stack: commit DAG, tip, recovery
     ├── ewm-app/               # the [UM] harness: stateless driver + StateCache
     │                          # (S(t) and H(t-1) live in the cache, not the [UM])
+    ├── ewm-sm-explore/        # read-only explorer of the three-layer structure
     └── (planned) ewm-cache/   # Arrow-backed cache layer, per docs/ARROW_CACHE.md
 ```
 
 The Arrow cache layer is designed but not implemented; see
 [`docs/ARROW_CACHE.md`](docs/ARROW_CACHE.md) for the boundary, schemas, and
 the IPC extended-cache layout.
+
+## Explorer
+
+The state machine is one data structure over three locations — S(t)
+run-time, cache, persistent layer. `ewm-sm-explore` projects them read-only:
+
+```bash
+# Persistent layer (commit DAG, per-commit Gx keys, D/R/N, hllsetLUT, tops)
+cargo run -p ewm-sm-explore -- store /tmp/ewm-sm-demo [--json]
+
+# S(t) run-time area (exported by the app after the loop)
+cargo run -p ewm-app -- --stub "1,2,3;2,3,4" --repo /tmp/ewm-sm-demo \
+    --snapshot /tmp/ewm-sm-demo/snapshot.json
+cargo run -p ewm-sm-explore -- snapshot /tmp/ewm-sm-demo/snapshot.json
+```
+
+See [`docs/EXPLORER.md`](docs/EXPLORER.md).
 
 ## Notebooks
 

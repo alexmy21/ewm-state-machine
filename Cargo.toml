@@ -10,6 +10,7 @@ members = [
     "crates/context-tree",
     "crates/ewm-git",
     "crates/ewm-app",
+    "crates/ewm-sm-explore",
 ]
 
 [workspace.package]
@@ -31,6 +32,7 @@ hllset-storage = { path = "crates/hllset-storage" }
 context-tree = { path = "crates/context-tree" }
 ewm-git = { path = "crates/ewm-git" }
 ewm-app = { path = "crates/ewm-app" }
+ewm-sm-explore = { path = "crates/ewm-sm-explore" }
 
 # ── external deps used by the moved crates ──
 murmur3 = "0.5"

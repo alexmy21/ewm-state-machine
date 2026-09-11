@@ -105,6 +105,8 @@ dependencies = [
  "hllset-contracts",
  "hllset-core",
  "hllset-morphisms",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -114,6 +116,15 @@ dependencies = [
  "hllset-core",
  "hllset-lut",
  "hllset-morphisms",
+]
+
+[[package]]
+name = "ewm-sm-explore"
+version = "0.3.0"
+dependencies = [
+ "ewm-app",
+ "ewm-git",
+ "serde_json",
 ]
 
 [[package]]
