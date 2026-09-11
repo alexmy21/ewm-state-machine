@@ -15,6 +15,12 @@ H(t) = ( S(t), H(t-1), D, R, N )
   D(t)    = H(t-1) \ S(t)   departed information
 ```
 
+**Everything in this equation is an HLLSet** — H(t), S(t), H(t-1), D, R, N,
+and every set operation on them are bit sets. The state machine's algebra
+runs entirely at the bit level. **Tokens are restored only by
+materialization** (LUT-first, with TF disambiguation): ingest lifts tokens
+into bits, materialize lowers bits back into tokens.
+
 S(t) is the **state in a stateless system**. IICA — Idempotence,
 Immutability, Content Addressability — removes the contradiction: S(t) is an
 immutable, content-addressed value, so it is safe to share. The [UM]

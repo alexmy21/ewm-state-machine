@@ -19,6 +19,10 @@
 //!
 //! All three channels are commit-linked, so the same commit yields three
 //! views — one per GX.
+//!
+//! Every component here is an HLLSet — the equation lives entirely at the
+//! bit level. Restoring the original tokens is not the view's job; that is
+//! **materialization** (LUT-first, TF disambiguation).
 
 use hllset_core::HLLSet;
 
