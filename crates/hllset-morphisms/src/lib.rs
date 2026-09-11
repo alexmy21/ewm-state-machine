@@ -38,6 +38,7 @@ pub mod hllset_lut;
 pub mod ingest;
 pub mod materialize;
 pub mod scheme;
+pub mod tensor;
 pub mod tf;
 
 pub use api::{
@@ -53,4 +54,8 @@ pub use grid::{
 pub use hllset_lut::{HllsetLut, UNNAMED};
 pub use ingest::{Ingest, N_SEEDS, SEEDS};
 pub use scheme::{lut_channel, lut_name, lut_scheme, NG, NS};
+pub use tensor::{
+    ingest_tensor, ingest_tensor_with_pad, materialize_tensor, materialize_tensor_beam,
+    materialize_tensor_no_order, Tensor, TensorIngested, TENSOR_BORDER, TENSOR_MAX_N,
+};
 pub use tf::TfTable;

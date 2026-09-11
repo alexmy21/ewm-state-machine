@@ -59,7 +59,7 @@ work is reprocessed — idempotent by IICA.
 | commit | the atomic advance of the tip, recording H(t) |
 | [UM] | the stateless, disposable processing unit |
 | IICA | Idempotence, Immutability, Content Addressability |
-| conv(n, dim) | the channel model: n-grams are conv(n, dim=1); grids are conv(n, dim=2) — shared 1×1 G1, seed(n,dim) = (dim−1)·3 + (n−1) |
+| conv(n, dim) | the channel model: n-grams are conv(n, dim=1); grids conv(n, dim=2); tensors conv(n, dim=N) — shared 1×1 G1, seed(n,dim) = (dim−1)·3 + (n−1) |
 
 Terminology reference:
 `../hllset-next-v2/_DOCS/dev/STANDARD.md`.
