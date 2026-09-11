@@ -71,7 +71,8 @@ ewm-state-machine/
 ├── Cargo.toml                 # workspace manifest
 ├── docs/
 │   ├── ARROW_CACHE.md         # design note: Arrow as the cache-layer substrate
-│   └── EXPLORER.md            # the read-only explorer contract
+│   ├── EXPLORER.md            # the read-only explorer contract
+│   └── SEPARATION.md          # separation of concerns — the bit is the fiber
 └── crates/
     ├── hllset-contracts/      # soldered invariants (leaf)
     ├── hllset-cid/            # embedded SHA-1 CIDs
