@@ -119,6 +119,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ewm-scene"
+version = "0.3.0"
+dependencies = [
+ "ewm-app",
+ "hllset-core",
+ "hllset-morphisms",
+ "serde_json",
+]
+
+[[package]]
 name = "ewm-sm-explore"
 version = "0.3.0"
 dependencies = [

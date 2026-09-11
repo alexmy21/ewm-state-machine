@@ -83,6 +83,7 @@ ewm-state-machine/
     ├── ewm-app/               # the [UM] harness: stateless driver + StateCache
     │                          # (S(t) and H(t-1) live in the cache, not the [UM])
     ├── ewm-sm-explore/        # read-only explorer of the three-layer structure
+    ├── ewm-scene/             # LLM <-> HLLSet side-car helper (direct morphisms)
     └── (planned) ewm-cache/   # Arrow-backed cache layer, per docs/ARROW_CACHE.md
 ```
 
@@ -114,4 +115,5 @@ the cells.
 
 | # | Notebook | Description |
 | - | -------- | ----------- |
-| 01 | `ingest_materialize_um` | morphisms step by step — ingest (SHA1 + three pointers + hllsetLUT), materialize (ordered / `no_order`), then the [UM] loop and recovery |
+| 01 | `ingest_materialize_um` | morphisms step by step — ingest (SHA1 + three pointers + hllsetLUT), materialize (ordered / `no_order` / beam), then the [UM] loop and recovery |
+| 02 | `scene_sidecar` | the LLM ↔ HLLSet side-car application rebuilt on ewm-state-machine: vLLM host line + `ewm-scene` direct-morphism side-car (BSSτ, D/R/N, materialize roundtrip) |

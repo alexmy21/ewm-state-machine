@@ -1,0 +1,17 @@
+[package]
+name = "ewm-scene"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Scene-analytics helper: the direct morphisms path (ingest, BSS, D/R/N, materialize) for the LLM <-> HLLSet side-car application"
+
+[[bin]]
+name = "ewm-scene"
+path = "src/main.rs"
+
+[dependencies]
+ewm-app = { workspace = true }
+hllset-core = { workspace = true }
+hllset-morphisms = { workspace = true }
+serde_json = { workspace = true }
