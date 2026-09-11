@@ -573,6 +573,53 @@ mod tests {
     }
 
     #[test]
+    fn transposed_presentations_are_distinct_content() {
+        // The same values in two orientations: (W,H) = (2,3) vs (H,W) =
+        // (3,2). The hash is deterministic and content-addressed, so the
+        // orientation is part of the content: the two layouts are two
+        // different presentations of the same measured object.
+        let cells: Vec<Vec<u8>> = (0..6).map(|i| format!("v{i}").into_bytes()).collect();
+        let a = Tensor::new(vec![2, 3], cells.clone());
+        let mut transposed = Vec::with_capacity(6);
+        for r in 0..3 {
+            for c in 0..2 {
+                transposed.push(cells[c * 3 + r].clone());
+            }
+        }
+        let b = Tensor::new(vec![3, 2], transposed);
+
+        let ia = ingest_tensor(&a);
+        let ib = ingest_tensor(&b);
+
+        // The 1x1 channel is the shared token set — orientation-free.
+        assert_eq!(
+            ia.channels[0].content_key(),
+            ib.channels[0].content_key(),
+            "G1 is the same token set in both orientations"
+        );
+        // The 2x2 channel and the projection are orientation-dependent.
+        assert_ne!(
+            ia.channels[1].content_key(),
+            ib.channels[1].content_key(),
+            "2x2 neighborhoods differ under transposition"
+        );
+        assert_ne!(ia.key, ib.key, "the projections are different content");
+
+        // The G1 gate extracts the token set from either presentation.
+        let g1 = ia.channels[0].union(&ib.channels[0]);
+        assert_eq!(
+            crate::api::gate(&g1, &ia.projection).content_key(),
+            ia.channels[0].content_key(),
+            "gate(G1, H_a) == G1"
+        );
+        assert_eq!(
+            crate::api::gate(&g1, &ib.projection).content_key(),
+            ib.channels[0].content_key(),
+            "gate(G1, H_b) == G1"
+        );
+    }
+
+    #[test]
     fn tensor_channels_and_key_are_populated() {
         let t = Tensor::new(
             vec![2, 2],

@@ -26,6 +26,17 @@ moves the boundary between **encodings** and **LUTs**. The contract:
    HLLSet keys, the gates, and the store are order-agnostic. The order does
    not need to be frozen anywhere.
 
+   *The reason:* the hash function is **deterministic** (idempotent),
+   **immutable**, and **content-addressed**. If one presentation has
+   `dim1 = width, dim2 = height` and another has `dim1 = height,
+   dim2 = width` with the same values, the two layouts serialize to
+   different window bytes — so they hash to different bits and are recorded
+   as **two different presentations for the same size, measured for
+   different objects**, in different HLLSets. The shared `1×…×1` channel
+   (G1) is identical in both (the token set is orientation-free); the
+   window channels and the projection keys differ. Orientation is part of
+   the content — nothing global needs to know about it.
+
 6. **The sync is between a given HLLSet and the corresponding Gn** — `n`
    is the window size. Each channel is a gate: `Gn ∩ H` extracts the
    n-window component of any HLLSet H. The gate is dimension-agnostic; the
