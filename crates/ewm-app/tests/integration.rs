@@ -161,7 +161,7 @@ fn gn_channels_are_monotonic_across_commits() {
     // The inverse: Gn(t) \ Gn(t-1) → S(t)'s novel bits (the N of the view).
     let novel = g1_t.difference(&g1_t_minus_1);
     let view = ewm_git::view(app.repo(), &c2).expect("G1 view");
-    assert_eq!(novel.popcount(), view.new.popcount(), "Gn(t) \ Gn(t-1) == N");
+    assert_eq!(novel.popcount(), view.new.popcount(), "Gn(t) \\ Gn(t-1) == N");
     assert_eq!(novel.popcount(), 1, "only tid40 was novel in turn 2");
 }
 
