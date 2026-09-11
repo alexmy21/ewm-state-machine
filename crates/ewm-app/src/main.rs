@@ -13,7 +13,7 @@
 //!
 //! Encoding: `tid{n}` (nanoLM/cortex inscription), explicit per contract.
 
-use ewm_app::{OllamaLlm, StateMachine, StubLlm, TurnSource, APP_ENCODING_NAME};
+use ewm_app::{OllamaLlm, StateCache, StateMachine, StubLlm, TurnSource, APP_ENCODING_NAME};
 use ewm_git::LooseStore;
 use hllset_contracts::token::token_in_bytes;
 
@@ -85,16 +85,19 @@ fn main() {
     println!("encoding     : {APP_ENCODING_NAME}");
     println!();
 
-    // The store is the stack memory; the head is the tip (§10/§11).
+    // The store is the stack memory; the head is the tip. The [UM] owns only
+    // the store handle; S(t)/H(t-1) live in the shared StateCache.
     if let Some(path) = repo_path {
         let store = LooseStore::new(&path);
         let mut app = StateMachine::open(store);
+        let mut cache = StateCache::restore(app.repo());
         println!("store        : {path} (recovered tip: {})", head_or_none(&app));
-        run_loop(&mut app, &mut *source);
+        run_loop(&mut app, &mut cache, &mut *source);
     } else {
         let mut app = StateMachine::new(ewm_git::MemoryStore::default());
+        let mut cache = StateCache::empty();
         println!("store        : memory");
-        run_loop(&mut app, &mut *source);
+        run_loop(&mut app, &mut cache, &mut *source);
     }
 }
 
@@ -104,13 +107,17 @@ fn head_or_none<S: ewm_git::ObjectStore>(app: &StateMachine<S>) -> String {
         .unwrap_or_else(|| "<none>".to_string())
 }
 
-fn run_loop<S: ewm_git::ObjectStore>(app: &mut StateMachine<S>, source: &mut dyn TurnSource) {
+fn run_loop<S: ewm_git::ObjectStore>(
+    app: &mut StateMachine<S>,
+    cache: &mut StateCache,
+    source: &mut dyn TurnSource,
+) {
     while let Some(turn) = source.next_turn() {
         if turn.is_empty() {
-            println!("turn {:>3}: empty turn — skipped", app.turn_count());
+            println!("turn {:>3}: empty turn — skipped", cache.turn_count());
             continue;
         }
-        match app.run_turn(&turn) {
+        match app.run_turn(cache, &turn) {
             Ok(outcome) => {
                 let commit = outcome
                     .commit
@@ -136,7 +143,7 @@ fn run_loop<S: ewm_git::ObjectStore>(app: &mut StateMachine<S>, source: &mut dyn
                     .unwrap_or_else(|| "-".to_string());
                 println!(
                     "turn {:>3}: ids={:?}",
-                    app.turn_count() - 1,
+                    cache.turn_count() - 1,
                     turn.iter()
                         .map(|&n| String::from_utf8_lossy(&token_in_bytes(n)).into_owned())
                         .collect::<Vec<_>>()
@@ -151,7 +158,7 @@ fn run_loop<S: ewm_git::ObjectStore>(app: &mut StateMachine<S>, source: &mut dyn
                 );
             }
             Err(e) => {
-                eprintln!("turn {}: {e}", app.turn_count());
+                eprintln!("turn {}: {e}", cache.turn_count());
                 std::process::exit(1);
             }
         }

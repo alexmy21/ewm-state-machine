@@ -26,10 +26,12 @@
 
 pub mod app;
 pub mod llm;
+pub mod state;
 pub mod token;
 
-pub use app::{AppError, StateMachine, TurnOutcome, TurnRecord, APP_ENCODING_NAME};
+pub use app::{AppError, StateMachine, TurnOutcome, APP_ENCODING_NAME};
 pub use llm::{OllamaLlm, StubLlm, TurnSource};
+pub use state::{StateCache, TurnRecord};
 pub use token::TokenEncoding;
 
 // ── Direct access to the two morphisms ─────────────────────────────────────

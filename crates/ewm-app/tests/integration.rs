@@ -4,7 +4,7 @@
 //! encoding it uses. The harness path is `tid{n}`; the dual-encoding test
 //! exercises both `tid{n}` and 4-byte LE explicitly.
 
-use ewm_app::{StateMachine, StubLlm, TokenEncoding, TurnSource};
+use ewm_app::{StateCache, StateMachine, StubLlm, TokenEncoding, TurnSource};
 use ewm_git::{LatticeState, LooseStore, MemoryStore, ObjectId, ObjectStore, Repository};
 use hllset_contracts::token::{token_in_bytes, token_in_bytes_le};
 use hllset_core::HLLSet;
@@ -26,14 +26,15 @@ fn temp_dir(name: &str) -> std::path::PathBuf {
 fn smoke_loop_ingest_commits_and_builds_state_tree() {
     // Encoding: tid{n} — the harness path.
     let mut app = StateMachine::new(MemoryStore::default());
+    let mut cache = StateCache::empty();
     let turn1 = [10u32, 20, 30];
     let turn2 = [20u32, 30, 40];
 
-    let out1 = app.run_turn(&turn1).expect("turn 1");
+    let out1 = app.run_turn(&mut cache, &turn1).expect("turn 1");
     let c1 = out1.commit.clone().expect("first turn commits");
     assert_eq!(out1.head.as_ref(), Some(&c1));
     assert!(app.repo().store().contains(&c1), "commit exists in the store");
-    assert_eq!(out1.tree.leaves().len(), 1, "S(t) has one turn leaf");
+    assert_eq!(cache.tree().leaves().len(), 1, "S(t) has one turn leaf");
     assert_eq!(
         out1.full_image,
         turn1.iter().map(|&n| token_in_bytes(n)).collect::<Vec<_>>(),
@@ -47,19 +48,19 @@ fn smoke_loop_ingest_commits_and_builds_state_tree() {
     assert_eq!(v1.retained.popcount(), 0);
     assert_eq!(v1.new.popcount(), v1.state.popcount());
 
-    let out2 = app.run_turn(&turn2).expect("turn 2");
+    let out2 = app.run_turn(&mut cache, &turn2).expect("turn 2");
     let c2 = out2.commit.clone().expect("second turn commits");
     assert_eq!(out2.head.as_ref(), Some(&c2));
 
     // Tree-level D/R/N: turn2's leaf entered, turn1's leaf stayed.
-    assert_eq!(out2.tree.leaves().len(), 2);
-    assert_eq!(out2.diff.added, vec![out2.tree.leaves()[1].h.clone()]);
-    assert_eq!(out2.diff.retained, vec![out2.tree.leaves()[0].h.clone()]);
+    assert_eq!(cache.tree().leaves().len(), 2);
+    assert_eq!(out2.diff.added, vec![cache.tree().leaves()[1].h.clone()]);
+    assert_eq!(out2.diff.retained, vec![cache.tree().leaves()[0].h.clone()]);
     assert!(out2.diff.removed.is_empty());
 
     // Bit-level agreement: the tree math (cumulative working set) and
     // ewm-git's view of the head describe the same snapshot.
-    let h_prev = app.turns()[0].g1.clone();
+    let h_prev = cache.turns()[0].g1.clone();
     let s_now = out2.commit_view.as_ref().expect("head view").state.clone();
     let departed = h_prev.difference(&s_now);
     let retained = h_prev.intersection(&s_now);
@@ -84,7 +85,7 @@ fn smoke_loop_ingest_commits_and_builds_state_tree() {
     assert_eq!(v2.departed.intersection(&v2.new).popcount(), 0, "D ∩ N = ∅");
 }
 
-// ── 2. Recovery: pop-not-rebuild semantics ──────────────────────────────────
+// ── 2. Recovery: the cache is rebuilt, the [UM] is replaced ─────────────────
 
 #[test]
 fn recovery_reads_tip_and_resumes_without_replay() {
@@ -95,26 +96,30 @@ fn recovery_reads_tip_and_resumes_without_replay() {
 
     let head1 = {
         let mut app = StateMachine::new(LooseStore::new(&dir));
-        app.run_turn(&turn1).expect("turn 1").commit.expect("commit")
+        let mut cache = StateCache::empty();
+        app.run_turn(&mut cache, &turn1).expect("turn 1").commit.expect("commit")
     };
 
-    // Crash (drop the harness). Restart: read the tip, dereference, resume.
+    // Crash (drop the [UM] AND the cache). Restart: a fresh [UM] over the
+    // store, a fresh cache restored from the tip. Pop-not-rebuild.
     let mut app = StateMachine::open(LooseStore::new(&dir));
+    let mut cache = StateCache::restore(app.repo());
     assert_eq!(app.head(), Some(&head1), "the head is the tip");
+    assert_eq!(cache.tip.as_ref(), Some(&head1), "H(t-1) cache holds the tip");
     assert_eq!(app.repo().log().unwrap().len(), 1);
-    assert_eq!(app.turns().len(), 1, "presentation rebuilt from commit messages");
-    assert_eq!(app.turns()[0].ids, turn1);
-    assert_eq!(app.tree().leaves().len(), 1);
+    assert_eq!(cache.turns().len(), 1, "presentation rebuilt from commit messages");
+    assert_eq!(cache.turns()[0].ids, turn1);
+    assert_eq!(cache.tree().leaves().len(), 1);
 
     // Replay the same content: same key ⇒ idempotent — no duplicated commit.
-    let replay = app.run_turn(&turn1).expect("replay turn");
+    let replay = app.run_turn(&mut cache, &turn1).expect("replay turn");
     assert_eq!(replay.commit, None, "no new bits → no commit");
     assert_eq!(app.head(), Some(&head1), "tip unchanged");
     assert_eq!(app.repo().log().unwrap().len(), 1, "no replay");
 
     // Resume with new content: exactly one new commit, parented to the
     // recovered tip.
-    let resumed = app.run_turn(&turn2).expect("resume turn");
+    let resumed = app.run_turn(&mut cache, &turn2).expect("resume turn");
     let c2 = resumed.commit.expect("new content commits");
     assert_eq!(app.repo().log().unwrap().len(), 2);
     let commit = app.repo().read_commit(&c2).unwrap();
@@ -122,7 +127,7 @@ fn recovery_reads_tip_and_resumes_without_replay() {
 
     // The presentation now covers both collections (the replay turn is a
     // duplicate leaf, deduplicated by the tree).
-    assert_eq!(app.tree().leaves().len(), 2);
+    assert_eq!(cache.tree().leaves().len(), 2);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -161,9 +166,10 @@ fn um_never_blocks_on_the_token_source() {
 
     barrier.wait(); // harness barrier only
     let mut app = StateMachine::new(MemoryStore::default());
+    let mut cache = StateCache::empty();
     let mut received = 0;
     while let Ok(turn) = rx.recv() {
-        let outcome = app.run_turn(&turn).expect("turn");
+        let outcome = app.run_turn(&mut cache, &turn).expect("turn");
         assert!(outcome.commit.is_some(), "every scripted turn brings new bits");
         received += 1;
     }

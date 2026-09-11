@@ -21,15 +21,32 @@ immutable, content-addressed value, so it is safe to share. The [UM]
 (processing unit) that works on S(t) is stateless and disposable; it reads
 the tip, processes incoming tokens, and proposes the next state.
 
-Recovery is a **pop, not a rebuild**: drop the broken top of the stack, the
-previous committed state becomes the tip, a fresh [UM] resumes processing.
+S(t) and H(t-1) live **outside the [UM]**, in a shareable cache
+(`ewm-app::StateCache`), backed by the persistent store (`ewm-git`):
+
+```text
+persistent store (ewm-git)     the committed stack; tip = head
+        ▲  │
+   load │  │ commit
+        │  ▼
+shared cache (StateCache)      S(t) working set + H(t-1) materialized
+        ▲  │
+   read │  │ propose
+        │  ▼
+     [UM] (ewm-app)            stateless, disposable — owns only the store handle
+```
+
+Recovery is a **pop, not a rebuild**: drop the broken [UM] and its cache,
+restore the cache from the tip, and continue with a fresh [UM]. Uncommitted
+work is reprocessed — idempotent by IICA.
 
 ## Vocabulary
 
 | Term | Meaning |
 | ---- | ------- |
 | S(t) | current emerging state (work in progress, shared) |
-| H(t-1) | previous committed state (the cache) |
+| H(t-1) | previous committed state (the cache, required to commit) |
+| cache | the shareable in-memory layer holding S(t) and H(t-1), outside the [UM] |
 | D / R / N | departed / retained / new — derived at commit |
 | tip | the committed head of the state stack |
 | commit | the atomic advance of the tip, recording H(t) |
@@ -53,5 +70,6 @@ ewm-state-machine/
     ├── hllset-storage/        # memory + sled content-addressed storage
     ├── context-tree/          # Merkle tree over the working set (S(t) presentation)
     ├── ewm-git/               # the state stack: commit DAG, tip, recovery
-    └── ewm-app/               # the [UM] harness: stateless driver loop
+    └── ewm-app/               # the [UM] harness: stateless driver + StateCache
+                               # (S(t) and H(t-1) live in the cache, not the [UM])
 ```
