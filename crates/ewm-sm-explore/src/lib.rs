@@ -112,6 +112,10 @@ pub fn render_snapshot(snap: &StateSnapshot) -> String {
         snap.tree_leaves
     ));
     out.push_str(&format!("tf_base     : {} entries\n", snap.tf_base_entries));
+    out.push_str(&format!(
+        "ring        : window={}/{} dimension={}\n",
+        snap.ring.window_len, snap.ring.capacity, snap.ring.dimension
+    ));
 
     out.push_str("\nturns:\n");
     if snap.turns.is_empty() {

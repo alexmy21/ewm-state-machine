@@ -233,3 +233,157 @@ mod tests {
         assert!(b2.coordinates(&a).is_some());
     }
 }
+
+/// Per-push statistics of the windowed ring.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RingStats {
+    /// Popcount of the incoming set's residual against the window *before*
+    /// insertion — its linear novelty.
+    pub residual: u64,
+    /// `true` when the incoming set was already expressible from the window.
+    pub in_span: bool,
+    /// Window-span dimension after insertion (and after any eviction).
+    pub dimension: usize,
+}
+
+/// The Boolean ring as a moving window over **original** HLLSets.
+///
+/// Originals enter in ingestion order (a queue); the basis is the RREF
+/// span of the current window. Insertion is one Gaussian step; eviction
+/// recomputes the basis from the remaining originals (cheap at cache
+/// sizes). Because the sequence is fixed by ingestion, the basis is
+/// **deterministic for the window** — the canonical-basis problem is
+/// resolved by never comparing across different windows.
+#[derive(Clone, Debug)]
+pub struct BoolWindow {
+    max_len: usize,
+    originals: std::collections::VecDeque<HLLSet>,
+    basis: BoolBasis,
+}
+
+impl BoolWindow {
+    pub fn new(max_len: usize) -> Self {
+        Self {
+            max_len: max_len.max(1),
+            originals: std::collections::VecDeque::new(),
+            basis: BoolBasis::new(),
+        }
+    }
+
+    pub fn window_len(&self) -> usize {
+        self.originals.len()
+    }
+
+    pub fn dimension(&self) -> usize {
+        self.basis.dimension()
+    }
+
+    pub fn basis(&self) -> &BoolBasis {
+        &self.basis
+    }
+
+    pub fn originals(&self) -> impl Iterator<Item = &HLLSet> {
+        self.originals.iter()
+    }
+
+    /// Push one original (in ingestion order); evict the oldest when the
+    /// window exceeds `max_len` and recompute the basis.
+    pub fn push(&mut self, set: &HLLSet) -> RingStats {
+        let result = self.basis.insert(set);
+        let (residual, in_span) = match &result {
+            InsertResult::InSpan { .. } => (0u64, true),
+            InsertResult::Added { residual, .. } => (residual.popcount(), false),
+        };
+        self.originals.push_back(set.clone());
+        let mut dimension = self.basis.dimension();
+        if self.originals.len() > self.max_len {
+            self.originals.pop_front();
+            self.recompute();
+            dimension = self.basis.dimension();
+        }
+        RingStats {
+            residual,
+            in_span,
+            dimension,
+        }
+    }
+
+    /// Recompute the basis from the current originals (after eviction).
+    pub fn recompute(&mut self) {
+        self.basis = BoolBasis::new();
+        for set in &self.originals {
+            self.basis.insert(set);
+        }
+    }
+
+    /// The part of `set` outside the window span (linear novelty).
+    pub fn residual(&self, set: &HLLSet) -> HLLSet {
+        self.basis.residual(set)
+    }
+
+    /// The GF(2) coordinates of a set in the window span.
+    pub fn coordinates(&self, set: &HLLSet) -> Option<Vec<bool>> {
+        self.basis.coordinates(set)
+    }
+}
+
+#[cfg(test)]
+mod window_tests {
+    use super::*;
+
+    fn set(bits: &[u32]) -> HLLSet {
+        let mut h = HLLSet::new();
+        for b in bits {
+            h.add_bit(*b);
+        }
+        h
+    }
+
+    #[test]
+    fn same_sequence_gives_the_same_basis() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[2, 3, 4]);
+        let c = set(&[3, 4, 5]);
+
+        let mut w1 = BoolWindow::new(8);
+        let mut w2 = BoolWindow::new(8);
+        for s in [&a, &b, &c] {
+            w1.push(s);
+            w2.push(s);
+        }
+        assert_eq!(w1.basis().pivots, w2.basis().pivots,
+            "a fixed ingestion order fixes the basis");
+        assert_eq!(w1.dimension(), w2.dimension());
+    }
+
+    #[test]
+    fn eviction_slides_the_window_and_recomputes() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[2, 3, 4]);
+        let c = set(&[5, 6]); // independent of {a, b}? {5,6} vs span of a,b -> independent
+
+        let mut w = BoolWindow::new(2);
+        let s1 = w.push(&a);
+        assert!(!s1.in_span && s1.residual == a.popcount());
+        let s2 = w.push(&b);
+        assert_eq!(w.window_len(), 2);
+        let _ = s2;
+        let s3 = w.push(&c); // evicts a; window = {b, c}
+        assert_eq!(w.window_len(), 2);
+        assert_eq!(s3.residual, c.popcount(), "c is outside the {{b}} span of the window");
+        // a is gone: its residual against the window is nonempty.
+        assert!(!w.residual(&a).is_empty(), "evicted original is outside the window span");
+    }
+
+    #[test]
+    fn in_span_push_has_zero_novelty() {
+        let a = set(&[1, 2, 3]);
+        let mut w = BoolWindow::new(8);
+        let s1 = w.push(&a);
+        assert!(!s1.in_span);
+        let s2 = w.push(&a);
+        assert!(s2.in_span);
+        assert_eq!(s2.residual, 0);
+        assert_eq!(w.dimension(), 1);
+    }
+}

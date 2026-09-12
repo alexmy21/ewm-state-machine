@@ -40,6 +40,9 @@ pub use token::TokenEncoding;
 // The default application-level interface of the hllset foundation. The DSL
 // remains the escape hatch for custom HLLSet building; when nothing special
 // is needed, an application calls `ingest` / `materialize` directly.
+pub use ewm_boolring::{BoolBasis, BoolWindow, RingStats};
+pub use state::RING_CAPACITY;
+
 pub use hllset_morphisms::{
     gate, ingest, ingest_grid, ingest_grid_with_pad, ingest_key, ingest_tensor,
     ingest_tensor_with_pad, ingest_with_pad, lut_name, lut_scheme, materialize, materialize_beam,

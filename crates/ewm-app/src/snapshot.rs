@@ -12,7 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::state::{StateCache, TurnRecord};
+use crate::state::{StateCache, TurnRecord, RING_CAPACITY};
 use crate::StateMachine;
 use ewm_git::ObjectStore;
 
@@ -38,6 +38,20 @@ pub struct StateSnapshot {
     /// The designed cache layer (Arrow RecordBatches) — stubs until
     /// implemented; the names are pinned in docs/ARROW_CACHE.md.
     pub cache: CacheStub,
+    /// The Boolean-ring window over the original turn HLLSets
+    /// (docs/BOOLRING.md): deterministic GF(2) span of the ingestion order.
+    pub ring: RingSnapshot,
+}
+
+/// The Boolean-ring window projection.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RingSnapshot {
+    /// The window capacity (cache-bounded).
+    pub capacity: usize,
+    /// Originals currently in the window.
+    pub window_len: usize,
+    /// GF(2) span dimension of the window — the context width.
+    pub dimension: usize,
 }
 
 /// One turn in the S(t) presentation.
@@ -103,6 +117,11 @@ impl<S: ObjectStore> StateMachine<S> {
             tree_leaves: cache.tree.leaves().len(),
             turns,
             tf_base_entries: cache.tf_base.values.len(),
+            ring: RingSnapshot {
+                capacity: RING_CAPACITY,
+                window_len: cache.ring.window_len(),
+                dimension: cache.ring.dimension(),
+            },
             cache: CacheStub {
                 status: "designed (Arrow) — not implemented".to_string(),
                 batches: vec![

@@ -16,9 +16,15 @@
 //! (idempotent by IICA).
 
 use context_tree::{ContextTree, Leaf};
+use ewm_boolring::BoolWindow;
 use ewm_git::{BitTf, Ingestor, ObjectId, ObjectStore, Repository};
 use hllset_contracts::token::{token_in_bytes, TokenId};
 use hllset_core::{HLLSet, TFVec};
+
+/// Capacity of the Boolean-ring window over the original turn HLLSets.
+/// The ring is a moving window over ingested originals, bounded by the
+/// cache size (docs/BOOLRING.md).
+pub const RING_CAPACITY: usize = 64;
 
 /// One recorded turn: the token collection and its seed-0 sketch.
 #[derive(Clone, Debug)]
@@ -55,6 +61,9 @@ pub struct StateCache {
     pub tip: Option<ObjectId>,
     /// Number of turns processed since the cache was created or restored.
     pub turn: u64,
+    /// The Boolean ring as a moving window over the original turn HLLSets
+    /// (insertion order = ingestion order; bounded by [`RING_CAPACITY`]).
+    pub ring: BoolWindow,
 }
 
 impl StateCache {
@@ -68,6 +77,7 @@ impl StateCache {
             turns: Vec::new(),
             tip: None,
             turn: 0,
+            ring: BoolWindow::new(RING_CAPACITY),
         }
     }
 
@@ -113,6 +123,13 @@ impl StateCache {
         let turn = turns.len() as u64;
         let tip = repo.head().cloned();
 
+        // Rebuild the Boolean ring from the restored originals in commit
+        // order — the deterministic basis of the window.
+        let mut ring = BoolWindow::new(RING_CAPACITY);
+        for record in &turns {
+            ring.push(&record.g1);
+        }
+
         Self {
             working,
             ingestor: Ingestor::new(&[0, 1, 2]),
@@ -121,6 +138,7 @@ impl StateCache {
             turns,
             tip,
             turn,
+            ring,
         }
     }
 

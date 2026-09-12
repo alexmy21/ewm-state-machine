@@ -101,6 +101,7 @@ name = "ewm-app"
 version = "0.3.0"
 dependencies = [
  "context-tree",
+ "ewm-boolring",
  "ewm-git",
  "hllset-contracts",
  "hllset-core",

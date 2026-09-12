@@ -15,6 +15,7 @@ context-tree = { workspace = true }
 hllset-core = { workspace = true }
 hllset-contracts = { workspace = true }
 hllset-morphisms = { workspace = true }
+ewm-boolring = { workspace = true }
 
 # ── snapshot export (the explorer's S(t) view) ──
 serde = { workspace = true }

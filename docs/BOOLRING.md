@@ -1,7 +1,8 @@
 # Boolean ring over HLLSets — context-index spike
 
-**Status:** spike complete, result positive (see below). This is a *local*
-context index, not a foundation change and not a global content address.
+**Status:** implemented — spike positive, windowed ring wired into the
+[UM] cache and the explorer. This is a *local* context index, not a
+foundation change and not a global content address.
 
 ## Structure
 
@@ -22,6 +23,34 @@ A ∪ B = A Δ B Δ (A ∩ B)
 - `BoolBasis::{coordinates, residual, dimension}` — the unique GF(2)
   coordinates of a span member, and the **residual** of any set: its linear
   novelty, the part not expressible from the context so far.
+
+## Windowed ring over originals
+
+The basis problem is resolved by **fixing the generators and their order**:
+only *original* HLLSets (the per-turn ingest projections) enter the ring,
+in ingestion order, bounded by the cache. The basis of a window sequence is
+therefore deterministic — the same sequence always reduces to the same
+basis, so coordinates are comparable inside the window.
+
+`BoolWindow` (in `ewm-boolring`):
+
+- `push(original)` — one Gaussian step; returns `RingStats { residual,
+  in_span, dimension }` (the incoming set's linear novelty against the
+  window *before* insertion);
+- eviction — the oldest original leaves; the basis is recomputed from the
+  remaining window (cheap at cache sizes);
+- `residual(set)` / `coordinates(set)` — evaluate any (compound) set
+  against the window basis without inserting it.
+
+Compounds are **evaluated, not inserted**: `A Δ B` is in the span
+(coordinates); `A ∩ B` and the D/R/N differences usually are not — their
+residual is the *multiplicative* novelty, the part no XOR of originals can
+express.
+
+Wiring: `StateCache.ring` (capacity `RING_CAPACITY = 64`) is pushed by
+`run_turn`, rebuilt by `StateCache::restore` from the committed turns in
+order, and projected as `ring { capacity, window_len, dimension }` in the
+explorer snapshot.
 
 ## Scope limits (the basis-matching problem)
 
@@ -56,8 +85,9 @@ bit-level `N = S(t) \ H(t-1)`.
 
 ## Verdict
 
-The direction earns its place as an ewm-sm context index. Suggested
-integration: maintain a `BoolBasis` per context (session), expose
-`dimension`, `residual popcount`, and `coordinates` per turn in the
-explorer, and let the residual feed the accident-frame selection example —
-frames around a residual spike are the ones to materialize.
+The direction earns its place as an ewm-sm context index, and the windowed
+ring is now implemented: originals-only generators, ingestion order, cache
+bounded, deterministic per window. The residual feeds the
+accident-frame selection example — frames around a residual spike are the
+ones to materialize. Integration tests cover window novelty, span
+membership, the snapshot projection, and deterministic rebuild on restore.

@@ -24,6 +24,7 @@
 
 use crate::state::{ids_message, StateCache, TurnRecord};
 use context_tree::Leaf;
+use ewm_boolring::RingStats;
 use ewm_git::{
     view, CommitView, IngestSink, LatticeState, ObjectId, ObjectStore, Repository, StoreError,
 };
@@ -54,6 +55,9 @@ pub struct TurnOutcome {
     pub commit_view: Option<CommitView>,
     /// The ordered restoration of this turn via the default morphisms.
     pub full_image: Vec<Vec<u8>>,
+    /// The Boolean-ring statistics of this turn's original HLLSet against
+    /// the moving window (linear novelty, span membership, dimension).
+    pub ring_stats: RingStats,
 }
 
 /// App errors.
@@ -163,9 +167,10 @@ impl<S: ObjectStore> StateMachine<S> {
         let leaf_h = turn_g1.content_key();
         cache.turns.push(TurnRecord {
             ids: ids.to_vec(),
-            g1: turn_g1,
+            g1: turn_g1.clone(),
             commit: commit.clone(),
         });
+        let ring_stats = cache.ring.push(&turn_g1);
         let prev_tree = cache.tree.clone();
         cache.tree = cache.tree.insert(Leaf {
             h: leaf_h,
@@ -192,6 +197,7 @@ impl<S: ObjectStore> StateMachine<S> {
             diff,
             commit_view,
             full_image,
+            ring_stats,
         })
     }
 }
