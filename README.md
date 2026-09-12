@@ -72,7 +72,8 @@ ewm-state-machine/
 ├── docs/
 │   ├── ARROW_CACHE.md         # design note: Arrow as the cache-layer substrate
 │   ├── EXPLORER.md            # the read-only explorer contract
-│   └── SEPARATION.md          # separation of concerns — the bit is the fiber
+│   ├── SEPARATION.md          # separation of concerns — the bit is the fiber
+│   └── BOOLRING.md            # GF(2) Boolean-ring context index (spike, positive)
 └── crates/
     ├── hllset-contracts/      # soldered invariants (leaf)
     ├── hllset-cid/            # embedded SHA-1 CIDs

@@ -13,6 +13,7 @@
 
 use std::io::{BufRead, Write};
 
+use ewm_boolring::InsertResult;
 use ewm_scene::{grid_restore_with, restore_with, subframes, Frame, FrameSet, GridFrame};
 
 fn main() {
@@ -36,7 +37,8 @@ fn run(args: &[String]) -> Result<(), String> {
              \x20 noether <file>                 D/R/N + three indicators\n\
              \x20 materialize <file>             ordered / set / beam-2 restoration
              \x20 grid <file> [--beam N]          2D morphisms (conv dim=2) restoration
-             \x20 subframes <file> --i N --j N    D/R/N subframes of a transition"
+             \x20 subframes <file> --i N --j N    D/R/N subframes of a transition
+             \x20 boolring <file>                 GF(2) span novelty/dimension series"
         );
         return Ok(());
     }
@@ -77,6 +79,32 @@ fn run(args: &[String]) -> Result<(), String> {
             serde_json::json!({
                 "dp": n.dp, "rp": n.rp, "np": n.np,
                 "ind1": n.ind1, "ind2": n.ind2, "ind3": n.ind3,
+            })
+        }
+        "boolring" => {
+            let fs = FrameSet::from_frames(read_frames(path)?);
+            let mut basis = ewm_boolring::BoolBasis::new();
+            let mut novelty = Vec::new();
+            let mut dim = Vec::new();
+            let mut coords_len = Vec::new();
+            for hll in &fs.hllsets {
+                match basis.insert(hll) {
+                    InsertResult::InSpan { coords } => {
+                        novelty.push(0u64);
+                        dim.push(basis.dimension());
+                        coords_len.push(coords.len());
+                    }
+                    InsertResult::Added { residual, .. } => {
+                        novelty.push(residual.popcount());
+                        dim.push(basis.dimension());
+                        coords_len.push(0);
+                    }
+                }
+            }
+            serde_json::json!({
+                "novelty": novelty,
+                "dim": dim,
+                "coords_len": coords_len,
             })
         }
         "subframes" => {

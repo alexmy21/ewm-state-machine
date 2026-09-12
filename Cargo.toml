@@ -10,6 +10,7 @@ members = [
     "crates/context-tree",
     "crates/ewm-git",
     "crates/ewm-app",
+    "crates/ewm-boolring",
     "crates/ewm-sm-explore",
     "crates/ewm-scene",
 ]
@@ -33,6 +34,7 @@ hllset-storage = { path = "crates/hllset-storage" }
 context-tree = { path = "crates/context-tree" }
 ewm-git = { path = "crates/ewm-git" }
 ewm-app = { path = "crates/ewm-app" }
+ewm-boolring = { path = "crates/ewm-boolring" }
 ewm-sm-explore = { path = "crates/ewm-sm-explore" }
 ewm-scene = { path = "crates/ewm-scene" }
 

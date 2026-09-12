@@ -110,6 +110,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ewm-boolring"
+version = "0.3.0"
+dependencies = [
+ "hllset-core",
+]
+
+[[package]]
 name = "ewm-git"
 version = "0.3.0"
 dependencies = [
@@ -123,6 +130,7 @@ name = "ewm-scene"
 version = "0.3.0"
 dependencies = [
  "ewm-app",
+ "ewm-boolring",
  "hllset-core",
  "hllset-morphisms",
  "serde_json",

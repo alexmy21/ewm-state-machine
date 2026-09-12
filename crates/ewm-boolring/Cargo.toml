@@ -1,0 +1,10 @@
+[package]
+name = "ewm-boolring"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "GF(2) Boolean-ring structure over HLLSets: span basis, coordinates, residual (context-index spike)"
+
+[dependencies]
+hllset-core = { workspace = true }
