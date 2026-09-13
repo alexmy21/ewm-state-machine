@@ -48,6 +48,23 @@ S(t) and H(t-1) live **outside the [UM]**, in a shareable cache
 (`ewm-app::StateCache`), backed by the persistent store (`ewm-git`):
 
 ```text
+## The side-car loop
+
+The [UM] consumes host encodings through an **encoder** — the only
+vocabulary-aware step (`ewm-app::CodebookEncoder`, a shared codebook
+quantizer). Everything below it is vocabulary-agnostic:
+
+```text
+host encodings (f32 vectors)
+        │  CodebookEncoder::encode   (codebook quantization)
+        ▼
+tid{n} ids → ingest → HLLSets (S(t), H(t-1), D/R/N, ring)
+        │
+        ▼
+ordered materialize → restored_ids → back to the host
+```
+
+```text
 persistent store (ewm-git)     the committed stack; tip = head
         ▲  │
    load │  │ commit

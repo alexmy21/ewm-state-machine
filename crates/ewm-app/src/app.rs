@@ -23,12 +23,13 @@
 //!   new bits is skipped (idempotent, no-change).
 
 use crate::state::{ids_message, StateCache, TurnRecord};
+use crate::encoder::Encoder;
 use context_tree::Leaf;
 use ewm_boolring::RingStats;
 use ewm_git::{
     view, CommitView, IngestSink, LatticeState, ObjectId, ObjectStore, Repository, StoreError,
 };
-use hllset_contracts::token::{token_in_bytes, TokenId};
+use hllset_contracts::token::{parse_token_id, token_in_bytes, TokenId};
 use hllset_core::HLLSet;
 use hllset_morphisms::{ingest, materialize};
 
@@ -55,6 +56,9 @@ pub struct TurnOutcome {
     pub commit_view: Option<CommitView>,
     /// The ordered restoration of this turn via the default morphisms.
     pub full_image: Vec<Vec<u8>>,
+    /// The same restoration parsed back to token ids — the hand-back to
+    /// the host (the host receives its own encodings, in order).
+    pub restored_ids: Vec<TokenId>,
     /// The Boolean-ring statistics of this turn's original HLLSet against
     /// the moving window (linear novelty, span membership, dimension).
     pub ring_stats: RingStats,
@@ -129,6 +133,19 @@ impl<S: ObjectStore> StateMachine<S> {
         self.repo.head()
     }
 
+    /// Run one loop step over a turn of **host encodings**: quantize them
+    /// through the shared [`Encoder`], then run the ordinary turn. This is
+    /// the LLM side-car loop — encodings in, ordered encodings out.
+    pub fn run_turn_encoded(
+        &mut self,
+        cache: &mut StateCache,
+        encoder: &dyn Encoder,
+        encodings: &[Vec<f32>],
+    ) -> Result<TurnOutcome, AppError> {
+        let ids = encoder.encode(encodings);
+        self.run_turn(cache, &ids)
+    }
+
     /// Run one loop step over a turn of `tid{n}`-encoded token ids, against
     /// the shared [`StateCache`].
     pub fn run_turn(
@@ -187,8 +204,13 @@ impl<S: ObjectStore> StateMachine<S> {
             None => None,
         };
 
-        // 6. Default morphisms round-trip: the turn's ordered full image.
+        // 6. Default morphisms round-trip: the turn's ordered full image,
+        //    parsed back to ids as the hand-back to the host.
         let full_image = materialize(&ingest(&bytes));
+        let restored_ids: Vec<TokenId> = full_image
+            .iter()
+            .filter_map(|b| parse_token_id(b))
+            .collect();
 
         Ok(TurnOutcome {
             commit,
@@ -197,6 +219,7 @@ impl<S: ObjectStore> StateMachine<S> {
             diff,
             commit_view,
             full_image,
+            restored_ids,
             ring_stats,
         })
     }

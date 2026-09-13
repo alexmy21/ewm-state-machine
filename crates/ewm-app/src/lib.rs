@@ -25,6 +25,7 @@
 //! messages. A crashed [UM] is replaced by a fresh one over the same tip.
 
 pub mod app;
+pub mod encoder;
 pub mod llm;
 pub mod snapshot;
 pub mod state;
@@ -41,6 +42,7 @@ pub use token::TokenEncoding;
 // remains the escape hatch for custom HLLSet building; when nothing special
 // is needed, an application calls `ingest` / `materialize` directly.
 pub use ewm_boolring::{BoolBasis, BoolWindow, RingStats};
+pub use encoder::{CodebookEncoder, Encoder};
 pub use state::RING_CAPACITY;
 
 pub use hllset_morphisms::{
