@@ -18,15 +18,15 @@ use std::io::{BufRead, Write};
 
 use ewm_boolring::InsertResult;
 use ewm_scene::{
-    grid_restore_with, pyramid, restore_with, subframes, tensor_restore_with, Frame, FrameSet,
-    GridFrame, PerceptronTokens, PyramidFrame, TensorFrame,
+    grid_restore_with, project, pyramid, restore_with, subframes, tensor_restore_with, Dimension,
+    Frame, FrameSet, GridFrame, PerceptronTokens, PyramidFrame, TensorFrame,
 };
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if let Err(e) = run(&args) {
         eprintln!("ewm-scene: {e}");
-        eprintln!("usage: ewm-scene <ingest|bss|ma|noether|materialize|grid|tensor|sidecar|pyramid> <frames.jsonl> [options]");
+        eprintln!("usage: ewm-scene <ingest|bss|ma|noether|materialize|grid|tensor|sidecar|pyramid|project> <frames.jsonl> [options]");
         std::process::exit(2);
     }
 }
@@ -47,7 +47,8 @@ fn run(args: &[String]) -> Result<(), String> {
              \x20 subframes <file> --i N --j N    D/R/N subframes of a transition
              \x20 boolring <file>                 GF(2) span novelty/dimension series
              \x20 sidecar <file> [--cap N] [--freeze N]  Phase-1 trajectory: soft/hard keys, steps, jumps
-             \x20 pyramid <file> [--cap N] [--freeze N]  Phase-2: union top perceptron + D/R/N, joined components, u-ring"
+             \x20 pyramid <file> [--cap N] [--freeze N]  Phase-2: union top perceptron + D/R/N, joined components, u-ring
+             \x20 project <file> --frame <frame.json>   BSS trajectory of the stream over a named frame of dimensions"
         );
         return Ok(());
     }
@@ -58,7 +59,7 @@ fn run(args: &[String]) -> Result<(), String> {
     // pyramid / subframes read their own format.
     let flat = matches!(
         cmd,
-        "ingest" | "bss" | "ma" | "noether" | "materialize" | "sidecar" | "boolring"
+        "ingest" | "bss" | "ma" | "noether" | "materialize" | "sidecar" | "boolring" | "project"
     );
     let frames = if flat { read_frames(path)? } else { Vec::new() };
     let fs = FrameSet::from_frames(frames);
@@ -292,6 +293,28 @@ fn run(args: &[String]) -> Result<(), String> {
                 "freeze": freeze,
             })
         }
+        "project" => {
+            let frame_path = arg_str(args, "--frame")?.ok_or("project: missing --frame <frame.json>")?;
+            let dims = read_dimensions(frame_path)?;
+            let ids: Vec<u64> = fs.frames.iter().map(|f| f.id).collect();
+            let out = project(&fs.hllsets, &ids, &dims);
+            let frames: Vec<serde_json::Value> = out
+                .frames
+                .iter()
+                .map(|f| {
+                    serde_json::json!({
+                        "id": f.id,
+                        "intersections": f.intersections,
+                        "bss": f.bss,
+                    })
+                })
+                .collect();
+            serde_json::json!({
+                "names": out.names,
+                "pops": out.pops,
+                "frames": frames,
+            })
+        }
         other => return Err(format!("unknown command: {other}")),
     };
 
@@ -313,6 +336,48 @@ fn arg_usize(args: &[String], name: &str) -> Result<Option<usize>, String> {
         }
     }
     Ok(None)
+}
+
+fn arg_str<'a>(args: &'a [String], name: &str) -> Result<Option<&'a str>, String> {
+    for (i, a) in args.iter().enumerate() {
+        if a == name {
+            let v = args
+                .get(i + 1)
+                .ok_or_else(|| format!("{name}: missing value"))?;
+            return Ok(Some(v.as_str()));
+        }
+    }
+    Ok(None)
+}
+
+/// Read a projection frame: a JSON object
+/// `{"dimensions": [{"name": "D", "tokens": [...]}, ...]}`.
+fn read_dimensions(path: &str) -> Result<Vec<Dimension>, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+    let v: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("{path}: {e}"))?;
+    let dims = v["dimensions"]
+        .as_array()
+        .ok_or_else(|| format!("{path}: missing dimensions"))?;
+    let mut out = Vec::with_capacity(dims.len());
+    for (i, d) in dims.iter().enumerate() {
+        let name = d["name"]
+            .as_str()
+            .ok_or_else(|| format!("{path}: dimension {i} missing name"))?
+            .to_string();
+        let tokens: Vec<String> = d["tokens"]
+            .as_array()
+            .ok_or_else(|| format!("{path}: dimension {name} missing tokens"))?
+            .iter()
+            .map(|t| {
+                t.as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| format!("{path}: dimension {name} token is not a string"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        out.push(Dimension::from_tokens(name, &tokens));
+    }
+    Ok(out)
 }
 
 fn read_grid_frames(path: &str) -> Result<Vec<GridFrame>, String> {

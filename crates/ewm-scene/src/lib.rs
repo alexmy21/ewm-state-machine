@@ -458,6 +458,88 @@ pub fn pyramid(frames: &[PyramidFrame], cap: usize, freeze: Option<usize>) -> Py
     }
 }
 
+/// One projection dimension: a named HLLSet — the `i`-th axis of a
+/// decomposition frame (a perceptron state, a D/R/N set, a ring basis
+/// element, any named HLLSet).
+#[derive(Clone, Debug)]
+pub struct Dimension {
+    pub name: String,
+    pub hll: HLLSet,
+}
+
+impl Dimension {
+    /// Build one dimension from a token collection (the same ingestion as the
+    /// flat frame path: projection `G1 ∪ G2 ∪ G3`, no PAD).
+    pub fn from_tokens(name: String, tokens: &[String]) -> Self {
+        let mut ig = Ingest::new();
+        ig.ingest_tokens(tokens.iter().map(|t| t.as_bytes()));
+        Dimension {
+            name,
+            hll: ig.projection(),
+        }
+    }
+}
+
+/// One stream frame projected onto the frame dimensions.
+#[derive(Clone, Debug)]
+pub struct ProjectFrameOut {
+    pub id: u64,
+    /// Raw projections `|X ∩ D_i|`.
+    pub intersections: Vec<u64>,
+    /// The BSS similarity vector `(|X ∩ D_i| / |D_i|)` — the coordinates of
+    /// `X` in the decomposition frame.
+    pub bss: Vec<f64>,
+}
+
+/// The BSS trajectory of a stream over a decomposition frame: every
+/// decomposition (D/R/N, joined perceptrons, ring basis) is an ordered
+/// collection of HLLSet dimensions, and this is the coordinate map
+/// `φ_D(X) = (|X∩D_1|/|D_1|, …, |X∩D_k|/|D_k|)` applied per time step.
+#[derive(Clone, Debug)]
+pub struct ProjectOut {
+    pub names: Vec<String>,
+    pub pops: Vec<u64>,
+    pub frames: Vec<ProjectFrameOut>,
+}
+
+/// Project a stream of HLLSets onto a frame of named dimensions.
+pub fn project(hllsets: &[HLLSet], ids: &[u64], dims: &[Dimension]) -> ProjectOut {
+    assert_eq!(hllsets.len(), ids.len(), "stream and ids must align");
+    let names: Vec<String> = dims.iter().map(|d| d.name.clone()).collect();
+    let pops: Vec<u64> = dims.iter().map(|d| d.hll.popcount()).collect();
+    let frames = hllsets
+        .iter()
+        .zip(ids)
+        .map(|(x, id)| {
+            let intersections: Vec<u64> = dims
+                .iter()
+                .map(|d| x.intersection(&d.hll).popcount())
+                .collect();
+            let bss: Vec<f64> = intersections
+                .iter()
+                .zip(&pops)
+                .map(|(inter, pop)| {
+                    if *pop == 0 {
+                        1.0
+                    } else {
+                        *inter as f64 / *pop as f64
+                    }
+                })
+                .collect();
+            ProjectFrameOut {
+                id: *id,
+                intersections,
+                bss,
+            }
+        })
+        .collect();
+    ProjectOut {
+        names,
+        pops,
+        frames,
+    }
+}
+
 /// L2 distance between two soft-key vectors (padded mismatch cannot happen:
 /// both are measured against the same basis here).
 fn l2_distance(a: &[f64], b: &[f64]) -> f64 {
@@ -958,5 +1040,30 @@ mod tests {
         assert!(!out.ring.frames[0].in_span);
         assert!(!out.ring.frames[1].in_span, "f2 != f1 in GF(2)");
         assert_eq!(out.ring.frames[1].dim, 2);
+    }
+
+    #[test]
+    fn project_gives_the_bss_coordinates_in_any_frame() {
+        // Frame = two named dimensions; stream = two frames.
+        let dims = vec![
+            Dimension::from_tokens("D".into(), &["a".into(), "b".into()]),
+            Dimension::from_tokens("N".into(), &["c".into(), "d".into()]),
+        ];
+        let fs = FrameSet::from_frames(vec![
+            frame(1, &["a", "b", "c"]),
+            frame(2, &["c", "d"]),
+        ]);
+        let ids: Vec<u64> = fs.frames.iter().map(|f| f.id).collect();
+        let out = project(&fs.hllsets, &ids, &dims);
+
+        assert_eq!(out.names, vec!["D", "N"]);
+        assert_eq!(out.frames.len(), 2);
+        // frame 1: {a,b,c} ∩ D = {a,b} (full), ∩ N = {c} (part of N).
+        assert_eq!(out.frames[0].intersections[0], out.pops[0]);
+        assert!((out.frames[0].bss[0] - 1.0).abs() < 1e-12);
+        assert!(out.frames[0].bss[1] > 0.0 && out.frames[0].bss[1] < 1.0);
+        // frame 2: {c,d} ∩ D = 0, ∩ N = full.
+        assert!(out.frames[1].bss[0].abs() < 1e-12);
+        assert!((out.frames[1].bss[1] - 1.0).abs() < 1e-12);
     }
 }
