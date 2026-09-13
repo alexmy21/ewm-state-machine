@@ -83,6 +83,13 @@ all nine cuts with a simple threshold, and is conceptually a higher-order
 `N`: *"cannot be assembled from anything the context has seen,"* vs the
 bit-level `N = S(t) \ H(t-1)`.
 
+**Real-clip note** (notebook 02, the CLIP-quantized synthetic clip): the
+separation holds (mean cut novelty 279.9 vs 71.2 in-scene, ~3.9x) but the
+in-scene variance is high, so the 2σ threshold flags only 3/9 cuts. The
+reason: the quantization codebook is shared, so scenes reuse tids and the
+window span absorbs some cut novelty. The residual is a complement to the
+cosine/BSS cut line, not a replacement — it flags the hardest cuts.
+
 ## Verdict
 
 The direction earns its place as an ewm-sm context index, and the windowed
