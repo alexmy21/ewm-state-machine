@@ -7,8 +7,9 @@
 //! and the HLLSet lattice operations.
 
 use ewm_app::{
-    ingest, ingest_grid, materialize, materialize_beam, materialize_grid,
-    materialize_grid_beam, materialize_grid_no_order, materialize_no_order, Grid,
+    ingest, ingest_grid, ingest_tensor, materialize, materialize_beam, materialize_grid,
+    materialize_grid_beam, materialize_grid_no_order, materialize_no_order, materialize_tensor,
+    materialize_tensor_beam, materialize_tensor_no_order, Grid, Tensor,
 };
 use hllset_morphisms::materialize::materialize as materialize_lut_first;
 use hllset_morphisms::Ingest;
@@ -190,6 +191,161 @@ pub struct NoetherOut {
     pub ind3: Vec<f64>,
 }
 
+/// One frame's measurement against the Boolean-ring basis **before** the frame
+/// was inserted — the soft key (BSS weights over the basis), the hard key
+/// (GF(2) coordinates, span members only), and the residual (linear novelty).
+///
+/// This is the Phase-1 trajectory record of the side-car: a per-frame point in
+/// soft-key space plus its step length against the previous frame, both
+/// measured in the *current* basis so consecutive steps share one coordinate
+/// system (docs/BOOLRING.md — coordinates are comparable inside a window).
+#[derive(Clone, Debug, Default)]
+pub struct SidecarFrame {
+    /// `w_i = |S(t) ∩ B_i| / |B_i|` for each basis element `B_i` of the ring
+    /// basis *before* this frame arrived. Any HLLSet can be measured this way.
+    pub soft: Vec<f64>,
+    /// GF(2) coordinates `(1,0,1,…)` — `Some` only when the frame is exactly
+    /// in the span of the current basis (the hard key; exact structural match).
+    pub hard: Option<Vec<bool>>,
+    /// Popcounts `|B_i|` of the basis elements the keys refer to.
+    pub basis_pop: Vec<u64>,
+    /// Popcount of the residual against the current span — linear novelty.
+    pub residual: u64,
+    /// `true` when the residual is empty (the frame is in the span).
+    pub in_span: bool,
+    /// Span dimension *after* inserting this frame.
+    pub dim: usize,
+    /// L2 distance between this frame's soft key and the previous frame's soft
+    /// key, both recomputed against the current basis. `0.0` for the first
+    /// frame.
+    pub step: f64,
+}
+
+/// The Phase-1 side-car trajectory: per-frame soft/hard keys against the
+/// growing Boolean-ring basis, step lengths, and the jump detector over the
+/// step series (threshold = in-scene mean + 3σ).
+#[derive(Clone, Debug, Default)]
+pub struct SidecarOut {
+    pub frames: Vec<SidecarFrame>,
+    /// 1-based frame indices flagged by the jump detector.
+    pub jumps: Vec<u64>,
+    /// The step-length threshold the detector used.
+    pub threshold: f64,
+}
+
+impl FrameSet {
+    /// The side-car trajectory over the Boolean ring, wired exactly like the
+    /// [UM] cache: a [`ewm_boolring::BoolWindow`] over the original turn
+    /// HLLSets with [`ewm_app::RING_CAPACITY`] (64).
+    ///
+    /// For each frame, before it enters the window, measure the soft key (BSS
+    /// weights over the window basis), the hard key (coordinates when the
+    /// frame is in the span) and the residual (linear novelty). Then push the
+    /// frame — eviction slides the window and recomputes the basis. Step
+    /// lengths compare consecutive soft keys in the same (current) basis.
+    pub fn sidecar(&self) -> SidecarOut {
+        self.sidecar_with_cap(ewm_app::RING_CAPACITY)
+    }
+
+    /// The side-car trajectory with a configurable window capacity. A capacity
+    /// at least the frame count is a growing basis (context so far); a smaller
+    /// capacity is a sliding scene-bounded window whose residual series is
+    /// comparable across the clip (the basis dimension stays bounded).
+    pub fn sidecar_with_cap(&self, cap: usize) -> SidecarOut {
+        let mut window = ewm_boolring::BoolWindow::new(cap.max(1));
+        let mut frames = Vec::with_capacity(self.len());
+        let mut prev_set: Option<HLLSet> = None;
+
+        for set in self.hllsets.iter() {
+            let basis = window.basis();
+            let soft: Vec<f64> = basis
+                .basis
+                .iter()
+                .map(|b| bss(set, b))
+                .collect();
+            let basis_pop: Vec<u64> = basis.basis.iter().map(|b| b.popcount()).collect();
+            let hard = basis.coordinates(set);
+            let residual_set = basis.residual(set);
+            let residual = residual_set.popcount();
+            let in_span = residual == 0;
+
+            // Step length: both frames measured against the *current* basis.
+            let step = match &prev_set {
+                Some(prev) => {
+                    let prev_soft: Vec<f64> = basis
+                        .basis
+                        .iter()
+                        .map(|b| bss(prev, b))
+                        .collect();
+                    l2_distance(&prev_soft, &soft)
+                }
+                None => 0.0,
+            };
+
+            // Push after measuring, so the record describes the novelty of the
+            // incoming frame against the context so far.
+            window.push(set);
+            frames.push(SidecarFrame {
+                soft,
+                hard,
+                basis_pop,
+                residual,
+                in_span,
+                dim: window.dimension(),
+                step,
+            });
+            prev_set = Some(set.clone());
+        }
+
+        // Jump detector over the step series: mean + 3σ (σ = standard
+        // deviation, population). The first frame's zero step is excluded from
+        // the baseline so it cannot pull the threshold down.
+        let steps: Vec<f64> = frames.iter().map(|f| f.step).collect();
+        let baseline: Vec<f64> = steps.iter().skip(1).copied().collect();
+        let mean = mean(&baseline);
+        let std = std_dev(&baseline, mean);
+        let threshold = mean + 3.0 * std;
+        let jumps: Vec<u64> = frames
+            .iter()
+            .enumerate()
+            .filter_map(|(i, f)| if f.step > threshold { Some((i + 1) as u64) } else { None })
+            .collect();
+
+        SidecarOut {
+            frames,
+            jumps,
+            threshold,
+        }
+    }
+}
+
+/// L2 distance between two soft-key vectors (padded mismatch cannot happen:
+/// both are measured against the same basis here).
+fn l2_distance(a: &[f64], b: &[f64]) -> f64 {
+    assert_eq!(a.len(), b.len(), "soft keys must share one basis");
+    a.iter()
+        .zip(b)
+        .map(|(x, y)| (x - y) * (x - y))
+        .sum::<f64>()
+        .sqrt()
+}
+
+fn mean(xs: &[f64]) -> f64 {
+    if xs.is_empty() {
+        0.0
+    } else {
+        xs.iter().sum::<f64>() / xs.len() as f64
+    }
+}
+
+fn std_dev(xs: &[f64], mean: f64) -> f64 {
+    if xs.len() < 2 {
+        return 0.0;
+    }
+    let var = xs.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / xs.len() as f64;
+    var.sqrt()
+}
+
 /// Restore one frame's token collection: greedy order, plain set, beam.
 pub fn restore(frame: &Frame) -> Restored {
     restore_with(frame, 2)
@@ -344,6 +500,57 @@ pub fn grid_restore_with(frame: &GridFrame, beam: usize) -> GridRestored {
     }
 }
 
+/// One N-d tensor frame for the `conv(n, dim=N)` path: a shape plus the token
+/// collection in lexicographic (row-major, last-axis-fastest) order.
+#[derive(Clone, Debug)]
+pub struct TensorFrame {
+    pub id: u64,
+    pub shape: Vec<usize>,
+    pub tokens: Vec<String>,
+}
+
+/// The restored presentations of one tensor frame.
+#[derive(Clone, Debug)]
+pub struct TensorRestored {
+    pub id: u64,
+    pub shape: Vec<usize>,
+    pub ordered: Vec<String>,
+    pub set: Vec<String>,
+    pub beam2: Vec<String>,
+}
+
+/// Restore one tensor frame through the N-d morphisms with a configurable
+/// beam width. The order path is the count-constrained lexicographic walk
+/// with joint `2^dim ∧ 3^dim ∧ 4^dim` window checks.
+pub fn tensor_restore_with(frame: &TensorFrame, beam: usize) -> TensorRestored {
+    let cells: Vec<Vec<u8>> = frame.tokens.iter().map(|t| t.as_bytes().to_vec()).collect();
+    let tensor = Tensor::new(frame.shape.clone(), cells);
+    let ing = ingest_tensor(&tensor);
+    let to_str = |v: Vec<u8>| String::from_utf8_lossy(&v).into_owned();
+
+    let ordered = materialize_tensor(&ing)
+        .cells
+        .into_iter()
+        .map(to_str)
+        .collect();
+    let beam_n = materialize_tensor_beam(&ing, beam.max(1))
+        .cells
+        .into_iter()
+        .map(to_str)
+        .collect();
+    let set = materialize_tensor_no_order(&ing)
+        .into_iter()
+        .map(to_str)
+        .collect();
+    TensorRestored {
+        id: frame.id,
+        shape: frame.shape.clone(),
+        ordered,
+        set,
+        beam2: beam_n,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,6 +571,70 @@ mod tests {
         // A={1,2,3}, B={2,3,4}: |A∩B|=2, |B|=3, |A∪B|=4
         assert!((fs.bss(0, 1) - 2.0 / 3.0).abs() < 1e-12);
         assert!((fs.jaccard(0, 1) - 2.0 / 4.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn sidecar_measures_soft_key_step_and_jumps() {
+        let fs = FrameSet::from_frames(vec![
+            frame(1, &["tid1", "tid2", "tid3"]),
+            frame(2, &["tid2", "tid3", "tid4"]),
+            frame(3, &["tid9", "tid10"]), // far from the growing context
+        ]);
+        let out = fs.sidecar();
+        assert_eq!(out.frames.len(), 3);
+
+        // Frame 1: empty basis — nothing to measure against, full novelty.
+        assert!(out.frames[0].soft.is_empty());
+        assert!(out.frames[0].hard.is_none());
+        assert!(!out.frames[0].in_span);
+        assert_eq!(out.frames[0].dim, 1);
+        assert_eq!(out.frames[0].step, 0.0);
+
+        // Frame 2: basis = {f1}; soft key w = |f2 ∩ f1| / |f1| = 2/3.
+        assert_eq!(out.frames[1].soft.len(), 1);
+        assert!((out.frames[1].soft[0] - 2.0 / 3.0).abs() < 1e-12);
+        assert!(!out.frames[1].in_span, "f2 is not an XOR copy of f1");
+        assert_eq!(out.frames[1].dim, 2);
+        // Step: |soft(f1) - soft(f2)| in the common basis {f1} = |1 - 2/3|.
+        assert!((out.frames[1].step - 1.0 / 3.0).abs() < 1e-12);
+
+        // Frame 3 is far from the context: its step dwarfs the in-context step.
+        assert!(out.frames[2].step > out.frames[1].step);
+        assert!(out.frames[2].residual > 0);
+    }
+
+    #[test]
+    fn sidecar_jump_detector_flags_far_frames() {
+        // Eleven near-identical frames, then a far one: the jump detector's
+        // 3σ threshold sits above the (tiny) in-scene baseline and below the
+        // far frame's step.
+        let mut frames: Vec<Frame> = Vec::new();
+        for i in 1..=11 {
+            frames.push(frame(i, &["tid1", "tid2"]));
+        }
+        frames.push(frame(12, &["tid90", "tid91"]));
+        let fs = FrameSet::from_frames(frames);
+        let out = fs.sidecar();
+        assert_eq!(out.jumps, vec![12], "jumps = {:?}", out.jumps);
+        assert!(out.threshold > 0.0);
+    }
+
+    #[test]
+    fn sidecar_hard_key_is_span_membership() {
+        // f2 is an exact copy of f1 -> hard key [true]; f3 duplicates f1's
+        // structure again -> still in span, and the step to a repeated frame
+        // is zero (both soft keys are all-ones in the same basis).
+        let fs = FrameSet::from_frames(vec![
+            frame(1, &["tid1", "tid2"]),
+            frame(2, &["tid1", "tid2"]),
+        ]);
+        let out = fs.sidecar();
+        assert!(out.frames[1].in_span);
+        assert_eq!(out.frames[1].hard, Some(vec![true]));
+        assert_eq!(out.frames[1].residual, 0);
+        assert_eq!(out.frames[1].dim, 1);
+        assert!(out.frames[1].step.abs() < 1e-12);
+        assert!(out.jumps.is_empty());
     }
 
     #[test]
@@ -455,5 +726,30 @@ mod tests {
         assert_eq!(r.beam2, tokens, "beam-2 agrees");
         assert_eq!(r.width, 16);
         assert_eq!(r.height, 16);
+    }
+
+    #[test]
+    fn tensor_restore_recovers_a_3x4x5_volume_exactly() {
+        // A 3×4×5 volume (views × rows × cols) with repeated tids — the
+        // multi-view perception-token shape. The N-d joint-window walk must
+        // recover the exact lexicographic order.
+        let shape = vec![3usize, 4, 5];
+        let tokens: Vec<String> = (0..60)
+            .map(|i| {
+                let v = i / 20;
+                let r = (i / 5) % 4;
+                let c = i % 5;
+                format!("tid{}", (v * 7 + r * 3 + c) % 11)
+            })
+            .collect();
+        let f = TensorFrame {
+            id: 1,
+            shape: shape.clone(),
+            tokens: tokens.clone(),
+        };
+        let r = tensor_restore_with(&f, 2);
+        assert_eq!(r.ordered, tokens, "3D morphism restores the exact volume order");
+        assert_eq!(r.beam2, tokens, "beam-2 agrees");
+        assert_eq!(r.shape, shape);
     }
 }

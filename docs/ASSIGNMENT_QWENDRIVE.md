@@ -1,6 +1,10 @@
 # Assignment — Qwen-Drive test bench for the ewm-sm side-car
 
-**Status:** assigned, not started. Entry point for the next session.
+**Status:** Phase 1 implemented and green — notebook `notebooks/03_qwendrive_sidecar.ipynb`
+runs the loop on real Qwen-Drive-1.0-4B perception tokens (48 camera frames from the
+bundled demo scenes), with the two-score evaluation and the soft-key trajectory.
+The `ewm-scene` helper gained `sidecar` (soft/hard keys, step lengths, jump detector,
+`--cap`) and `tensor` (conv dim=N restoration) commands. Phase 2 (pyramid) not started.
 
 ## Goal
 

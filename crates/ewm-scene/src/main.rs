@@ -6,6 +6,9 @@
 //! ewm-scene ma <frames.jsonl> --short 1 --long 5
 //! ewm-scene noether <frames.jsonl>
 //! ewm-scene materialize <frames.jsonl>
+//! ewm-scene grid <frames.jsonl> [--beam N]
+//! ewm-scene tensor <frames.jsonl> [--beam N]
+//! ewm-scene sidecar <frames.jsonl> [--cap N]
 //! ```
 //!
 //! Input: one JSON object per line, `{"id": 1, "tokens": ["tid12", ...]}`.
@@ -14,13 +17,16 @@
 use std::io::{BufRead, Write};
 
 use ewm_boolring::InsertResult;
-use ewm_scene::{grid_restore_with, restore_with, subframes, Frame, FrameSet, GridFrame};
+use ewm_scene::{
+    grid_restore_with, restore_with, subframes, tensor_restore_with, Frame, FrameSet, GridFrame,
+    TensorFrame,
+};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if let Err(e) = run(&args) {
         eprintln!("ewm-scene: {e}");
-        eprintln!("usage: ewm-scene <ingest|bss|ma|noether|materialize> <frames.jsonl> [--short N] [--long N]");
+        eprintln!("usage: ewm-scene <ingest|bss|ma|noether|materialize|grid|tensor|sidecar> <frames.jsonl> [options]");
         std::process::exit(2);
     }
 }
@@ -37,8 +43,10 @@ fn run(args: &[String]) -> Result<(), String> {
              \x20 noether <file>                 D/R/N + three indicators\n\
              \x20 materialize <file>             ordered / set / beam-2 restoration
              \x20 grid <file> [--beam N]          2D morphisms (conv dim=2) restoration
+             \x20 tensor <file> [--beam N]        N-d morphisms (conv dim=N) restoration
              \x20 subframes <file> --i N --j N    D/R/N subframes of a transition
-             \x20 boolring <file>                 GF(2) span novelty/dimension series"
+             \x20 boolring <file>                 GF(2) span novelty/dimension series
+             \x20 sidecar <file>                  Phase-1 trajectory: soft/hard keys, steps, jumps"
         );
         return Ok(());
     }
@@ -146,6 +154,23 @@ fn run(args: &[String]) -> Result<(), String> {
                 .collect();
             serde_json::json!({ "frames": frames })
         }
+        "tensor" => {
+            let beam = arg_usize(args, "--beam")?.unwrap_or(2);
+            let frames: Vec<serde_json::Value> = read_tensor_frames(path)?
+                .iter()
+                .map(|f| {
+                    let r = tensor_restore_with(f, beam);
+                    serde_json::json!({
+                        "id": r.id,
+                        "shape": r.shape,
+                        "ordered": r.ordered,
+                        "set": r.set,
+                        "beam2": r.beam2,
+                    })
+                })
+                .collect();
+            serde_json::json!({ "frames": frames })
+        }
         "materialize" => {
             let beam = arg_usize(args, "--beam")?.unwrap_or(2);
             let frames: Vec<serde_json::Value> = fs
@@ -162,6 +187,32 @@ fn run(args: &[String]) -> Result<(), String> {
                 })
                 .collect();
             serde_json::json!({ "frames": frames })
+        }
+        "sidecar" => {
+            let cap = arg_usize(args, "--cap")?.unwrap_or(ewm_app::RING_CAPACITY);
+            let out = fs.sidecar_with_cap(cap);
+            let frames: Vec<serde_json::Value> = out
+                .frames
+                .iter()
+                .enumerate()
+                .map(|(i, f)| {
+                    serde_json::json!({
+                        "id": fs.frames[i].id,
+                        "soft": f.soft,
+                        "hard": f.hard,
+                        "basis_pop": f.basis_pop,
+                        "residual": f.residual,
+                        "in_span": f.in_span,
+                        "dim": f.dim,
+                        "step": f.step,
+                    })
+                })
+                .collect();
+            serde_json::json!({
+                "frames": frames,
+                "jumps": out.jumps,
+                "threshold": out.threshold,
+            })
         }
         other => return Err(format!("unknown command: {other}")),
     };
@@ -221,6 +272,42 @@ fn read_grid_frames(path: &str) -> Result<Vec<GridFrame>, String> {
             height,
             tokens,
         });
+    }
+    Ok(frames)
+}
+
+fn read_tensor_frames(path: &str) -> Result<Vec<TensorFrame>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    let mut frames = Vec::new();
+    for (lineno, line) in std::io::BufReader::new(file).lines().enumerate() {
+        let line = line.map_err(|e| format!("{path}:{lineno}: {e}"))?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let v: serde_json::Value =
+            serde_json::from_str(&line).map_err(|e| format!("{path}:{lineno}: {e}"))?;
+        let id = v["id"].as_u64().ok_or_else(|| format!("{path}:{lineno}: missing id"))?;
+        let shape = v["shape"]
+            .as_array()
+            .ok_or_else(|| format!("{path}:{lineno}: missing shape"))?
+            .iter()
+            .map(|d| {
+                d.as_u64()
+                    .map(|n| n as usize)
+                    .ok_or_else(|| format!("{path}:{lineno}: shape is not a list of integers"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let tokens = v["tokens"]
+            .as_array()
+            .ok_or_else(|| format!("{path}:{lineno}: missing tokens"))?
+            .iter()
+            .map(|t| {
+                t.as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| format!("{path}:{lineno}: token is not a string"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        frames.push(TensorFrame { id, shape, tokens });
     }
     Ok(frames)
 }
