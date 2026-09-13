@@ -14,6 +14,43 @@ intersection        ∩ = multiplication  x · x = x
 A ∪ B = A Δ B Δ (A ∩ B)
 ```
 
+## The HLLSet lattice — one universe, nodes discovered not created
+
+Every HLLSet is a node of the Boolean lattice over the bit plane:
+
+```text
+order   A ⊆ B                 (bitwise subset)
+join    A ∪ B                 (union)
+meet    A ∩ B                 (intersection)
+Δ       (A ∪ B) \ (A ∩ B)     (ring addition = symmetric difference)
+```
+
+Every result of every morphism — frame states, D/R/N sets, unions,
+intersections, residuals, basis elements — is a node that **already exists**
+in this lattice. Nothing new is created: a computation *discovers* a node by
+naming a lattice expression, and the node's content key is its name. Two
+different paths reach the same node iff their keys agree — that is the
+tangible test of "discovered, not created" (notebook 04 verifies it: the
+pyramid's union join and the token-concatenation ingest produce the same
+keys).
+
+The decompositions look separate only because the LLM context exposes
+different aspects of the same lattice:
+
+- the joined perceptrons are the **join** of their components,
+  `u-HLLSet(t) = ⋁ p_i-HLLSet(t)`;
+- the D/R/N of a transition are the three disjoint pieces of the same two
+  nodes: `D = A \ B`, `R = A ∩ B`, `N = B \ A`, with `D ∪ R = A`,
+  `N ∪ R = B`, `D ∩ N = ∅`;
+- the ring basis picks a **sublattice frame** (a set of independent nodes)
+  through which every other node is read.
+
+The "holographic" property is literal in a Boolean lattice: any node is the
+join of the atoms below it, so its full relation set (meets with all other
+nodes) reconstructs it. A decomposition frame is simply a chosen set of
+dimensions through which those relations are read — a partial view of one
+node in one universe, not a new universe per decomposition.
+
 `ewm-boolring` provides three primitives over HLLSets:
 
 - `symmetric_difference(a, b)` — GF(2) addition;
