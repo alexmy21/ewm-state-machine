@@ -81,6 +81,31 @@ system trajectory in k-dim — the whole-system state path
 - start with one perceptron (the perception-token stream), then add the
   planner/action perceptrons, then nest.
 
+### Decomposition scopes — by construction, not limitations
+
+Every decomposition is a **frame** `D = (D_1, …, D_k)` of named HLLSets; the
+projection of a stream HLLSet `X` is `φ_D(X) = (|X∩D_i|/|D_i|)` (the BSS
+similarity vector), and `φ_D(X(t))` over `t` is the HLLSet trajectory. The
+scope of each decomposition is set by how its frame is built:
+
+| Decomposition | Frame | Scope |
+| --- | --- | --- |
+| D/R/N | `(D, R, N)` of a transition | **moving frame** — coordinates describe one transition; cross-time comparison only against a frozen reference transition |
+| joined perceptrons | `(p_1, …, p_m)` at `t` | composition at `t`; projecting the union onto its own components is degenerate (`p_i ⊆ u` → all-ones) — use frozen/cumulative perceptron dimensions for a cross-time trajectory |
+| ring basis | window basis `B_1..B_k` | canonical inside one window (docs/BOOLRING.md); `--freeze` makes coordinates stable across `t` |
+
+Coordinate types, likewise by construction:
+
+- **soft key (BSS)** — a real profile in `[0,1]^k`, defined for *any* HLLSet;
+  it measures similarity, it does not reconstruct;
+- **hard key (GF(2) coordinates)** — the exact XOR decomposition, span
+  members only;
+- **residual** — the part of `X` outside the frame's span, the
+  frame-relative novelty.
+
+These are facts of the model: pick the decomposition whose scope matches the
+question.
+
 ## Constraints
 
 - ewm-state-machine remains the main line; no new top-level workspace.
