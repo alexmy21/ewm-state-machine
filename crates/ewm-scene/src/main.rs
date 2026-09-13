@@ -46,7 +46,7 @@ fn run(args: &[String]) -> Result<(), String> {
              \x20 tensor <file> [--beam N]        N-d morphisms (conv dim=N) restoration
              \x20 subframes <file> --i N --j N    D/R/N subframes of a transition
              \x20 boolring <file>                 GF(2) span novelty/dimension series
-             \x20 sidecar <file>                  Phase-1 trajectory: soft/hard keys, steps, jumps"
+             \x20 sidecar <file> [--cap N] [--freeze N]  Phase-1 trajectory: soft/hard keys, steps, jumps"
         );
         return Ok(());
     }
@@ -190,7 +190,8 @@ fn run(args: &[String]) -> Result<(), String> {
         }
         "sidecar" => {
             let cap = arg_usize(args, "--cap")?.unwrap_or(ewm_app::RING_CAPACITY);
-            let out = fs.sidecar_with_cap(cap);
+            let freeze = arg_usize(args, "--freeze")?;
+            let out = fs.sidecar_with_cap_freeze(cap, freeze);
             let frames: Vec<serde_json::Value> = out
                 .frames
                 .iter()
@@ -214,6 +215,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 "frames": frames,
                 "jumps": out.jumps,
                 "threshold": out.threshold,
+                "freeze": freeze,
             })
         }
         other => return Err(format!("unknown command: {other}")),

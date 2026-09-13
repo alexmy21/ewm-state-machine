@@ -4,7 +4,9 @@
 runs the loop on real Qwen-Drive-1.0-4B perception tokens (48 camera frames from the
 bundled demo scenes), with the two-score evaluation and the soft-key trajectory.
 The `ewm-scene` helper gained `sidecar` (soft/hard keys, step lengths, jump detector,
-`--cap`) and `tensor` (conv dim=N restoration) commands. Phase 2 (pyramid) not started.
+rotation component, `--cap`, `--freeze` stable-coordinate mode) and `tensor`
+(conv dim=N restoration) commands; the notebook includes the frozen-basis DFT
+decomposition of the soft-key trajectory. Phase 2 (pyramid) not started.
 
 ## Goal
 

@@ -257,11 +257,24 @@ impl FrameSet {
     /// capacity is a sliding scene-bounded window whose residual series is
     /// comparable across the clip (the basis dimension stays bounded).
     pub fn sidecar_with_cap(&self, cap: usize) -> SidecarOut {
+        self.sidecar_with_cap_freeze(cap, None)
+    }
+
+    /// The side-car trajectory with a configurable window capacity and an
+    /// optional **basis freeze**: after `freeze` frames the basis is no longer
+    /// updated — every later frame is only *evaluated* against the frozen
+    /// basis (soft key, hard key, residual, step). This is the stable-
+    /// coordinate mode: all post-freeze soft keys live in the same
+    /// `k`-dimensional space, so they form a fixed-dim time series ready for
+    /// DFT over `t` (the ring's ingestion order *is* the time axis).
+    pub fn sidecar_with_cap_freeze(&self, cap: usize, freeze: Option<usize>) -> SidecarOut {
         let mut window = ewm_boolring::BoolWindow::new(cap.max(1));
         let mut frames = Vec::with_capacity(self.len());
         let mut prev_set: Option<HLLSet> = None;
+        let freeze = freeze.map(|n| n.max(1));
 
-        for set in self.hllsets.iter() {
+        for (idx, set) in self.hllsets.iter().enumerate() {
+            let frozen = freeze.is_some_and(|n| idx >= n);
             let basis = window.basis();
             let soft: Vec<f64> = basis
                 .basis
@@ -274,7 +287,8 @@ impl FrameSet {
             let residual = residual_set.popcount();
             let in_span = residual == 0;
 
-            // Step length: both frames measured against the *current* basis.
+            // Step length: both frames measured against the *current* basis
+            // (which, after the freeze, is the same basis for every step).
             let step = match &prev_set {
                 Some(prev) => {
                     let prev_soft: Vec<f64> = basis
@@ -287,9 +301,14 @@ impl FrameSet {
                 None => 0.0,
             };
 
-            // Push after measuring, so the record describes the novelty of the
-            // incoming frame against the context so far.
-            let ring_stats = window.push(set);
+            // Push after measuring (unless frozen), so the record describes
+            // the novelty of the incoming frame against the context so far.
+            let (rotation_count, rotation_mass) = if frozen {
+                (0, 0) // an evaluation never changes the basis
+            } else {
+                let ring_stats = window.push(set);
+                (ring_stats.rotation_count, ring_stats.rotation_mass)
+            };
             frames.push(SidecarFrame {
                 soft,
                 hard,
@@ -297,8 +316,8 @@ impl FrameSet {
                 residual,
                 in_span,
                 dim: window.dimension(),
-                rotation_count: ring_stats.rotation_count,
-                rotation_mass: ring_stats.rotation_mass,
+                rotation_count,
+                rotation_mass,
                 step,
             });
             prev_set = Some(set.clone());
@@ -642,6 +661,30 @@ mod tests {
         assert_eq!(out.frames[1].dim, 1);
         assert!(out.frames[1].step.abs() < 1e-12);
         assert!(out.jumps.is_empty());
+    }
+
+    #[test]
+    fn sidecar_freeze_gives_stable_coordinates() {
+        // Freeze after two frames: the basis stays {f1, f2} and later frames
+        // are evaluated, never inserted — fixed-dim soft keys, zero rotation.
+        let fs = FrameSet::from_frames(vec![
+            frame(1, &["tid1"]),
+            frame(2, &["tid2"]),
+            frame(3, &["tid3"]),
+            frame(4, &["tid2"]), // in the frozen span
+        ]);
+        let out = fs.sidecar_with_cap_freeze(64, Some(2));
+        assert_eq!(out.frames.len(), 4);
+
+        assert_eq!(out.frames[2].dim, 2, "basis frozen after two frames");
+        assert_eq!(out.frames[3].dim, 2);
+        assert_eq!(out.frames[2].soft.len(), 2, "fixed-dim soft keys");
+        assert_eq!(out.frames[3].soft.len(), 2);
+        assert_eq!(out.frames[2].rotation_count, 0, "evaluation never rotates");
+        assert_eq!(out.frames[3].rotation_count, 0);
+        assert!(!out.frames[2].in_span, "f3 is outside the frozen span");
+        assert!(out.frames[3].in_span, "f4 == f2 is in the frozen span");
+        assert_eq!(out.frames[3].hard, Some(vec![false, true]));
     }
 
     #[test]
