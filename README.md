@@ -3,6 +3,22 @@
 The **state-centric** home of the fractal_manifold_gen2 collection. The
 accent here is not HLLSet — it is the **state of the system, S(t)**.
 
+## Lineage — this is the main line
+
+```text
+hllset-next-v2            foundation (core / contracts / lut / morphisms)
+ewm-cortex-fpga-v2        FPGA PoC + DSL proof  ── superseded for app work;
+                          parked until tangible FPGA development results
+hllset-fpga-simulator-v2  FPGA simulator reference (kept)
+ewm-state-machine         ◄── MAIN LINE — the balanced separation:
+                          HLLSet state plane first, operations around it
+```
+
+The FPGA line proved its two points — an FPGA can serve an EWM system, and
+ewm applications can be developed in a high-level DSL. This workspace
+inherits the conclusions, not the bridge: the **HLLSet structure (the state
+plane) is prior; the operational part is organized around the states.**
+
 ## The fundamental equation
 
 ```text
