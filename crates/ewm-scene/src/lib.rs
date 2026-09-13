@@ -130,43 +130,49 @@ impl FrameSet {
 
     /// Per-pair D/R/N decomposition and the three Noether indicators.
     pub fn noether(&self) -> NoetherOut {
-        let n = self.len();
-        let mut dp = Vec::with_capacity(n.saturating_sub(1));
-        let mut rp = Vec::with_capacity(n.saturating_sub(1));
-        let mut np = Vec::with_capacity(n.saturating_sub(1));
-        let mut ind1 = Vec::with_capacity(n.saturating_sub(1));
-        let mut ind3 = Vec::with_capacity(n.saturating_sub(1));
-        let mut ind2 = Vec::with_capacity(n.saturating_sub(3));
+        noether_series(&self.hllsets)
+    }
+}
 
-        let mut r_prev: Option<HLLSet> = None;
-        for i in 0..n.saturating_sub(1) {
-            let d = self.hllsets[i].difference(&self.hllsets[i + 1]);
-            let r = self.hllsets[i].intersection(&self.hllsets[i + 1]);
-            let nn = self.hllsets[i + 1].difference(&self.hllsets[i]);
-            let (dpc, rpc, npc) = (d.popcount(), r.popcount(), nn.popcount());
-            dp.push(dpc);
-            rp.push(rpc);
-            np.push(npc);
+/// Per-pair D/R/N decomposition over any HLLSet series (frames, unions,
+/// perceptron states — the same lattice math at every level of the pyramid).
+pub fn noether_series(hllsets: &[HLLSet]) -> NoetherOut {
+    let n = hllsets.len();
+    let mut dp = Vec::with_capacity(n.saturating_sub(1));
+    let mut rp = Vec::with_capacity(n.saturating_sub(1));
+    let mut np = Vec::with_capacity(n.saturating_sub(1));
+    let mut ind1 = Vec::with_capacity(n.saturating_sub(1));
+    let mut ind3 = Vec::with_capacity(n.saturating_sub(1));
+    let mut ind2 = Vec::with_capacity(n.saturating_sub(3));
 
-            let rn = (r.union(&nn)).popcount() as f64;
-            let rd = (r.union(&d)).popcount() as f64;
-            ind1.push(if rn == 0.0 { 0.0 } else { dpc as f64 / rn });
-            ind3.push(if rd == 0.0 { 0.0 } else { npc as f64 / rd });
+    let mut r_prev: Option<HLLSet> = None;
+    for i in 0..n.saturating_sub(1) {
+        let d = hllsets[i].difference(&hllsets[i + 1]);
+        let r = hllsets[i].intersection(&hllsets[i + 1]);
+        let nn = hllsets[i + 1].difference(&hllsets[i]);
+        let (dpc, rpc, npc) = (d.popcount(), r.popcount(), nn.popcount());
+        dp.push(dpc);
+        rp.push(rpc);
+        np.push(npc);
 
-            if let Some(r_prev) = &r_prev {
-                ind2.push(bss(r_prev, &r));
-            }
-            r_prev = Some(r);
+        let rn = (r.union(&nn)).popcount() as f64;
+        let rd = (r.union(&d)).popcount() as f64;
+        ind1.push(if rn == 0.0 { 0.0 } else { dpc as f64 / rn });
+        ind3.push(if rd == 0.0 { 0.0 } else { npc as f64 / rd });
+
+        if let Some(r_prev) = &r_prev {
+            ind2.push(bss(r_prev, &r));
         }
+        r_prev = Some(r);
+    }
 
-        NoetherOut {
-            dp,
-            rp,
-            np,
-            ind1,
-            ind2,
-            ind3,
-        }
+    NoetherOut {
+        dp,
+        rp,
+        np,
+        ind1,
+        ind2,
+        ind3,
     }
 }
 
@@ -268,80 +274,187 @@ impl FrameSet {
     /// `k`-dimensional space, so they form a fixed-dim time series ready for
     /// DFT over `t` (the ring's ingestion order *is* the time axis).
     pub fn sidecar_with_cap_freeze(&self, cap: usize, freeze: Option<usize>) -> SidecarOut {
-        let mut window = ewm_boolring::BoolWindow::new(cap.max(1));
-        let mut frames = Vec::with_capacity(self.len());
-        let mut prev_set: Option<HLLSet> = None;
-        let freeze = freeze.map(|n| n.max(1));
+        sidecar_series(&self.hllsets, cap, freeze)
+    }
+}
 
-        for (idx, set) in self.hllsets.iter().enumerate() {
-            let frozen = freeze.is_some_and(|n| idx >= n);
-            let basis = window.basis();
-            let soft: Vec<f64> = basis
-                .basis
-                .iter()
-                .map(|b| bss(set, b))
-                .collect();
-            let basis_pop: Vec<u64> = basis.basis.iter().map(|b| b.popcount()).collect();
-            let hard = basis.coordinates(set);
-            let residual_set = basis.residual(set);
-            let residual = residual_set.popcount();
-            let in_span = residual == 0;
+/// The side-car trajectory over any HLLSet series — frames at the bottom of
+/// the pyramid, perceptron states one level up, unions at the top. Same
+/// Boolean-ring algebra at every level (docs/ASSIGNMENT_QWENDRIVE.md Phase 2).
+pub fn sidecar_series(
+    hllsets: &[HLLSet],
+    cap: usize,
+    freeze: Option<usize>,
+) -> SidecarOut {
+    let mut window = ewm_boolring::BoolWindow::new(cap.max(1));
+    let mut frames = Vec::with_capacity(hllsets.len());
+    let mut prev_set: Option<HLLSet> = None;
+    let freeze = freeze.map(|n| n.max(1));
 
-            // Step length: both frames measured against the *current* basis
-            // (which, after the freeze, is the same basis for every step).
-            let step = match &prev_set {
-                Some(prev) => {
-                    let prev_soft: Vec<f64> = basis
-                        .basis
-                        .iter()
-                        .map(|b| bss(prev, b))
-                        .collect();
-                    l2_distance(&prev_soft, &soft)
-                }
-                None => 0.0,
-            };
-
-            // Push after measuring (unless frozen), so the record describes
-            // the novelty of the incoming frame against the context so far.
-            let (rotation_count, rotation_mass) = if frozen {
-                (0, 0) // an evaluation never changes the basis
-            } else {
-                let ring_stats = window.push(set);
-                (ring_stats.rotation_count, ring_stats.rotation_mass)
-            };
-            frames.push(SidecarFrame {
-                soft,
-                hard,
-                basis_pop,
-                residual,
-                in_span,
-                dim: window.dimension(),
-                rotation_count,
-                rotation_mass,
-                step,
-            });
-            prev_set = Some(set.clone());
-        }
-
-        // Jump detector over the step series: mean + 3σ (σ = standard
-        // deviation, population). The first frame's zero step is excluded from
-        // the baseline so it cannot pull the threshold down.
-        let steps: Vec<f64> = frames.iter().map(|f| f.step).collect();
-        let baseline: Vec<f64> = steps.iter().skip(1).copied().collect();
-        let mean = mean(&baseline);
-        let std = std_dev(&baseline, mean);
-        let threshold = mean + 3.0 * std;
-        let jumps: Vec<u64> = frames
+    for (idx, set) in hllsets.iter().enumerate() {
+        let frozen = freeze.is_some_and(|n| idx >= n);
+        let basis = window.basis();
+        let soft: Vec<f64> = basis
+            .basis
             .iter()
-            .enumerate()
-            .filter_map(|(i, f)| if f.step > threshold { Some((i + 1) as u64) } else { None })
+            .map(|b| bss(set, b))
             .collect();
+        let basis_pop: Vec<u64> = basis.basis.iter().map(|b| b.popcount()).collect();
+        let hard = basis.coordinates(set);
+        let residual_set = basis.residual(set);
+        let residual = residual_set.popcount();
+        let in_span = residual == 0;
 
-        SidecarOut {
-            frames,
-            jumps,
-            threshold,
+        // Step length: both frames measured against the *current* basis
+        // (which, after the freeze, is the same basis for every step).
+        let step = match &prev_set {
+            Some(prev) => {
+                let prev_soft: Vec<f64> = basis
+                    .basis
+                    .iter()
+                    .map(|b| bss(prev, b))
+                    .collect();
+                l2_distance(&prev_soft, &soft)
+            }
+            None => 0.0,
+        };
+
+        // Push after measuring (unless frozen), so the record describes
+        // the novelty of the incoming frame against the context so far.
+        let (rotation_count, rotation_mass) = if frozen {
+            (0, 0) // an evaluation never changes the basis
+        } else {
+            let ring_stats = window.push(set);
+            (ring_stats.rotation_count, ring_stats.rotation_mass)
+        };
+        frames.push(SidecarFrame {
+            soft,
+            hard,
+            basis_pop,
+            residual,
+            in_span,
+            dim: window.dimension(),
+            rotation_count,
+            rotation_mass,
+            step,
+        });
+        prev_set = Some(set.clone());
+    }
+
+    // Jump detector over the step series: mean + 3σ (σ = standard
+    // deviation, population). The first frame's zero step is excluded from
+    // the baseline so it cannot pull the threshold down.
+    let steps: Vec<f64> = frames.iter().map(|f| f.step).collect();
+    let baseline: Vec<f64> = steps.iter().skip(1).copied().collect();
+    let mean = mean(&baseline);
+    let std = std_dev(&baseline, mean);
+    let threshold = mean + 3.0 * std;
+    let jumps: Vec<u64> = frames
+        .iter()
+        .enumerate()
+        .filter_map(|(i, f)| if f.step > threshold { Some((i + 1) as u64) } else { None })
+        .collect();
+
+    SidecarOut {
+        frames,
+        jumps,
+        threshold,
+    }
+}
+
+/// One perceptron of a pyramid frame: a name and its token collection.
+#[derive(Clone, Debug)]
+pub struct PerceptronTokens {
+    pub name: String,
+    pub tokens: Vec<String>,
+}
+
+/// One pyramid frame: `m` perceptron token collections at time `t`.
+#[derive(Clone, Debug)]
+pub struct PyramidFrame {
+    pub id: u64,
+    pub perceptrons: Vec<PerceptronTokens>,
+}
+
+/// One pyramid frame, ingested: the per-perceptron HLLSets (decomposition b)
+/// and the union top state `u-HLLSet(t)`.
+#[derive(Clone, Debug)]
+pub struct PyramidFrameState {
+    pub id: u64,
+    pub names: Vec<String>,
+    /// One HLLSet per perceptron — the joined decomposition
+    /// `u-HLLSet(t) = <p1-HLLSet(t), …, pm-HLLSet(t)>`.
+    pub hllsets: Vec<HLLSet>,
+    pub keys: Vec<String>,
+    pub pops: Vec<u64>,
+    /// `⋃_i p_i-HLLSet(t)` — the top perceptron state.
+    pub union_hll: HLLSet,
+    pub union_key: String,
+    pub union_pop: u64,
+}
+
+/// The pyramid analysis: the top-perceptron union stream with its three
+/// decompositions — (a) D/R/N over consecutive unions, (b) the joined
+/// per-perceptron components, (c) the Boolean-ring basis of the union stream.
+#[derive(Clone, Debug)]
+pub struct PyramidOut {
+    /// Perceptron names in the order they appear in every frame.
+    pub names: Vec<String>,
+    pub frames: Vec<PyramidFrameState>,
+    /// (a) D/R/N decomposition of `u-HLLSet(t)` vs `u-HLLSet(t-1)`.
+    pub drn: NoetherOut,
+    /// (c) u-ring basis decomposition over the union stream.
+    pub ring: SidecarOut,
+}
+
+impl PyramidFrame {
+    /// Ingest one pyramid frame: per-perceptron projections + the union.
+    pub fn ingest(&self) -> PyramidFrameState {
+        let mut hllsets = Vec::with_capacity(self.perceptrons.len());
+        let mut keys = Vec::with_capacity(self.perceptrons.len());
+        let mut pops = Vec::with_capacity(self.perceptrons.len());
+        let mut names = Vec::with_capacity(self.perceptrons.len());
+        for p in &self.perceptrons {
+            let mut ig = Ingest::new();
+            ig.ingest_tokens(p.tokens.iter().map(|t| t.as_bytes()));
+            keys.push(ig.key());
+            pops.push(ig.projection().popcount());
+            hllsets.push(ig.projection());
+            names.push(p.name.clone());
         }
+        let union_hll = hllsets
+            .iter()
+            .fold(HLLSet::new(), |acc, s| acc.union(s));
+        let union_key = union_hll.content_key();
+        let union_pop = union_hll.popcount();
+        PyramidFrameState {
+            id: self.id,
+            names,
+            hllsets,
+            keys,
+            pops,
+            union_hll,
+            union_key,
+            union_pop,
+        }
+    }
+}
+
+/// Run the pyramid over a sequence of `m`-perceptron frames. The top
+/// perceptron is the union of the component HLLSets; its stream is analysed
+/// with the same lattice (D/R/N) and Boolean-ring algebra (soft/hard keys,
+/// residual) as the single-perceptron side-car — one level up.
+pub fn pyramid(frames: &[PyramidFrame], cap: usize, freeze: Option<usize>) -> PyramidOut {
+    assert!(!frames.is_empty(), "pyramid needs at least one frame");
+    let states: Vec<PyramidFrameState> = frames.iter().map(|f| f.ingest()).collect();
+    let unions: Vec<HLLSet> = states.iter().map(|s| s.union_hll.clone()).collect();
+    let drn = noether_series(&unions);
+    let ring = sidecar_series(&unions, cap, freeze);
+    PyramidOut {
+        names: states[0].names.clone(),
+        frames: states,
+        drn,
+        ring,
     }
 }
 
@@ -801,5 +914,49 @@ mod tests {
         assert_eq!(r.ordered, tokens, "3D morphism restores the exact volume order");
         assert_eq!(r.beam2, tokens, "beam-2 agrees");
         assert_eq!(r.shape, shape);
+    }
+
+    #[test]
+    fn pyramid_union_drn_and_ring_decompose() {
+        let pf = |id: u64, p1: &[&str], p2: &[&str]| PyramidFrame {
+            id,
+            perceptrons: vec![
+                PerceptronTokens {
+                    name: "perception".into(),
+                    tokens: p1.iter().map(|s| s.to_string()).collect(),
+                },
+                PerceptronTokens {
+                    name: "ego".into(),
+                    tokens: p2.iter().map(|s| s.to_string()).collect(),
+                },
+            ],
+        };
+        let frames = vec![
+            pf(1, &["a", "b"], &["b", "c"]),
+            pf(2, &["a", "b"], &["c", "d"]),
+        ];
+        let out = pyramid(&frames, 64, None);
+        assert_eq!(out.names, vec!["perception", "ego"]);
+        assert_eq!(out.frames.len(), 2);
+
+        // (b) joined components: per-perceptron HLLSets + the union.
+        let f0 = &out.frames[0];
+        assert_eq!(f0.pops.len(), 2);
+        assert!(f0.pops[0] > 0 && f0.pops[1] > 0);
+        let union12 = f0.hllsets[0].union(&f0.hllsets[1]);
+        assert!(union12.difference(&f0.union_hll).is_empty());
+        assert!(f0.union_hll.difference(&union12).is_empty(),
+                "union equals the OR of the components");
+
+        // (a) D/R/N of the union stream: f1={a,b,c}, f2={a,b,c,d}.
+        assert_eq!(out.drn.dp, vec![0], "nothing departed");
+        assert!(out.drn.rp[0] > 0, "common atoms retained");
+        assert!(out.drn.np[0] > 0, "d's atoms are new");
+
+        // (c) u-ring: first union is added, second is outside the span.
+        assert_eq!(out.ring.frames.len(), 2);
+        assert!(!out.ring.frames[0].in_span);
+        assert!(!out.ring.frames[1].in_span, "f2 != f1 in GF(2)");
+        assert_eq!(out.ring.frames[1].dim, 2);
     }
 }

@@ -6,7 +6,9 @@ bundled demo scenes), with the two-score evaluation and the soft-key trajectory.
 The `ewm-scene` helper gained `sidecar` (soft/hard keys, step lengths, jump detector,
 rotation component, `--cap`, `--freeze` stable-coordinate mode) and `tensor`
 (conv dim=N restoration) commands; the notebook includes the frozen-basis DFT
-decomposition of the soft-key trajectory. Phase 2 (pyramid) not started.
+decomposition and the tangible D/R/N warning hand-off. Phase 2 started: the
+simple model is in — `ewm-scene pyramid` (union top perceptron + D/R/N, joined
+components, u-ring) and notebook `notebooks/04_perceptron_pyramid.ipynb`.
 
 ## Goal
 

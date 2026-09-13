@@ -18,15 +18,15 @@ use std::io::{BufRead, Write};
 
 use ewm_boolring::InsertResult;
 use ewm_scene::{
-    grid_restore_with, restore_with, subframes, tensor_restore_with, Frame, FrameSet, GridFrame,
-    TensorFrame,
+    grid_restore_with, pyramid, restore_with, subframes, tensor_restore_with, Frame, FrameSet,
+    GridFrame, PerceptronTokens, PyramidFrame, TensorFrame,
 };
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if let Err(e) = run(&args) {
         eprintln!("ewm-scene: {e}");
-        eprintln!("usage: ewm-scene <ingest|bss|ma|noether|materialize|grid|tensor|sidecar> <frames.jsonl> [options]");
+        eprintln!("usage: ewm-scene <ingest|bss|ma|noether|materialize|grid|tensor|sidecar|pyramid> <frames.jsonl> [options]");
         std::process::exit(2);
     }
 }
@@ -46,14 +46,21 @@ fn run(args: &[String]) -> Result<(), String> {
              \x20 tensor <file> [--beam N]        N-d morphisms (conv dim=N) restoration
              \x20 subframes <file> --i N --j N    D/R/N subframes of a transition
              \x20 boolring <file>                 GF(2) span novelty/dimension series
-             \x20 sidecar <file> [--cap N] [--freeze N]  Phase-1 trajectory: soft/hard keys, steps, jumps"
+             \x20 sidecar <file> [--cap N] [--freeze N]  Phase-1 trajectory: soft/hard keys, steps, jumps
+             \x20 pyramid <file> [--cap N] [--freeze N]  Phase-2: union top perceptron + D/R/N, joined components, u-ring"
         );
         return Ok(());
     }
 
     let cmd = args[0].as_str();
     let path = args.get(1).ok_or("missing <frames.jsonl>")?;
-    let frames = read_frames(path)?;
+    // Only the flat-frame commands share the default reader; grid / tensor /
+    // pyramid / subframes read their own format.
+    let flat = matches!(
+        cmd,
+        "ingest" | "bss" | "ma" | "noether" | "materialize" | "sidecar" | "boolring"
+    );
+    let frames = if flat { read_frames(path)? } else { Vec::new() };
     let fs = FrameSet::from_frames(frames);
 
     let out = match cmd {
@@ -218,6 +225,73 @@ fn run(args: &[String]) -> Result<(), String> {
                 "freeze": freeze,
             })
         }
+        "pyramid" => {
+            let cap = arg_usize(args, "--cap")?.unwrap_or(ewm_app::RING_CAPACITY);
+            let freeze = arg_usize(args, "--freeze")?;
+            let pf = read_pyramid_frames(path)?;
+            let out = pyramid(&pf, cap, freeze);
+            let frames: Vec<serde_json::Value> = out
+                .frames
+                .iter()
+                .map(|f| {
+                    let perceptrons: Vec<serde_json::Value> = f
+                        .names
+                        .iter()
+                        .zip(&f.pops)
+                        .zip(&f.keys)
+                        .map(|((name, pop), key)| {
+                            serde_json::json!({
+                                "name": name,
+                                "pop": pop,
+                                "key": key,
+                            })
+                        })
+                        .collect();
+                    serde_json::json!({
+                        "id": f.id,
+                        "perceptrons": perceptrons,
+                        "union_pop": f.union_pop,
+                        "union_key": f.union_key,
+                    })
+                })
+                .collect();
+            let ring_frames: Vec<serde_json::Value> = out
+                .ring
+                .frames
+                .iter()
+                .map(|f| {
+                    serde_json::json!({
+                        "soft": f.soft,
+                        "hard": f.hard,
+                        "basis_pop": f.basis_pop,
+                        "residual": f.residual,
+                        "in_span": f.in_span,
+                        "dim": f.dim,
+                        "rotation_count": f.rotation_count,
+                        "rotation_mass": f.rotation_mass,
+                        "step": f.step,
+                    })
+                })
+                .collect();
+            serde_json::json!({
+                "names": out.names,
+                "frames": frames,
+                "drn": {
+                    "dp": out.drn.dp,
+                    "rp": out.drn.rp,
+                    "np": out.drn.np,
+                    "ind1": out.drn.ind1,
+                    "ind2": out.drn.ind2,
+                    "ind3": out.drn.ind3,
+                },
+                "ring": {
+                    "frames": ring_frames,
+                    "jumps": out.ring.jumps,
+                    "threshold": out.ring.threshold,
+                },
+                "freeze": freeze,
+            })
+        }
         other => return Err(format!("unknown command: {other}")),
     };
 
@@ -312,6 +386,44 @@ fn read_tensor_frames(path: &str) -> Result<Vec<TensorFrame>, String> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         frames.push(TensorFrame { id, shape, tokens });
+    }
+    Ok(frames)
+}
+
+/// Read pyramid frames: `{"id": 1, "perceptrons": {"perception": [...], ...}}`
+/// or `{"id": 1, "perceptrons": [[...], [...]]}` (auto-named p1..pm).
+fn read_pyramid_frames(path: &str) -> Result<Vec<PyramidFrame>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    let mut frames = Vec::new();
+    for (lineno, line) in std::io::BufReader::new(file).lines().enumerate() {
+        let line = line.map_err(|e| format!("{path}:{lineno}: {e}"))?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let v: serde_json::Value =
+            serde_json::from_str(&line).map_err(|e| format!("{path}:{lineno}: {e}"))?;
+        let id = v["id"].as_u64().ok_or_else(|| format!("{path}:{lineno}: missing id"))?;
+        let ps = v["perceptrons"]
+            .as_object()
+            .ok_or_else(|| format!("{path}:{lineno}: perceptrons must be an object"))?;
+        let mut perceptrons = Vec::with_capacity(ps.len());
+        for (name, tokens) in ps {
+            let tokens = tokens
+                .as_array()
+                .ok_or_else(|| format!("{path}:{lineno}: perceptron {name} is not a list"))?
+                .iter()
+                .map(|t| {
+                    t.as_str()
+                        .map(|s| s.to_string())
+                        .ok_or_else(|| format!("{path}:{lineno}: token is not a string"))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            perceptrons.push(PerceptronTokens {
+                name: name.clone(),
+                tokens,
+            });
+        }
+        frames.push(PyramidFrame { id, perceptrons });
     }
     Ok(frames)
 }
