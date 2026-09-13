@@ -106,7 +106,8 @@ ewm-state-machine/
 │   ├── ARROW_CACHE.md         # design note: Arrow as the cache-layer substrate
 │   ├── EXPLORER.md            # the read-only explorer contract
 │   ├── SEPARATION.md          # separation of concerns — the bit is the fiber
-│   └── BOOLRING.md            # GF(2) Boolean-ring context index (spike, positive)
+│   ├── BOOLRING.md            # GF(2) Boolean-ring context index (spike, positive)
+│   └── ASSIGNMENT_QWENDRIVE.md # next assignment — Qwen-Drive test bench
 └── crates/
     ├── hllset-contracts/      # soldered invariants (leaf)
     ├── hllset-cid/            # embedded SHA-1 CIDs
