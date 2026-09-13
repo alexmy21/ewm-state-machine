@@ -1,0 +1,240 @@
+\relax 
+\providecommand\zref@newlabel[2]{}
+\providecommand \babel@aux [2]{\global \let \babel@toc \@gobbletwo }
+\@nameuse{bbl@beforestart}
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{karpukhin2020dense,guo2020accelerating}
+\citation{nogueira2019passage}
+\providecommand \oddpage@label [2]{}
+\babel@aux{english}{}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Illustration of different architectures for ranking. Red and green circles represent query and document tokens, respectively. (a) DEs are efficient but have limited expressive power. (b) CEs produce more accurate relevance scores but have high computational cost. Hence, the standard practice is a two-stage pipeline where a DE selects a candidate set and a CE reranks those candidates. (c) ARR holds the promise of a unified model for ranking that replaces the DE/CE pipeline.}}{1}{figure.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:t3-xenc-pt}{{1}{1}{Illustration of different architectures for ranking. Red and green circles represent query and document tokens, respectively. (a) DEs are efficient but have limited expressive power. (b) CEs produce more accurate relevance scores but have high computational cost. Hence, the standard practice is a two-stage pipeline where a DE selects a candidate set and a CE reranks those candidates. (c) ARR holds the promise of a unified model for ranking that replaces the DE/CE pipeline}{figure.caption.1}{}}
+\newlabel{fig:t3-xenc-pt@cref}{{[figure][1][]1}{[1][1][]1}{}{}{}}
+\citation{metzler2021rethinking,li2023large,lee2024can}
+\citation{tay2022transformer}
+\citation{yuan2024generative}
+\citation{liu2009learning}
+\citation{chen2009ranking}
+\citation{cao2007learning}
+\citation{xia2008listwise}
+\citation{luce1959individual,plackett1975analysis}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{2}{section.1}\protected@file@percent }
+\newlabel{sec:introduction}{{1}{2}{Introduction}{section.1}{}}
+\newlabel{sec:introduction@cref}{{[section][1][]1}{[1][1][]2}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Related Work}{2}{section.2}\protected@file@percent }
+\newlabel{sec:related-work}{{2}{2}{Related Work}{section.2}{}}
+\newlabel{sec:related-work@cref}{{[section][2][]2}{[1][2][]2}{}{}{}}
+\@writefile{toc}{\contentsline {paragraph}{Classical IR Losses}{2}{section.2}\protected@file@percent }
+\citation{sachan2022improving,drozdov2023parade}
+\citation{pradeep2023rankvicuna}
+\citation{pradeep2023rankzephyr}
+\citation{li2024learning}
+\citation{luo2024recranker}
+\citation{huang2025towards}
+\citation{sun2023chatgpt}
+\citation{gupta2025scalable}
+\citation{tay2022transformer}
+\citation{li2023multiview}
+\citation{gupta2025scalable}
+\citation{wang2024large}
+\@writefile{toc}{\contentsline {paragraph}{Generative Reranking}{3}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Parametric Generative Retrieval and DocID Creation}{3}{section.2}\protected@file@percent }
+\citation{guo2019breaking}
+\@writefile{toc}{\contentsline {section}{\numberline {3}The Capacity for Ranking}{4}{section.3}\protected@file@percent }
+\newlabel{sec:capacity-for-ranking}{{3}{4}{The Capacity for Ranking}{section.3}{}}
+\newlabel{sec:capacity-for-ranking@cref}{{[section][3][]3}{[1][3][]4}{}{}{}}
+\@writefile{loe}{\contentsline {definition}{\ifthmt@listswap \MakeUppercase definition~3.1\else \numberline {3.1}\MakeUppercase definition\fi \thmtformatoptarg {Ranking Task}}{4}{definition.1}\protected@file@percent }
+\@writefile{loe}{\contentsline {definition}{\ifthmt@listswap \MakeUppercase definition~3.2\else \numberline {3.2}\MakeUppercase definition\fi \thmtformatoptarg {Scoring-based Ranking Architecture}}{4}{definition.2}\protected@file@percent }
+\@writefile{loe}{\contentsline {definition}{\ifthmt@listswap \MakeUppercase definition~3.3\else \numberline {3.3}\MakeUppercase definition\fi \thmtformatoptarg {Complete Ranking Task}}{4}{definition.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Ranking via Dual Encoders}{4}{subsection.3.1}\protected@file@percent }
+\citation{skala2009counting}
+\newlabel{eq:dual-encoder-ranking-architecture}{{1}{5}{Ranking via Dual Encoders}{equation.1}{}}
+\newlabel{eq:dual-encoder-ranking-architecture@cref}{{[equation][1][]1}{[1][5][]5}{}{}{}}
+\@writefile{loe}{\contentsline {prop}{\ifthmt@listswap Proposition~3.1\else \numberline {3.1}Proposition\fi \thmtformatoptarg {DE Insufficiency for Complete Ranking}}{5}{prop.1}\protected@file@percent }
+\newlabel{eq:dual-encoder-dimension-bound}{{2}{5}{DE Insufficiency for Complete Ranking}{equation.2}{}}
+\newlabel{eq:dual-encoder-dimension-bound@cref}{{[equation][2][]2}{[1][5][]5}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Ranking via (Pointwise) Autoregressive Rankers}{5}{subsection.3.2}\protected@file@percent }
+\citation{yang2017breaking}
+\newlabel{thmt@@PropArbitraryTokenLevelProb@data}{{\def \theequation {\@arabic {\c@equation }}\def \theHequation {(restate \theHthmt@dummyctr )2}\setcounter {equation}{2}}{6}{Ranking via (Pointwise) Autoregressive Rankers}{subsection.3.2}{}}
+\newlabel{thmt@@PropArbitraryTokenLevelProb@data@cref}{{[subsection][2][3]3.2}{[1][6][]6}{}{}{}}
+\@writefile{loe}{\contentsline {prop}{\ifthmt@listswap Proposition~3.2\else \numberline {3.2}Proposition\fi \thmtformatoptarg {Arbitrary Distributions over Tokens}}{6}{prop.2}\protected@file@percent }
+\newlabel{thmt@@PropArbitraryTokenLevelProb}{{3.2}{6}{Arbitrary Distributions over Tokens}{prop.2}{}}
+\newlabel{thmt@@PropArbitraryTokenLevelProb@cref}{{[prop][2][3]3.2}{[1][6][]6}{}{}{}}
+\newlabel{prop:arbitrary-tok-level-prob}{{3.2}{6}{Arbitrary Distributions over Tokens}{prop.2}{}}
+\newlabel{prop:arbitrary-tok-level-prob@cref}{{[prop][2][3]3.2}{[1][6][]6}{}{}{}}
+\@writefile{loe}{\contentsline {corollary}{\ifthmt@listswap Corollary~3.1\else \numberline {3.1}Corollary\fi \thmtformatoptarg {Arbitrary Distributions over Sequences}}{6}{corollary.1}\protected@file@percent }
+\newlabel{cor:arbitrary-seq-level-prob}{{3.1}{6}{Arbitrary Distributions over Sequences}{corollary.1}{}}
+\newlabel{cor:arbitrary-seq-level-prob@cref}{{[corollary][1][3]3.1}{[1][6][]6}{}{}{}}
+\newlabel{thmt@@PropArbitraryTokenLevelRanking@data}{{\def \theequation {\@arabic {\c@equation }}\def \theHequation {(restate \theHthmt@dummyctr )2}\setcounter {equation}{2}}{6}{Ranking via (Pointwise) Autoregressive Rankers}{corollary.1}{}}
+\newlabel{thmt@@PropArbitraryTokenLevelRanking@data@cref}{{[subsection][2][3]3.2}{[1][6][]6}{}{}{}}
+\@writefile{loe}{\contentsline {prop}{\ifthmt@listswap Proposition~3.3\else \numberline {3.3}Proposition\fi \thmtformatoptarg {Arbitrary Permutations over Tokens}}{6}{prop.3}\protected@file@percent }
+\newlabel{thmt@@PropArbitraryTokenLevelRanking}{{3.3}{6}{Arbitrary Permutations over Tokens}{prop.3}{}}
+\newlabel{thmt@@PropArbitraryTokenLevelRanking@cref}{{[prop][3][3]3.3}{[1][6][]6}{}{}{}}
+\newlabel{prop:arbitrary-tok-level-ranking}{{3.3}{6}{Arbitrary Permutations over Tokens}{prop.3}{}}
+\newlabel{prop:arbitrary-tok-level-ranking@cref}{{[prop][3][3]3.3}{[1][6][]6}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Generalized Rank-Aware Training Loss}{7}{section.4}\protected@file@percent }
+\newlabel{sec:rank-aware-training-loss}{{4}{7}{Generalized Rank-Aware Training Loss}{section.4}{}}
+\newlabel{sec:rank-aware-training-loss@cref}{{[section][4][]4}{[1][7][]7}{}{}{}}
+\newlabel{eq:general-loss-formulation}{{3}{7}{Generalized Rank-Aware Training Loss}{equation.3}{}}
+\newlabel{eq:general-loss-formulation@cref}{{[equation][3][]3}{[1][7][]7}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Rank-Aware Item-Level Reweighting}{7}{subsection.4.1}\protected@file@percent }
+\newlabel{sec:rank-aware-item-level-reweighting}{{4.1}{7}{Rank-Aware Item-Level Reweighting}{subsection.4.1}{}}
+\newlabel{sec:rank-aware-item-level-reweighting@cref}{{[subsection][1][4]4.1}{[1][7][]7}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Prefix Tree for Rank-Aware Token-Level $\mathbf  {y}(r,t)$}{7}{subsection.4.2}\protected@file@percent }
+\newlabel{sec:prefix-tree}{{4.2}{7}{Prefix Tree for Rank-Aware Token-Level $\mathbf {y}(r,t)$}{subsection.4.2}{}}
+\newlabel{sec:prefix-tree@cref}{{[subsection][2][4]4.2}{[1][7][]7}{}{}{}}
+\citation{reddy2024first}
+\citation{fellbaum1998wordnet}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Illustration of (a) a prefix-tree; target distributions derived from it via (b) one-hot supervision versus (c) marginalization.}}{8}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:example}{{2}{8}{Illustration of (a) a prefix-tree; target distributions derived from it via (b) one-hot supervision versus (c) marginalization}{figure.caption.2}{}}
+\newlabel{fig:example@cref}{{[figure][2][]2}{[1][8][]8}{}{}{}}
+\citation{reddy2022shopping}
+\citation{lee2024gecko}
+\citation{pedregosa2011scikit}
+\citation{gupta2025scalable}
+\citation{jiang2024identifying}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experiments}{9}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Datasets, Experimental Settings, and Metrics}{9}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:experimental-setup}{{5.1}{9}{Datasets, Experimental Settings, and Metrics}{subsection.5.1}{}}
+\newlabel{sec:experimental-setup@cref}{{[subsection][1][5]5.1}{[1][8][]9}{}{}{}}
+\@writefile{toc}{\contentsline {paragraph}{WordNet}{9}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:wordnet-dataset}{{5.1}{9}{WordNet}{subsection.5.1}{}}
+\newlabel{sec:wordnet-dataset@cref}{{[subsection][1][5]5.1}{[1][8][]9}{}{}{}}
+\@writefile{toc}{\contentsline {paragraph}{ESCI Shopping Queries}{9}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:esci-dataset}{{5.1}{9}{ESCI Shopping Queries}{subsection.5.1}{}}
+\newlabel{sec:esci-dataset@cref}{{[subsection][1][5]5.1}{[1][9][]9}{}{}{}}
+\@writefile{toc}{\contentsline {paragraph}{Task Setup for Autoregressive Ranking}{9}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:task-definition}{{5.1}{9}{Task Setup for Autoregressive Ranking}{subsection.5.1}{}}
+\newlabel{sec:task-definition@cref}{{[subsection][1][5]5.1}{[1][9][]9}{}{}{}}
+\citation{ye2025efficient}
+\@writefile{toc}{\contentsline {paragraph}{Metrics}{10}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:metrics}{{5.1}{10}{Metrics}{subsection.5.1}{}}
+\newlabel{sec:metrics@cref}{{[subsection][1][5]5.1}{[1][10][]10}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces WordNet results (evaluated over 5000 (query, targets)-examples)}}{10}{table.caption.3}\protected@file@percent }
+\newlabel{tab:wordnet-results}{{1}{10}{WordNet results (evaluated over 5000 (query, targets)-examples)}{table.caption.3}{}}
+\newlabel{tab:wordnet-results@cref}{{[table][1][]1}{[1][10][]10}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces ESCI results (evaluated over 310 (query, targets)-examples)}}{10}{table.caption.3}\protected@file@percent }
+\newlabel{tab:esci-results}{{2}{10}{ESCI results (evaluated over 310 (query, targets)-examples)}{table.caption.3}{}}
+\newlabel{tab:esci-results@cref}{{[table][2][]2}{[1][10][]10}{}{}{}}
+\citation{dhingra2018embedding,parmar2022hyperbox,an2023coarse}
+\citation{wu2024effectiveness}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Main Results}{11}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Comparison with DEs and CEs}{11}{subsection.5.3}\protected@file@percent }
+\newlabel{sec:comparison-with-de-and-ce}{{5.3}{11}{Comparison with DEs and CEs}{subsection.5.3}{}}
+\newlabel{sec:comparison-with-de-and-ce@cref}{{[subsection][3][5]5.3}{[1][11][]11}{}{}{}}
+\bibstyle{abbrvnat}
+\bibdata{references}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Results on WordNet with Dual Encoders (DEs) and Cross Encoders (CEs). (a) Comparison of autoregressive ranking with DEs ($n \in \{4,8,16,32\}, \alpha =5$) and CE ($n=32$). (b, c) Effect of $\alpha $ in the reweighting function for DEs ($n=8$) and CEs ($n=32$), respectively.}}{12}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:wordnet-de-ce}{{3}{12}{Results on WordNet with Dual Encoders (DEs) and Cross Encoders (CEs). (a) Comparison of autoregressive ranking with DEs ($n \in \{4,8,16,32\}, \alpha =5$) and CE ($n=32$). (b, c) Effect of $\alpha $ in the reweighting function for DEs ($n=8$) and CEs ($n=32$), respectively}{figure.caption.4}{}}
+\newlabel{fig:wordnet-de-ce@cref}{{[figure][3][]3}{[1][12][]12}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion}{12}{section.6}\protected@file@percent }
+\newlabel{sec:conclusion}{{6}{12}{Conclusion}{section.6}{}}
+\newlabel{sec:conclusion@cref}{{[section][6][]6}{[1][12][]12}{}{}{}}
+\bibcite{an2023coarse}{{1}{2023}{{An et~al.}}{{An, Zheng, Gao, Zhao, and Chang}}}
+\bibcite{cao2007learning}{{2}{2007}{{Cao et~al.}}{{Cao, Qin, Liu, Tsai, and Li}}}
+\bibcite{chen2009ranking}{{3}{2009}{{Chen et~al.}}{{Chen, Liu, Lan, Ma, and Li}}}
+\bibcite{dhingra2018embedding}{{4}{2018}{{Dhingra et~al.}}{{Dhingra, Shallue, Norouzi, Dai, and Dahl}}}
+\bibcite{drozdov2023parade}{{5}{2023}{{Drozdov et~al.}}{{Drozdov, Zhuang, Dai, Qin, Rahimi, Wang, Alon, Iyyer, McCallum, Metzler, et~al.}}}
+\bibcite{fellbaum1998wordnet}{{6}{1998}{{Fellbaum}}{{}}}
+\bibcite{guo2019breaking}{{7}{2019}{{Guo et~al.}}{{Guo, Mousavi, Wu, Holtmann-Rice, Kale, Reddi, and Kumar}}}
+\bibcite{guo2020accelerating}{{8}{2020}{{Guo et~al.}}{{Guo, Sun, Lindgren, Geng, Simcha, Chern, and Kumar}}}
+\bibcite{gupta2025scalable}{{9}{2025}{{Gupta et~al.}}{{Gupta, You, Bhojanapalli, Kumar, Dhillon, and Yu}}}
+\bibcite{huang2025towards}{{10}{2025}{{Huang et~al.}}{{Huang, Chen, Cao, Yang, Qi, Zhu, Han, Liu, Liu, Yao, et~al.}}}
+\bibcite{jiang2024identifying}{{11}{2024}{{Jiang}}{{}}}
+\bibcite{karpukhin2020dense}{{12}{2020}{{Karpukhin et~al.}}{{Karpukhin, Oguz, Min, Lewis, Wu, Edunov, Chen, and Yih}}}
+\bibcite{lee2024can}{{13}{2024{a}}{{Lee et~al.}}{{Lee, Chen, Dai, Dua, Sachan, Boratko, Luan, Arnold, Perot, Dalmia, et~al.}}}
+\bibcite{lee2024gecko}{{14}{2024{b}}{{Lee et~al.}}{{Lee, Dai, Ren, Chen, Cer, Cole, Hui, Boratko, Kapadia, Ding, et~al.}}}
+\bibcite{li2023large}{{15}{2023{a}}{{Li et~al.}}{{Li, Zhang, Liu, and Chen}}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Acknowledgements}{13}{section.7}\protected@file@percent }
+\newlabel{sec:acknowledgements}{{7}{13}{Acknowledgements}{section.7}{}}
+\newlabel{sec:acknowledgements@cref}{{[section][7][]7}{[1][12][]13}{}{}{}}
+\bibcite{li2023multiview}{{16}{2023{b}}{{Li et~al.}}{{Li, Yang, Wang, Wei, and Li}}}
+\bibcite{li2024learning}{{17}{2024}{{Li et~al.}}{{Li, Yang, Wang, Wei, and Li}}}
+\bibcite{liu2009learning}{{18}{2009}{{Liu et~al.}}{{}}}
+\bibcite{luce1959individual}{{19}{1959}{{Luce et~al.}}{{}}}
+\bibcite{luo2024recranker}{{20}{2024}{{Luo et~al.}}{{Luo, He, Zhao, Shao, Qi, Huang, Zhou, Yao, Li, Xiao, et~al.}}}
+\bibcite{metzler2021rethinking}{{21}{2021}{{Metzler et~al.}}{{Metzler, Tay, Bahri, and Najork}}}
+\bibcite{nogueira2019passage}{{22}{2019}{{Nogueira and Cho}}{{}}}
+\bibcite{parmar2022hyperbox}{{23}{2022}{{Parmar and Narayan}}{{}}}
+\bibcite{pedregosa2011scikit}{{24}{2011}{{Pedregosa et~al.}}{{Pedregosa, Varoquaux, Gramfort, Michel, Thirion, Grisel, Blondel, Prettenhofer, Weiss, Dubourg, et~al.}}}
+\bibcite{plackett1975analysis}{{25}{1975}{{Plackett}}{{}}}
+\bibcite{pradeep2023rankvicuna}{{26}{2023{a}}{{Pradeep et~al.}}{{Pradeep, Sharifymoghaddam, and Lin}}}
+\bibcite{pradeep2023rankzephyr}{{27}{2023{b}}{{Pradeep et~al.}}{{Pradeep, Sharifymoghaddam, and Lin}}}
+\bibcite{reddy2022shopping}{{28}{2022}{{Reddy et~al.}}{{Reddy, M{\`a}rquez, Valero, Rao, Zaragoza, Bandyopadhyay, Biswas, Xing, and Subbian}}}
+\bibcite{reddy2024first}{{29}{2024}{{Reddy et~al.}}{{Reddy, Doo, Xu, Sultan, Swain, Sil, and Ji}}}
+\bibcite{sachan2022improving}{{30}{2022}{{Sachan et~al.}}{{Sachan, Lewis, Joshi, Aghajanyan, Yih, Pineau, and Zettlemoyer}}}
+\bibcite{shazeer2018adafactor}{{31}{2018}{{Shazeer and Stern}}{{}}}
+\bibcite{skala2009counting}{{32}{2009}{{Skala}}{{}}}
+\bibcite{sun2023chatgpt}{{33}{2023}{{Sun et~al.}}{{Sun, Yan, Ma, Wang, Ren, Chen, Yin, and Ren}}}
+\bibcite{tay2022transformer}{{34}{2022}{{Tay et~al.}}{{Tay, Tran, Dehghani, Ni, Bahri, Mehta, Qin, Hui, Zhao, Gupta, et~al.}}}
+\bibcite{wang2024large}{{35}{2024}{{Wang et~al.}}{{Wang, Yang, Huang, Yang, Majumder, and Wei}}}
+\bibcite{wu2024effectiveness}{{36}{2024}{{Wu et~al.}}{{Wu, Wang, Gao, Chen, Fu, and Qiu}}}
+\bibcite{xia2008listwise}{{37}{2008}{{Xia et~al.}}{{Xia, Liu, Wang, Zhang, and Li}}}
+\bibcite{yang2017breaking}{{38}{2017}{{Yang et~al.}}{{Yang, Dai, Salakhutdinov, and Cohen}}}
+\bibcite{ye2025efficient}{{39}{2025}{{Ye et~al.}}{{Ye, Jain, You, Suresh, Lin, Zou, and Yu}}}
+\bibcite{yuan2024generative}{{40}{2024}{{Yuan et~al.}}{{Yuan, Wang, Feng, Pan, Li, Wang, Miao, and Li}}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Proofs}{16}{appendix.A}\protected@file@percent }
+\newlabel{sec:proofs}{{A}{16}{Proofs}{appendix.A}{}}
+\newlabel{sec:proofs@cref}{{[appendix][1][]A}{[1][16][]16}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Proof of \Cref  {prop:arbitrary-tok-level-prob}}{16}{subsection.A.1}\protected@file@percent }
+\@writefile{loe}{\contentsline {prop}{\ifthmt@listswap Proposition~3.2\else \numberline {3.2}Proposition\fi \thmtformatoptarg {Arbitrary Distributions over Tokens}}{16}{prop.dummy.11}\protected@file@percent }
+\newlabel{eq:dot-product-0-original}{{7}{16}{Proof of \Cref {prop:arbitrary-tok-level-prob}}{equation.7}{}}
+\newlabel{eq:dot-product-0-original@cref}{{[equation][7][]7}{[1][16][]16}{}{}{}}
+\newlabel{eq:dot-product-0-decomposed}{{8}{16}{Proof of \Cref {prop:arbitrary-tok-level-prob}}{equation.8}{}}
+\newlabel{eq:dot-product-0-decomposed@cref}{{[equation][8][]8}{[1][16][]16}{}{}{}}
+\newlabel{eq:dot-product-equality}{{9}{16}{Proof of \Cref {prop:arbitrary-tok-level-prob}}{equation.9}{}}
+\newlabel{eq:dot-product-equality@cref}{{[equation][9][]9}{[1][16][]16}{}{}{}}
+\newlabel{eq:dot-product-equality-S}{{10}{16}{Proof of \Cref {prop:arbitrary-tok-level-prob}}{equation.10}{}}
+\newlabel{eq:dot-product-equality-S@cref}{{[equation][10][]10}{[1][16][]16}{}{}{}}
+\newlabel{eq:a-b-inequality}{{11}{16}{Proof of \Cref {prop:arbitrary-tok-level-prob}}{equation.11}{}}
+\newlabel{eq:a-b-inequality@cref}{{[equation][11][]11}{[1][16][]16}{}{}{}}
+\newlabel{eq:inequality-aS}{{12}{16}{Proof of \Cref {prop:arbitrary-tok-level-prob}}{equation.12}{}}
+\newlabel{eq:inequality-aS@cref}{{[equation][12][]12}{[1][16][]16}{}{}{}}
+\newlabel{eq:inequality-bS}{{13}{17}{Proof of \Cref {prop:arbitrary-tok-level-prob}}{equation.13}{}}
+\newlabel{eq:inequality-bS@cref}{{[equation][13][]13}{[1][16][]17}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Proof of \Cref  {prop:arbitrary-tok-level-ranking}}{17}{subsection.A.2}\protected@file@percent }
+\@writefile{loe}{\contentsline {prop}{\ifthmt@listswap Proposition~3.3\else \numberline {3.3}Proposition\fi \thmtformatoptarg {Arbitrary Permutations over Tokens}}{17}{prop.dummy.13}\protected@file@percent }
+\citation{jiang2024identifying}
+\citation{shazeer2018adafactor}
+\@writefile{toc}{\contentsline {section}{\numberline {B}Hyperparameter Settings}{18}{appendix.B}\protected@file@percent }
+\newlabel{sec:appendix-hparams}{{B}{18}{Hyperparameter Settings}{appendix.B}{}}
+\newlabel{sec:appendix-hparams@cref}{{[section][2][]B}{[1][18][]18}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.1}Generative}{18}{subsection.B.1}\protected@file@percent }
+\newlabel{sec:hparams-generative}{{B.1}{18}{Generative}{subsection.B.1}{}}
+\newlabel{sec:hparams-generative@cref}{{[subsection][1][2]B.1}{[1][18][]18}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.2}Dual Encoders}{18}{subsection.B.2}\protected@file@percent }
+\newlabel{sec:hparams-de}{{B.2}{18}{Dual Encoders}{subsection.B.2}{}}
+\newlabel{sec:hparams-de@cref}{{[subsection][2][2]B.2}{[1][18][]18}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.3}Cross Encoders}{18}{subsection.B.3}\protected@file@percent }
+\newlabel{sec:hparams-ce}{{B.3}{18}{Cross Encoders}{subsection.B.3}{}}
+\newlabel{sec:hparams-ce@cref}{{[subsection][3][2]B.3}{[1][18][]18}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {C}Dataset Statistics}{19}{appendix.C}\protected@file@percent }
+\newlabel{sec:dataset-statistics}{{C}{19}{Dataset Statistics}{appendix.C}{}}
+\newlabel{sec:dataset-statistics@cref}{{[section][3][]C}{[1][19][]19}{}{}{}}
+\newlabel{fig:wordnet-distr}{{\caption@xref {fig:wordnet-distr}{ on input line 723}}{19}{Dataset Statistics}{figure.caption.5}{}}
+\newlabel{fig:wordnet-distr@cref}{{[section][3][]C}{[1][19][]19}{}{}{}}
+\newlabel{fig:esci-distr}{{\caption@xref {fig:esci-distr}{ on input line 729}}{19}{Dataset Statistics}{figure.caption.6}{}}
+\newlabel{fig:esci-distr@cref}{{[section][3][]C}{[1][19][]19}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {D}Zero-Shot Prompt Example}{20}{appendix.D}\protected@file@percent }
+\newlabel{sec:appendix-prompt}{{D}{20}{Zero-Shot Prompt Example}{appendix.D}{}}
+\newlabel{sec:appendix-prompt@cref}{{[section][4][]D}{[1][20][]20}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {D.1}WordNet Prompt}{20}{subsection.D.1}\protected@file@percent }
+\newlabel{sec:wn-prompt}{{D.1}{20}{WordNet Prompt}{subsection.D.1}{}}
+\newlabel{sec:wn-prompt@cref}{{[subsection][1][4]D.1}{[1][20][]20}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {D.2}ESCI Prompt}{21}{subsection.D.2}\protected@file@percent }
+\newlabel{sec:esci-prompt}{{D.2}{21}{ESCI Prompt}{subsection.D.2}{}}
+\newlabel{sec:esci-prompt@cref}{{[subsection][2][4]D.2}{[1][20][]21}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {E}WordNet: \Cref  {tab:wordnet-results} Visualizations}{22}{appendix.E}\protected@file@percent }
+\newlabel{wordnet:comparative-visualizations}{{E}{22}{WordNet: \Cref {tab:wordnet-results} Visualizations}{appendix.E}{}}
+\newlabel{wordnet:comparative-visualizations@cref}{{[section][5][]E}{[1][22][]22}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {F}WordNet: Combined Item-and-Token Loss Results}{23}{appendix.F}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces WordNet results for combined item-and-token loss (evaluated over 5000 (query, targets)-examples)}}{23}{table.caption.8}\protected@file@percent }
+\newlabel{tab:wordnet-combined-loss-from-checkpoint}{{3}{23}{WordNet results for combined item-and-token loss (evaluated over 5000 (query, targets)-examples)}{table.caption.8}{}}
+\newlabel{tab:wordnet-combined-loss-from-checkpoint@cref}{{[table][3][]3}{[1][23][]23}{}{}{}}
+\newlabel{LastPage}{{F}{23}{WordNet: Combined Item-and-Token Loss Results}{page.23}{}}
+\gdef\lastpage@lastpage{23}
+\gdef\lastpage@lastpageHy{23}
+\gdef \@abspage@last{23}

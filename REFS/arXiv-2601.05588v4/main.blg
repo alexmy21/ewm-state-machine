@@ -1,0 +1,50 @@
+This is BibTeX, Version 0.99d (TeX Live 2025)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main.aux
+The style file: abbrvnat.bst
+Database file #1: references.bib
+Warning--can't use both volume and number fields in li2024learning
+Warning--can't use both volume and number fields in metzler2021rethinking
+Warning--can't use both volume and number fields in wang2024large
+You've used 40 entries,
+            2773 wiz_defined-function locations,
+            799 strings with 13134 characters,
+and the built_in function-call counts, 25247 in all, are:
+= -- 2085
+> -- 2173
+< -- 25
++ -- 733
+- -- 690
+* -- 2221
+:= -- 3967
+add.period$ -- 125
+call.type$ -- 40
+change.case$ -- 339
+chr.to.int$ -- 37
+cite$ -- 83
+duplicate$ -- 959
+empty$ -- 1577
+format.name$ -- 738
+if$ -- 5195
+int.to.chr$ -- 4
+int.to.str$ -- 1
+missing$ -- 41
+newline$ -- 208
+num.names$ -- 160
+pop$ -- 704
+preamble$ -- 1
+purify$ -- 301
+quote$ -- 0
+skip$ -- 871
+stack$ -- 0
+substring$ -- 655
+swap$ -- 180
+text.length$ -- 16
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 430
+warning$ -- 3
+while$ -- 168
+width$ -- 0
+write$ -- 517
+(There were 3 warnings)

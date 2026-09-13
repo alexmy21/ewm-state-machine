@@ -1,0 +1,208 @@
+\begin{thebibliography}{40}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[An et~al.(2023)An, Zheng, Gao, Zhao, and Chang]{an2023coarse}
+K.~An, C.~Zheng, B.~Gao, H.~Zhao, and B.~Chang.
+\newblock Coarse-to-fine dual encoders are better frame identification learners.
+\newblock In \emph{Findings of the Association for Computational Linguistics: EMNLP 2023}, pages 13455--13466, 2023.
+
+\bibitem[Cao et~al.(2007)Cao, Qin, Liu, Tsai, and Li]{cao2007learning}
+Z.~Cao, T.~Qin, T.-Y. Liu, M.-F. Tsai, and H.~Li.
+\newblock Learning to rank: from pairwise approach to listwise approach.
+\newblock In \emph{Proceedings of the 24th international conference on Machine learning}, pages 129--136, 2007.
+
+\bibitem[Chen et~al.(2009)Chen, Liu, Lan, Ma, and Li]{chen2009ranking}
+W.~Chen, T.-Y. Liu, Y.~Lan, Z.-M. Ma, and H.~Li.
+\newblock Ranking measures and loss functions in learning to rank.
+\newblock \emph{Advances in Neural Information Processing Systems}, 22, 2009.
+
+\bibitem[Dhingra et~al.(2018)Dhingra, Shallue, Norouzi, Dai, and Dahl]{dhingra2018embedding}
+B.~Dhingra, C.~Shallue, M.~Norouzi, A.~Dai, and G.~Dahl.
+\newblock Embedding text in hyperbolic spaces.
+\newblock In \emph{Proceedings of the Twelfth Workshop on Graph-Based Methods for Natural Language Processing (TextGraphs-12)}, pages 59--69, 2018.
+
+\bibitem[Drozdov et~al.(2023)Drozdov, Zhuang, Dai, Qin, Rahimi, Wang, Alon, Iyyer, McCallum, Metzler, et~al.]{drozdov2023parade}
+A.~Drozdov, H.~Zhuang, Z.~Dai, Z.~Qin, R.~Rahimi, X.~Wang, D.~Alon, M.~Iyyer, A.~McCallum, D.~Metzler, et~al.
+\newblock Parade: Passage ranking using demonstrations with large language models.
+\newblock \emph{arXiv preprint arXiv:2310.14408}, 2023.
+
+\bibitem[Fellbaum(1998)]{fellbaum1998wordnet}
+C.~Fellbaum.
+\newblock \emph{WordNet: An electronic lexical database}.
+\newblock MIT press, 1998.
+
+\bibitem[Guo et~al.(2019)Guo, Mousavi, Wu, Holtmann-Rice, Kale, Reddi, and Kumar]{guo2019breaking}
+C.~Guo, A.~Mousavi, X.~Wu, D.~N. Holtmann-Rice, S.~Kale, S.~Reddi, and S.~Kumar.
+\newblock Breaking the glass ceiling for embedding-based classifiers for large output spaces.
+\newblock \emph{Advances in Neural Information Processing Systems}, 32, 2019.
+
+\bibitem[Guo et~al.(2020)Guo, Sun, Lindgren, Geng, Simcha, Chern, and Kumar]{guo2020accelerating}
+R.~Guo, P.~Sun, E.~Lindgren, Q.~Geng, D.~Simcha, F.~Chern, and S.~Kumar.
+\newblock Accelerating large-scale inference with anisotropic vector quantization.
+\newblock In \emph{International Conference on Machine Learning}, pages 3887--3896. PMLR, 2020.
+
+\bibitem[Gupta et~al.(2025)Gupta, You, Bhojanapalli, Kumar, Dhillon, and Yu]{gupta2025scalable}
+N.~Gupta, C.~You, S.~Bhojanapalli, S.~Kumar, I.~Dhillon, and F.~Yu.
+\newblock Scalable in-context ranking with generative models.
+\newblock \emph{arXiv preprint arXiv:2510.05396}, 2025.
+
+\bibitem[Huang et~al.(2025)Huang, Chen, Cao, Yang, Qi, Zhu, Han, Liu, Liu, Yao, et~al.]{huang2025towards}
+Y.~Huang, Y.~Chen, X.~Cao, R.~Yang, M.~Qi, Y.~Zhu, Q.~Han, Y.~Liu, Z.~Liu, X.~Yao, et~al.
+\newblock Towards large-scale generative ranking.
+\newblock \emph{arXiv preprint arXiv:2505.04180}, 2025.
+
+\bibitem[Jiang(2024)]{jiang2024identifying}
+F.~Jiang.
+\newblock Identifying and mitigating vulnerabilities in llm-integrated applications.
+\newblock Master's thesis, University of Washington, 2024.
+
+\bibitem[Karpukhin et~al.(2020)Karpukhin, Oguz, Min, Lewis, Wu, Edunov, Chen, and Yih]{karpukhin2020dense}
+V.~Karpukhin, B.~Oguz, S.~Min, P.~S. Lewis, L.~Wu, S.~Edunov, D.~Chen, and W.-t. Yih.
+\newblock Dense passage retrieval for open-domain question answering.
+\newblock In \emph{EMNLP (1)}, pages 6769--6781, 2020.
+
+\bibitem[Lee et~al.(2024{\natexlab{a}})Lee, Chen, Dai, Dua, Sachan, Boratko, Luan, Arnold, Perot, Dalmia, et~al.]{lee2024can}
+J.~Lee, A.~Chen, Z.~Dai, D.~Dua, D.~S. Sachan, M.~Boratko, Y.~Luan, S.~M. Arnold, V.~Perot, S.~Dalmia, et~al.
+\newblock Can long-context language models subsume retrieval, rag, sql, and more?
+\newblock \emph{arXiv preprint arXiv:2406.13121}, 2024{\natexlab{a}}.
+
+\bibitem[Lee et~al.(2024{\natexlab{b}})Lee, Dai, Ren, Chen, Cer, Cole, Hui, Boratko, Kapadia, Ding, et~al.]{lee2024gecko}
+J.~Lee, Z.~Dai, X.~Ren, B.~Chen, D.~Cer, J.~R. Cole, K.~Hui, M.~Boratko, R.~Kapadia, W.~Ding, et~al.
+\newblock Gecko: Versatile text embeddings distilled from large language models.
+\newblock \emph{arXiv preprint arXiv:2403.20327}, 2024{\natexlab{b}}.
+
+\bibitem[Li et~al.(2023{\natexlab{a}})Li, Zhang, Liu, and Chen]{li2023large}
+L.~Li, Y.~Zhang, D.~Liu, and L.~Chen.
+\newblock Large language models for generative recommendation: A survey and visionary discussions.
+\newblock \emph{arXiv preprint arXiv:2309.01157}, 2023{\natexlab{a}}.
+
+\bibitem[Li et~al.(2023{\natexlab{b}})Li, Yang, Wang, Wei, and Li]{li2023multiview}
+Y.~Li, N.~Yang, L.~Wang, F.~Wei, and W.~Li.
+\newblock Multiview identifiers enhanced generative retrieval.
+\newblock \emph{arXiv preprint arXiv:2305.16675}, 2023{\natexlab{b}}.
+
+\bibitem[Li et~al.(2024)Li, Yang, Wang, Wei, and Li]{li2024learning}
+Y.~Li, N.~Yang, L.~Wang, F.~Wei, and W.~Li.
+\newblock Learning to rank in generative retrieval.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial Intelligence}, volume~38, pages 8716--8723, 2024.
+
+\bibitem[Liu et~al.(2009)]{liu2009learning}
+T.-Y. Liu et~al.
+\newblock Learning to rank for information retrieval.
+\newblock \emph{Foundations and Trends{\textregistered} in Information Retrieval}, 3\penalty0 (3):\penalty0 225--331, 2009.
+
+\bibitem[Luce et~al.(1959)]{luce1959individual}
+R.~D. Luce et~al.
+\newblock \emph{Individual choice behavior}, volume~4.
+\newblock Wiley New York, 1959.
+
+\bibitem[Luo et~al.(2024)Luo, He, Zhao, Shao, Qi, Huang, Zhou, Yao, Li, Xiao, et~al.]{luo2024recranker}
+S.~Luo, B.~He, H.~Zhao, W.~Shao, Y.~Qi, Y.~Huang, A.~Zhou, Y.~Yao, Z.~Li, Y.~Xiao, et~al.
+\newblock Recranker: Instruction tuning large language model as ranker for top-k recommendation.
+\newblock \emph{ACM Transactions on Information Systems}, 2024.
+
+\bibitem[Metzler et~al.(2021)Metzler, Tay, Bahri, and Najork]{metzler2021rethinking}
+D.~Metzler, Y.~Tay, D.~Bahri, and M.~Najork.
+\newblock Rethinking search: making domain experts out of dilettantes.
+\newblock In \emph{Acm sigir forum}, volume~55, pages 1--27. ACM New York, NY, USA, 2021.
+
+\bibitem[Nogueira and Cho(2019)]{nogueira2019passage}
+R.~Nogueira and K.~Cho.
+\newblock Passage re-ranking with bert.
+\newblock \emph{arXiv preprint arXiv:1901.04085}, 2019.
+
+\bibitem[Parmar and Narayan(2022)]{parmar2022hyperbox}
+M.~Parmar and A.~Narayan.
+\newblock Hyperbox: A supervised approach for hypernym discovery using box embeddings.
+\newblock In \emph{Proceedings of the Thirteenth Language Resources and Evaluation Conference}, pages 6069--6076, 2022.
+
+\bibitem[Pedregosa et~al.(2011)Pedregosa, Varoquaux, Gramfort, Michel, Thirion, Grisel, Blondel, Prettenhofer, Weiss, Dubourg, et~al.]{pedregosa2011scikit}
+F.~Pedregosa, G.~Varoquaux, A.~Gramfort, V.~Michel, B.~Thirion, O.~Grisel, M.~Blondel, P.~Prettenhofer, R.~Weiss, V.~Dubourg, et~al.
+\newblock Scikit-learn: Machine learning in python.
+\newblock \emph{the Journal of machine Learning research}, 12:\penalty0 2825--2830, 2011.
+
+\bibitem[Plackett(1975)]{plackett1975analysis}
+R.~L. Plackett.
+\newblock The analysis of permutations.
+\newblock \emph{Journal of the Royal Statistical Society Series C: Applied Statistics}, 24\penalty0 (2):\penalty0 193--202, 1975.
+
+\bibitem[Pradeep et~al.(2023{\natexlab{a}})Pradeep, Sharifymoghaddam, and Lin]{pradeep2023rankvicuna}
+R.~Pradeep, S.~Sharifymoghaddam, and J.~Lin.
+\newblock Rankvicuna: Zero-shot listwise document reranking with open-source large language models.
+\newblock \emph{arXiv preprint arXiv:2309.15088}, 2023{\natexlab{a}}.
+
+\bibitem[Pradeep et~al.(2023{\natexlab{b}})Pradeep, Sharifymoghaddam, and Lin]{pradeep2023rankzephyr}
+R.~Pradeep, S.~Sharifymoghaddam, and J.~Lin.
+\newblock Rankzephyr: Effective and robust zero-shot listwise reranking is a breeze!
+\newblock \emph{arXiv preprint arXiv:2312.02724}, 2023{\natexlab{b}}.
+
+\bibitem[Reddy et~al.(2022)Reddy, M{\`a}rquez, Valero, Rao, Zaragoza, Bandyopadhyay, Biswas, Xing, and Subbian]{reddy2022shopping}
+C.~K. Reddy, L.~M{\`a}rquez, F.~Valero, N.~Rao, H.~Zaragoza, S.~Bandyopadhyay, A.~Biswas, A.~Xing, and K.~Subbian.
+\newblock Shopping queries dataset: A large-scale esci benchmark for improving product search.
+\newblock \emph{arXiv preprint arXiv:2206.06588}, 2022.
+
+\bibitem[Reddy et~al.(2024)Reddy, Doo, Xu, Sultan, Swain, Sil, and Ji]{reddy2024first}
+R.~G. Reddy, J.~Doo, Y.~Xu, M.~A. Sultan, D.~Swain, A.~Sil, and H.~Ji.
+\newblock First: Faster improved listwise reranking with single token decoding.
+\newblock \emph{arXiv preprint arXiv:2406.15657}, 2024.
+
+\bibitem[Sachan et~al.(2022)Sachan, Lewis, Joshi, Aghajanyan, Yih, Pineau, and Zettlemoyer]{sachan2022improving}
+D.~S. Sachan, M.~Lewis, M.~Joshi, A.~Aghajanyan, W.-t. Yih, J.~Pineau, and L.~Zettlemoyer.
+\newblock Improving passage retrieval with zero-shot question generation.
+\newblock \emph{arXiv preprint arXiv:2204.07496}, 2022.
+
+\bibitem[Shazeer and Stern(2018)]{shazeer2018adafactor}
+N.~Shazeer and M.~Stern.
+\newblock Adafactor: Adaptive learning rates with sublinear memory cost.
+\newblock In \emph{International Conference on Machine Learning}, pages 4596--4604. PMLR, 2018.
+
+\bibitem[Skala(2009)]{skala2009counting}
+M.~Skala.
+\newblock Counting distance permutations.
+\newblock \emph{Journal of Discrete Algorithms}, 7\penalty0 (1):\penalty0 49--61, 2009.
+
+\bibitem[Sun et~al.(2023)Sun, Yan, Ma, Wang, Ren, Chen, Yin, and Ren]{sun2023chatgpt}
+W.~Sun, L.~Yan, X.~Ma, S.~Wang, P.~Ren, Z.~Chen, D.~Yin, and Z.~Ren.
+\newblock Is chatgpt good at search? investigating large language models as re-ranking agents.
+\newblock \emph{arXiv preprint arXiv:2304.09542}, 2023.
+
+\bibitem[Tay et~al.(2022)Tay, Tran, Dehghani, Ni, Bahri, Mehta, Qin, Hui, Zhao, Gupta, et~al.]{tay2022transformer}
+Y.~Tay, V.~Tran, M.~Dehghani, J.~Ni, D.~Bahri, H.~Mehta, Z.~Qin, K.~Hui, Z.~Zhao, J.~Gupta, et~al.
+\newblock Transformer memory as a differentiable search index.
+\newblock \emph{Advances in Neural Information Processing Systems}, 35:\penalty0 21831--21843, 2022.
+
+\bibitem[Wang et~al.(2024)Wang, Yang, Huang, Yang, Majumder, and Wei]{wang2024large}
+L.~Wang, N.~Yang, X.~Huang, L.~Yang, R.~Majumder, and F.~Wei.
+\newblock Large search model: Redefining search stack in the era of llms.
+\newblock In \emph{ACM SIGIR Forum}, volume~57, pages 1--16. ACM New York, NY, USA, 2024.
+
+\bibitem[Wu et~al.(2024)Wu, Wang, Gao, Chen, Fu, and Qiu]{wu2024effectiveness}
+J.~Wu, X.~Wang, X.~Gao, J.~Chen, H.~Fu, and T.~Qiu.
+\newblock On the effectiveness of sampled softmax loss for item recommendation.
+\newblock \emph{ACM Transactions on Information Systems}, 42\penalty0 (4):\penalty0 1--26, 2024.
+
+\bibitem[Xia et~al.(2008)Xia, Liu, Wang, Zhang, and Li]{xia2008listwise}
+F.~Xia, T.-Y. Liu, J.~Wang, W.~Zhang, and H.~Li.
+\newblock Listwise approach to learning to rank: theory and algorithm.
+\newblock In \emph{Proceedings of the 25th international conference on Machine learning}, pages 1192--1199, 2008.
+
+\bibitem[Yang et~al.(2017)Yang, Dai, Salakhutdinov, and Cohen]{yang2017breaking}
+Z.~Yang, Z.~Dai, R.~Salakhutdinov, and W.~W. Cohen.
+\newblock Breaking the softmax bottleneck: A high-rank rnn language model.
+\newblock \emph{arXiv preprint arXiv:1711.03953}, 2017.
+
+\bibitem[Ye et~al.(2025)Ye, Jain, You, Suresh, Lin, Zou, and Yu]{ye2025efficient}
+H.~Ye, H.~Jain, C.~You, A.~T. Suresh, H.~Lin, J.~Zou, and F.~Yu.
+\newblock Efficient and asymptotically unbiased constrained decoding for large language models.
+\newblock \emph{arXiv preprint arXiv:2504.09135}, 2025.
+
+\bibitem[Yuan et~al.(2024)Yuan, Wang, Feng, Pan, Li, Wang, Miao, and Li]{yuan2024generative}
+P.~Yuan, X.~Wang, S.~Feng, B.~Pan, Y.~Li, H.~Wang, X.~Miao, and K.~Li.
+\newblock Generative dense retrieval: Memory can be a burden.
+\newblock In \emph{18th Conference of the European Chapter of the Association for Computational Linguistics, EACL 2024}, pages 2835--2845. Association for Computational Linguistics (ACL), 2024.
+
+\end{thebibliography}
