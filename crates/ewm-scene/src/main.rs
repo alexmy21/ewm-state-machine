@@ -204,6 +204,8 @@ fn run(args: &[String]) -> Result<(), String> {
                         "residual": f.residual,
                         "in_span": f.in_span,
                         "dim": f.dim,
+                        "rotation_count": f.rotation_count,
+                        "rotation_mass": f.rotation_mass,
                         "step": f.step,
                     })
                 })

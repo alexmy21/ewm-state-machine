@@ -215,6 +215,11 @@ pub struct SidecarFrame {
     pub in_span: bool,
     /// Span dimension *after* inserting this frame.
     pub dim: usize,
+    /// Number of existing basis elements re-pivoted by this frame's insertion
+    /// (the rotation component of the basis change; zero when in-span).
+    pub rotation_count: u64,
+    /// Total Hamming change of the old basis: `rotation_count * residual`.
+    pub rotation_mass: u64,
     /// L2 distance between this frame's soft key and the previous frame's soft
     /// key, both recomputed against the current basis. `0.0` for the first
     /// frame.
@@ -284,7 +289,7 @@ impl FrameSet {
 
             // Push after measuring, so the record describes the novelty of the
             // incoming frame against the context so far.
-            window.push(set);
+            let ring_stats = window.push(set);
             frames.push(SidecarFrame {
                 soft,
                 hard,
@@ -292,6 +297,8 @@ impl FrameSet {
                 residual,
                 in_span,
                 dim: window.dimension(),
+                rotation_count: ring_stats.rotation_count,
+                rotation_mass: ring_stats.rotation_mass,
                 step,
             });
             prev_set = Some(set.clone());

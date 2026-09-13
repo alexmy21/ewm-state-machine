@@ -35,8 +35,15 @@ pub enum InsertResult {
     /// it (in elimination order; toggling is safe).
     InSpan { coords: Vec<usize> },
     /// The set was outside the span; it was reduced and the remainder was
-    /// added as a new basis element with `pivot`.
-    Added { residual: HLLSet, pivot: u32 },
+    /// added as a new basis element with `pivot`. `rotation_count` is the
+    /// number of existing basis elements that were re-pivoted (XORed with the
+    /// residual to clear the new pivot bit) — the basis-change component that
+    /// is a *rotation* rather than an extension.
+    Added {
+        residual: HLLSet,
+        pivot: u32,
+        rotation_count: usize,
+    },
 }
 
 /// A reduced row-echelon GF(2) basis over HLLSets.
@@ -104,11 +111,15 @@ impl BoolBasis {
             return InsertResult::InSpan { coords };
         };
         // Clear the new pivot from every existing basis element so each
-        // pivot bit appears in exactly one basis element.
+        // pivot bit appears in exactly one basis element. This re-pivoting is
+        // the *rotation* component of the basis change; count how many
+        // existing directions it touches (the rest is pure extension).
+        let mut rotation_count = 0usize;
         for b in self.basis.iter_mut() {
             if b.has_bit(p / 32, p % 32) {
                 let cleared = symmetric_difference(b, &residual);
                 *b = cleared;
+                rotation_count += 1;
             }
         }
         self.pivots.push(p);
@@ -116,6 +127,7 @@ impl BoolBasis {
         InsertResult::Added {
             residual,
             pivot: p,
+            rotation_count,
         }
     }
 }
@@ -232,6 +244,62 @@ mod tests {
         assert!(b1.coordinates(&a).is_some());
         assert!(b2.coordinates(&a).is_some());
     }
+
+    #[test]
+    fn insertion_reports_the_rotation_component() {
+        // Pure extension: the new pivot bit is absent from every existing
+        // basis element -> nothing rotates.
+        let mut basis = BoolBasis::new();
+        match basis.insert(&set(&[1, 2])) {
+            InsertResult::Added { rotation_count, .. } => assert_eq!(rotation_count, 0),
+            InsertResult::InSpan { .. } => panic!("first set is added"),
+        }
+        match basis.insert(&set(&[4, 5])) {
+            InsertResult::Added { rotation_count, .. } => assert_eq!(rotation_count, 0),
+            InsertResult::InSpan { .. } => panic!("disjoint set is added"),
+        }
+
+        // Rotation: B1 = {1, 3} (pivot 1), insert R = {3, 5} (new pivot 3).
+        // B1 contains bit 3, so it is re-pivoted to {1, 5} — one touched
+        // element.
+        let mut basis = BoolBasis::new();
+        basis.insert(&set(&[1, 3]));
+        match basis.insert(&set(&[3, 5])) {
+            InsertResult::Added {
+                residual,
+                rotation_count,
+                ..
+            } => {
+                assert_eq!(rotation_count, 1, "B1 shares the new pivot bit");
+                assert_eq!(residual.popcount(), 2, "R = {{3, 5}}");
+            }
+            InsertResult::InSpan { .. } => panic!("R is outside the span"),
+        }
+        assert_eq!(basis.dimension(), 2);
+
+        // In-span pushes never rotate.
+        let mut basis = BoolBasis::new();
+        basis.insert(&set(&[1, 2]));
+        match basis.insert(&set(&[1, 2])) {
+            InsertResult::InSpan { .. } => {}
+            InsertResult::Added { .. } => panic!("duplicate is in the span"),
+        }
+    }
+
+    #[test]
+    fn ring_stats_carry_rotation_mass() {
+        let mut w = BoolWindow::new(8);
+        let s1 = w.push(&set(&[1, 2]));
+        assert_eq!(s1.rotation_count, 0);
+        assert_eq!(s1.rotation_mass, 0);
+        // {1, 3} shares the new pivot of a second set whose residual has a
+        // new lowest bit that B1 contains -> one element re-pivots.
+        let mut w = BoolWindow::new(8);
+        w.push(&set(&[1, 3]));
+        let s2 = w.push(&set(&[3, 5]));
+        assert_eq!(s2.rotation_count, 1);
+        assert_eq!(s2.rotation_mass, s2.rotation_count * s2.residual);
+    }
 }
 
 /// Per-push statistics of the windowed ring.
@@ -244,6 +312,14 @@ pub struct RingStats {
     pub in_span: bool,
     /// Window-span dimension after insertion (and after any eviction).
     pub dimension: usize,
+    /// Number of existing basis elements re-pivoted by the insertion (the
+    /// rotation component of the basis change). Zero when `in_span` — an
+    /// in-span push never changes the basis.
+    pub rotation_count: u64,
+    /// Total Hamming change of the old basis: `rotation_count * residual`.
+    /// Together with `residual` (the extension, one new element) the whole
+    /// basis content change is `(rotation_count + 1) * residual`.
+    pub rotation_mass: u64,
 }
 
 /// The Boolean ring as a moving window over **original** HLLSets.
@@ -290,9 +366,13 @@ impl BoolWindow {
     /// window exceeds `max_len` and recompute the basis.
     pub fn push(&mut self, set: &HLLSet) -> RingStats {
         let result = self.basis.insert(set);
-        let (residual, in_span) = match &result {
-            InsertResult::InSpan { .. } => (0u64, true),
-            InsertResult::Added { residual, .. } => (residual.popcount(), false),
+        let (residual, in_span, rotation_count) = match &result {
+            InsertResult::InSpan { .. } => (0u64, true, 0u64),
+            InsertResult::Added {
+                residual,
+                rotation_count,
+                ..
+            } => (residual.popcount(), false, *rotation_count as u64),
         };
         self.originals.push_back(set.clone());
         let mut dimension = self.basis.dimension();
@@ -305,6 +385,8 @@ impl BoolWindow {
             residual,
             in_span,
             dimension,
+            rotation_count,
+            rotation_mass: rotation_count * residual,
         }
     }
 

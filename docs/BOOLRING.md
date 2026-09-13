@@ -35,12 +35,33 @@ basis, so coordinates are comparable inside the window.
 `BoolWindow` (in `ewm-boolring`):
 
 - `push(original)` — one Gaussian step; returns `RingStats { residual,
-  in_span, dimension }` (the incoming set's linear novelty against the
-  window *before* insertion);
+  in_span, dimension, rotation_count, rotation_mass }` (the incoming set's
+  linear novelty against the window *before* insertion, plus the rotation
+  component of the basis change);
 - eviction — the oldest original leaves; the basis is recomputed from the
   remaining window (cheap at cache sizes);
 - `residual(set)` / `coordinates(set)` — evaluate any (compound) set
   against the window basis without inserting it.
+
+### The basis change decomposes into extension + rotation
+
+When a set is inserted outside the span, the basis change has two parts:
+
+- **extension** — the residual `R` becomes a new basis element with a new
+  pivot `p` (the span grows by one direction);
+- **rotation** — every existing basis element that contains bit `p` is
+  re-pivoted: `B_i ← B_i Δ R`, keeping the basis in reduced row-echelon form.
+
+`rotation_count` is the number of existing basis elements re-pivoted;
+`rotation_mass = rotation_count · residual` is the total Hamming change of
+the old basis. An in-span push never changes the basis, so both are zero.
+The whole basis content change is `(rotation_count + 1) · residual` — the
+extension plus the rotation. The rotation is a **second-order novelty
+signal**: it is zero whenever the residual is zero, and among novel frames it
+measures how many existing directions re-index themselves through the new
+one (the re-indexing cost of the context). For sparse per-frame HLLSets it
+is a sparse, noisy re-weighting of the residual; for dense working sets it
+is the stronger signal.
 
 Compounds are **evaluated, not inserted**: `A Δ B` is in the span
 (coordinates); `A ∩ B` and the D/R/N differences usually are not — their
