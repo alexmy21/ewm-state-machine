@@ -51,6 +51,38 @@ nodes) reconstructs it. A decomposition frame is simply a chosen set of
 dimensions through which those relations are read — a partial view of one
 node in one universe, not a new universe per decomposition.
 
+### The morphism is the contract (IICA)
+
+"Tokens are generators of lattice nodes" is true as procedure, not as
+mechanism. The final bit vector **does not remember how its bits got
+flipped**, and there is no physical connection between a token and "its"
+bits. The connection is the chosen morphism
+
+```text
+μ : {token collections} → {bit vectors},   A ↦ μ(A)
+```
+
+and the only thing the model relies on is that `μ` satisfies **IICA** —
+Idempotence, Immutability, Content Addressability: the same token collection
+always maps to the same bits (deterministic), bits are never mutated in
+place (only new nodes appear), and the bit vector is addressed by its content
+key. Any algorithm that meets this contract is interchangeable — the LUT and
+n-gram seeding are the current implementation, not part of the model.
+
+What structure of the token-side lattice survives in the image is exactly
+what the chosen morphism preserves:
+
+- the **flat projection** is a join homomorphism — each token sets its own
+  LUT bits, so `μ(A ∪ B) = μ(A) ∪ μ(B)`. Notebook 04's 48/48 union-key
+  agreement is this fact;
+- **windowed n-gram ingestion** is only inclusion-isotonic —
+  `A ⊆ B ⟹ μ(A) ⊆ μ(B)` — so union identities survive as inclusions, not
+  equalities.
+
+Both are valid IICA morphisms; they are different *measurements*, and the
+lattice facts of the previous section hold in whichever image the chosen
+morphism produces.
+
 `ewm-boolring` provides three primitives over HLLSets:
 
 - `symmetric_difference(a, b)` — GF(2) addition;
