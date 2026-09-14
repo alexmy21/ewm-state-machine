@@ -54,6 +54,34 @@ moves the boundary between **encodings** and **LUTs**. The contract:
 
    Bits stay anonymous; the LUT restores their origin.
 
+### The fiber is global — LUT consistency invariant
+
+"The bit is the fiber" works only because the fiber is a **property of the
+bit address, not of the HLLSet that contains it**:
+
+- **The same bit in any HLLSet points to the same fiber.** The bit address
+  is content-addressed from the token by the deterministic morphism, so the
+  LUT fiber at that address is the same collection of
+  tokens/encodings/hashes in every HLLSet. An HLLSet carries membership bits
+  only — it never owns or alters fibers.
+- **This invariant cannot change without damaging the LUT.** If the same bit
+  could point to different fibers in different HLLSets, materialization could
+  return tokens that never built the queried set, or omit tokens that did.
+  IICA — Idempotence, Immutability, Content Addressability — is exactly what
+  pins the fiber globally: the LUT only grows (new fibers are recorded), it
+  is never mutated in place.
+- **Materialization reads the morphism back through multiple measurements.**
+  Ingest measures each token several times (seeds `G1…Gm`), so a token sets
+  several bits and sits in several fibers. `materialize` collects **all
+  candidates** from the fibers of the active bits (the morphism's
+  inverse-image read, LUT-first); a collided bit keeps every candidate
+  because any filter could drop a true builder. Multi-measurement is what
+  guarantees no token used in building the HLLSet is ever lost: a true
+  builder is present in the fibers of all the bits it set, so it is always
+  among the reclaimed candidates. Restoration is **exact on the builders,
+  probabilistic on the extras**: every builder is returned; collisions may
+  add neighbors, never remove participants.
+
 ## The layers
 
 ```text
