@@ -38,6 +38,43 @@ materialization** (LUT-first, keeping every candidate — probabilistic
 restoration, no TF filtering): ingest lifts tokens
 into bits, materialize lowers bits back into tokens.
 
+## The map — four ideas, not a forest
+
+The whole model hangs on four ideas, in order of depth. When lost, come back
+here:
+
+```text
+1. One universe.        Every HLLSet is a node of the same Boolean lattice
+                        over the bit plane (⊆ order, ∪ join, ∩ meet, Δ as
+                        the ring addition). Nothing new is created — a
+                        computation names a lattice expression and
+                        discovers the node.                  → docs/BOOLRING.md
+
+2. The morphism is the  The token→bit connection is the chosen morphism
+   contract (IICA).     μ: token collections → bit vectors. Only IICA
+                        (Idempotence, Immutability, Content Addressability)
+                        is required; the bit vector forgets provenance by
+                        design, and any IICA algorithm is interchangeable.
+                                                           → docs/BOOLRING.md
+
+3. The fiber is global. The same bit in any HLLSet points to the same LUT
+                        fiber — the fiber is a property of the bit address,
+                        never of the HLLSet. Materialization is exact on
+                        the builders, probabilistic on the extras.
+                                                         → docs/SEPARATION.md
+
+4. Decompositions are   D/R/N, joined perceptrons, ring basis — each is a
+   frames (readings).   named set of dimensions; φ_D(X)=(|X∩D_i|/|D_i|) is
+                        the coordinate map, and φ_D(X(t)) over t is the
+                        HLLSet trajectory. Each frame's scope is set by how
+                        it is built.         → docs/ASSIGNMENT_QWENDRIVE.md
+```
+
+`ewm-scene` makes all four ideas executable: `ingest`/`materialize` (2, 3),
+`noether`/`subframes` (D/R/N frame), `pyramid` (joined perceptrons),
+`sidecar` (ring frame), `project` (any named frame).
+
+
 S(t) is the **state in a stateless system**. IICA — Idempotence,
 Immutability, Content Addressability — removes the contradiction: S(t) is an
 immutable, content-addressed value, so it is safe to share. The [UM]
