@@ -233,6 +233,19 @@ cargo run -p ewm-ops prev --store /tmp/ewm-ops-demo # roll latest back one boot
 cargo test -p ewm-ops
 ```
 
+## Podman
+
+The workspace ships a multi-stage `Containerfile` (see
+[`docs/PODMAN.md`](docs/PODMAN.md)) that builds all six binaries and packs
+them into a small non-root Debian image:
+
+```bash
+podman build -t ewm-state-machine .
+podman run --rm ewm-state-machine ewm-ops --help
+podman run --rm -v /tmp/ewm-podman:/var/lib/ewm ewm-state-machine \
+    ewm-ops --store /var/lib/ewm --boot /var/lib/ewm/boot.ops
+```
+
 ## Notebooks
 
 The notebook is the application: each code cell is a step, and the [UM] runs

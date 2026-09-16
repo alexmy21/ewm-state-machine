@@ -1,0 +1,6 @@
+# Build context excludes: local build artifacts and VCS noise.
+target/
+.git/
+.gitignore
+notebooks/assets/
+*.pdf
