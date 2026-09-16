@@ -219,12 +219,17 @@ operational graph** whose two sides are the value lattice (`h:<sha1>` HLLSets)
 and the program lattice (`p:<sha1>` expressions — any DSL expression is a
 [UM], persistence optional), tied by directed edges and traversed by a
 stack-pop dispatcher (fan-out by reference, deterministic fire sequence,
-feedback cycles under a fire budget). The CLI boots it like an OS:
+feedback cycles under a fire budget). The boot file compiles into the graph
+plus a **content-addressed vocabulary** (`v:<sha1>`), and the CLI boots it
+like an OS:
 
 ```bash
 cargo run -p ewm-ops -- --store /tmp/ewm-ops-demo --boot path/to/boot.ops \
     --fires 12 --repo /tmp/ewm-ops-demo/repo
 cargo run -p ewm-ops -- --store /tmp/ewm-ops-demo   # picks up state on top of stack
+cargo run -p ewm-ops log  --store /tmp/ewm-ops-demo # append-only boot log
+cargo run -p ewm-ops list --store /tmp/ewm-ops-demo # distinct boots + latest flag
+cargo run -p ewm-ops prev --store /tmp/ewm-ops-demo # roll latest back one boot
 cargo test -p ewm-ops
 ```
 

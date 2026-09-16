@@ -92,6 +92,73 @@ fn boot_store_roundtrips_blobs_default_and_state() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+#[test]
+fn vocabulary_is_content_addressed_and_deterministic() {
+    let p1 = compile_boot(FANOUT_BOOT).unwrap();
+    let p2 = compile_boot(FANOUT_BOOT).unwrap();
+    assert_eq!(p1.vocab, p2.vocab, "same script → same vocabulary");
+    assert_eq!(p1.vocab.cid(), p2.vocab.cid());
+    assert!(p1.vocab.cid().starts_with("v:"), "vocabulary is v:<sha1>");
+    assert_eq!(p1.vocab.ops.len(), 2);
+    assert_eq!(p1.vocab.values.len(), 2);
+    assert!(
+        p1.vocab.canonical().contains("op:union2 p:"),
+        "canonical form names programs by CID"
+    );
+}
+
+#[test]
+fn boot_log_is_append_only_and_rollback_moves_latest() {
+    use ewm_ops::{boot_cid, BootRecord};
+
+    let dir = tmp_dir("bootlog");
+    let store = BootStore::open(&dir).unwrap();
+
+    let boot_a = store.put_boot("value a apple\n").unwrap();
+    let boot_b = store.put_boot("value b banana\n").unwrap();
+    assert_ne!(boot_a, boot_b);
+    assert_eq!(boot_a, boot_cid("value a apple\n"));
+
+    store.set_latest(&boot_a).unwrap();
+    assert_eq!(store.latest_cid().unwrap().as_deref(), Some(boot_a.as_str()));
+
+    // Appending records is append-only; read_log returns oldest first.
+    store
+        .log_boot(&BootRecord {
+            boot: boot_a.clone(),
+            booted_at: "1".into(),
+            state_top: Some("h:aaa".into()),
+            fires: 3,
+            reason: "Quiescence".into(),
+        })
+        .unwrap();
+    store
+        .log_boot(&BootRecord {
+            boot: boot_b.clone(),
+            booted_at: "2".into(),
+            state_top: Some("h:bbb".into()),
+            fires: 5,
+            reason: "FireBudget".into(),
+        })
+        .unwrap();
+    let log = store.read_log().unwrap();
+    assert_eq!(log.len(), 2);
+    assert_eq!(log[0].boot, boot_a);
+    assert_eq!(log[1].state_top.as_deref(), Some("h:bbb"));
+
+    // Rollback re-points latest; rollback_previous walks the log back.
+    store.set_latest(&boot_b).unwrap();
+    let prev = store.rollback_previous().unwrap().unwrap();
+    assert_eq!(prev, boot_a, "previous boot in the log");
+    assert_eq!(store.latest_cid().unwrap().as_deref(), Some(boot_a.as_str()));
+
+    // A pointer to an unknown boot is refused.
+    let err = store.rollback("b:ffff").unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[cfg(feature = "git")]
 #[test]
 fn commit_bridge_commits_every_record() {

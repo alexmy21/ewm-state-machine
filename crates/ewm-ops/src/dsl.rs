@@ -21,8 +21,10 @@ use hllset_core::HLLSet;
 
 use crate::expr::EvalError;
 use crate::graph::{OpCid, OpGraph, Port, Target, ValueCid};
+use crate::vocab::Vocabulary;
 
-/// A compiled boot script: the graph, the boot stack, and the fire budget.
+/// A compiled boot script: the graph, the boot stack, the fire budget, and
+/// the content-addressed vocabulary the names resolved into.
 #[derive(Clone, Debug, Default)]
 pub struct BootProgram {
     pub graph: OpGraph,
@@ -30,6 +32,8 @@ pub struct BootProgram {
     pub stack: Vec<ValueCid>,
     /// 0 = run to quiescence; otherwise the fire budget.
     pub fires: usize,
+    /// The named dictionary (ops + values) with its `v:<sha1>` identity.
+    pub vocab: Vocabulary,
 }
 
 /// Compile a boot script into a graph + boot stack.
@@ -133,6 +137,10 @@ pub fn compile_boot(script: &str) -> Result<BootProgram, EvalError> {
         graph,
         stack,
         fires,
+        vocab: Vocabulary {
+            ops: op_names,
+            values: value_names,
+        },
     })
 }
 

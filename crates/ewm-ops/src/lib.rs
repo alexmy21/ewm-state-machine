@@ -40,11 +40,13 @@ pub mod dispatch;
 pub mod dsl;
 pub mod expr;
 pub mod graph;
+pub mod vocab;
 
-pub use boot::{boot_cid, BootStore};
+pub use boot::{boot_cid, BootRecord, BootStore};
 #[cfg(feature = "git")]
 pub use commit::commit_fire_log;
 pub use dispatch::{CommitPoint, CommitReason, Dispatcher, FireLog, FireRecord, Token};
 pub use dsl::{compile_boot, BootProgram};
 pub use expr::{op_cid, Expression, EvalError, Word};
 pub use graph::{Edge, OpGraph, OpSpec, OpTable, Port, Target, ValueCid, ValueStore};
+pub use vocab::Vocabulary;
