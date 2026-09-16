@@ -335,6 +335,11 @@ pub struct BoolWindow {
     max_len: usize,
     originals: std::collections::VecDeque<HLLSet>,
     basis: BoolBasis,
+    /// Monotonic stamp of the basis **content**: bumped whenever the basis
+    /// changes (extension/rotation on push, or rebuild on eviction). A soft
+    /// key / coordinate vector measured at an older generation is stale for
+    /// the current basis — the hook for lazy back-propagation.
+    generation: u64,
 }
 
 impl BoolWindow {
@@ -343,6 +348,7 @@ impl BoolWindow {
             max_len: max_len.max(1),
             originals: std::collections::VecDeque::new(),
             basis: BoolBasis::new(),
+            generation: 0,
         }
     }
 
@@ -356,6 +362,13 @@ impl BoolWindow {
 
     pub fn basis(&self) -> &BoolBasis {
         &self.basis
+    }
+
+    /// The basis-content generation. Same generation ⟹ same basis, so cached
+    /// projections keyed by this stamp stay valid; a bump means every older
+    /// projection is stale.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     pub fn originals(&self) -> impl Iterator<Item = &HLLSet> {
@@ -374,6 +387,9 @@ impl BoolWindow {
                 ..
             } => (residual.popcount(), false, *rotation_count as u64),
         };
+        if matches!(result, InsertResult::Added { .. }) {
+            self.generation += 1;
+        }
         self.originals.push_back(set.clone());
         let mut dimension = self.basis.dimension();
         if self.originals.len() > self.max_len {
@@ -390,12 +406,14 @@ impl BoolWindow {
         }
     }
 
-    /// Recompute the basis from the current originals (after eviction).
+    /// Recompute the basis from the current originals (after eviction). The
+    /// basis content changes, so the generation is bumped.
     pub fn recompute(&mut self) {
         self.basis = BoolBasis::new();
         for set in &self.originals {
             self.basis.insert(set);
         }
+        self.generation += 1;
     }
 
     /// The part of `set` outside the window span (linear novelty).
@@ -467,5 +485,38 @@ mod window_tests {
         assert!(s2.in_span);
         assert_eq!(s2.residual, 0);
         assert_eq!(w.dimension(), 1);
+    }
+
+    #[test]
+    fn generation_bumps_exactly_when_the_basis_changes() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[2, 3, 4]);
+        let mut w = BoolWindow::new(8);
+        assert_eq!(w.generation(), 0, "empty window");
+
+        w.push(&a); // Added -> basis changes
+        assert_eq!(w.generation(), 1);
+
+        w.push(&a); // in-span -> basis unchanged
+        assert_eq!(w.generation(), 1);
+
+        w.push(&b); // Added -> basis changes
+        assert_eq!(w.generation(), 2);
+
+        w.recompute(); // rebuild -> generation bumps even for the same span
+        assert_eq!(w.generation(), 3);
+    }
+
+    #[test]
+    fn eviction_recompute_bumps_generation() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[2, 3, 4]);
+        let c = set(&[5, 6]);
+        let mut w = BoolWindow::new(2);
+        w.push(&a);
+        w.push(&b);
+        let before = w.generation();
+        w.push(&c); // evicts a and recomputes -> basis changes twice (add + rebuild)
+        assert!(w.generation() > before);
     }
 }

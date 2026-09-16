@@ -118,6 +118,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ewm-flux-host"
+version = "0.3.0"
+dependencies = [
+ "ewm-app",
+ "ewm-boolring",
+ "hllset-contracts",
+ "hllset-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ewm-git"
 version = "0.3.0"
 dependencies = [

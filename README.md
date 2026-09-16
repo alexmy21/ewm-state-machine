@@ -74,7 +74,6 @@ here:
 `noether`/`subframes` (D/R/N frame), `pyramid` (joined perceptrons),
 `sidecar` (ring frame), `project` (any named frame).
 
-
 S(t) is the **state in a stateless system**. IICA — Idempotence,
 Immutability, Content Addressability — removes the contradiction: S(t) is an
 immutable, content-addressed value, so it is safe to share. The [UM]
@@ -144,6 +143,7 @@ ewm-state-machine/
 │   ├── EXPLORER.md            # the read-only explorer contract
 │   ├── SEPARATION.md          # separation of concerns — the bit is the fiber
 │   ├── BOOLRING.md            # GF(2) Boolean-ring context index (spike, positive)
+│   ├── BASIS_FRAMES.md        # basis frames: HLLSet interpretation, time travel, commit conditions
 │   └── ASSIGNMENT_QWENDRIVE.md # next assignment — Qwen-Drive test bench
 └── crates/
     ├── hllset-contracts/      # soldered invariants (leaf)
@@ -158,6 +158,8 @@ ewm-state-machine/
     │                          # (S(t) and H(t-1) live in the cache, not the [UM])
     ├── ewm-sm-explore/        # read-only explorer of the three-layer structure
     ├── ewm-scene/             # LLM <-> HLLSet side-car helper (direct morphisms)
+    ├── ewm-flux-host/         # Flux/MMDiT side-car host adapter (synthetic MMDiT
+    │                          # shim, SidecarProbe, in-process loop, two-score eval)
     └── (planned) ewm-cache/   # Arrow-backed cache layer, per docs/ARROW_CACHE.md
 ```
 
@@ -182,6 +184,30 @@ cargo run -p ewm-sm-explore -- snapshot /tmp/ewm-sm-demo/snapshot.json
 
 See [`docs/EXPLORER.md`](docs/EXPLORER.md).
 
+## Flux side-car
+
+`ewm-flux-host` is the side-car host adapter for aarambh-vision-studio's
+rectified-flow MMDiT sampler (developed here first against a synthetic
+random-weight shim; port the adapter crate later — see
+`docs/notes/flux-notes.md`). One call closes the whole loop on a synthetic
+latent trajectory:
+
+```bash
+cargo run -p ewm-flux-host -- --seq-len 256 --dim 64 --steps 28 --codebook 4096
+cargo run -p ewm-flux-host -- --no-disturb        # clean trajectory
+cargo test -p ewm-flux-host
+```
+
+The JSON report carries, per denoising step: `S(t)` popcount + content key,
+D/R/N, the Boolean-ring record (soft/hard key, residual, rotation), the
+warning flags, and the two-score evaluation — loop accuracy (ordered + set
+latent token restoration, expected 1.0) and decode quality (latent
+reconstruction cosine/MSE). Because the ring basis changes as the run grows,
+the report also carries the **lazy back-propagated** view: `soft_final` /
+`step_final` re-project every step onto the final basis (each cached vector
+is stamped with the basis generation; only the entries queried are
+recomputed — never the whole history per basis change).
+
 ## Notebooks
 
 The notebook is the application: each code cell is a step, and the [UM] runs
@@ -193,3 +219,4 @@ the cells.
 | 02 | `scene_sidecar` | the LLM ↔ HLLSet side-car application rebuilt on ewm-state-machine: vLLM host line + `ewm-scene` direct-morphism side-car (BSSτ, D/R/N, exact roundtrip on the conv(n, dim=2) grid path, restore-from-HLLSet pixel demo) |
 | 03 | `qwendrive_sidecar` | Phase 1 Qwen-Drive test bench: real Qwen-Drive-1.0-4B perception tokens → shared codebook → the side-car loop per camera frame (S(t), H(t-1), D/R/N, ring) → ordered materialize → two-score evaluation (loop accuracy, decode quality) + the soft-key trajectory with jump detector, residual and D/R/N cross-check |
 | 04 | `perceptron_pyramid` | Phase 2 simple model: m perceptrons per frame, the union top perceptron `u-HLLSet(t)`, and its three decompositions — D/R/N of the union stream, the joined per-perceptron components, and the u-ring basis decomposition |
+| 05 | `flux_sidecar` | Flux Phase-1 test bench on a synthetic random-weight MMDiT shim: `ewm-flux-host` runs the in-process loop per denoising step (S(t), D/R/N, ring, warnings), the two-score evaluation (loop accuracy = latent token restoration 1.0; decode quality = latent reconstruction cosine/MSE), and the trajectory plots with the injected-jump warning |

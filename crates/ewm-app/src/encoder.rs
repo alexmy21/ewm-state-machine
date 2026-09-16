@@ -70,6 +70,13 @@ impl CodebookEncoder {
     pub fn count(&self) -> usize {
         self.anchors.len()
     }
+
+    /// The codebook anchors (unit-norm). The host decoder side needs them to
+    /// reconstruct latent vectors from quantized ids — the decode-quality
+    /// score of the side-car loop.
+    pub fn anchors(&self) -> &[Vec<f32>] {
+        &self.anchors
+    }
 }
 
 impl Encoder for CodebookEncoder {

@@ -1,0 +1,19 @@
+[package]
+name = "ewm-flux-host"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Flux/MMDiT side-car host adapter: in-process loop over synthetic latent trajectories (per-step S(t), D/R/N, ring, warnings, two-score eval)"
+
+[[bin]]
+name = "ewm-flux-host"
+path = "src/main.rs"
+
+[dependencies]
+ewm-app = { workspace = true }
+ewm-boolring = { workspace = true }
+hllset-contracts = { workspace = true }
+hllset-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
