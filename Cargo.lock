@@ -139,6 +139,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ewm-ops"
+version = "0.3.0"
+dependencies = [
+ "ewm-git",
+ "hllset-contracts",
+ "hllset-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "ewm-scene"
 version = "0.3.0"
 dependencies = [

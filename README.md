@@ -160,6 +160,8 @@ ewm-state-machine/
     ├── ewm-scene/             # LLM <-> HLLSet side-car helper (direct morphisms)
     ├── ewm-flux-host/         # Flux/MMDiT side-car host adapter (synthetic MMDiT
     │                          # shim, SidecarProbe, in-process loop, two-score eval)
+    ├── ewm-ops/               # the operational graph: content-addressed values +
+    │                          # programs + stack dispatcher (value/program lattice)
     └── (planned) ewm-cache/   # Arrow-backed cache layer, per docs/ARROW_CACHE.md
 ```
 
@@ -208,6 +210,22 @@ the report also carries the **lazy back-propagated** view: `soft_final` /
 is stamped with the basis generation; only the entries queried are
 recomputed — never the whole history per basis change).
 
+## Operational graph
+
+`ewm-ops` standardizes the state-machine representation: a **content-addressed
+operational graph** whose two sides are the value lattice (`h:<sha1>` HLLSets)
+and the program lattice (`p:<sha1>` expressions — any DSL expression is a
+[UM], persistence optional), tied by directed edges and traversed by a
+stack-pop dispatcher (fan-out by reference, deterministic fire sequence,
+feedback cycles under a fire budget). The CLI boots it like an OS:
+
+```bash
+cargo run -p ewm-ops -- --store /tmp/ewm-ops-demo --boot path/to/boot.ops \
+    --fires 12 --repo /tmp/ewm-ops-demo/repo
+cargo run -p ewm-ops -- --store /tmp/ewm-ops-demo   # picks up state on top of stack
+cargo test -p ewm-ops
+```
+
 ## Notebooks
 
 The notebook is the application: each code cell is a step, and the [UM] runs
@@ -220,3 +238,4 @@ the cells.
 | 03 | `qwendrive_sidecar` | Phase 1 Qwen-Drive test bench: real Qwen-Drive-1.0-4B perception tokens → shared codebook → the side-car loop per camera frame (S(t), H(t-1), D/R/N, ring) → ordered materialize → two-score evaluation (loop accuracy, decode quality) + the soft-key trajectory with jump detector, residual and D/R/N cross-check |
 | 04 | `perceptron_pyramid` | Phase 2 simple model: m perceptrons per frame, the union top perceptron `u-HLLSet(t)`, and its three decompositions — D/R/N of the union stream, the joined per-perceptron components, and the u-ring basis decomposition |
 | 05 | `flux_sidecar` | Flux Phase-1 test bench on a synthetic random-weight MMDiT shim: `ewm-flux-host` runs the in-process loop per denoising step (S(t), D/R/N, ring, warnings), the two-score evaluation (loop accuracy = latent token restoration 1.0; decode quality = latent reconstruction cosine/MSE), and the trajectory plots with the injected-jump warning |
+| 06 | `ewm_ops_boot` | the operational graph (`ewm-ops`) boots like an OS: content-addressed boot file → compile → pick up the persisted state from the top of the stack → run the stack-pop dispatcher (fan-out by reference, deterministic fire sequence, feedback loop under a fire budget) → commit the fire log into `ewm-git` |

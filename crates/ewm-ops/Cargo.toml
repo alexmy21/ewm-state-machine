@@ -1,0 +1,23 @@
+[package]
+name = "ewm-ops"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "The operational graph: content-addressed state-machine representation (value lattice + program lattice + stack dispatcher)"
+
+[[bin]]
+name = "ewm-ops"
+path = "src/main.rs"
+
+[dependencies]
+hllset-core = { workspace = true }
+hllset-contracts = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+ewm-git = { workspace = true, optional = true }
+
+[features]
+default = ["git"]
+git = ["dep:ewm-git"]
