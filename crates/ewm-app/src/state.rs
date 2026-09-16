@@ -184,11 +184,20 @@ pub(crate) fn ids_message(ids: &[TokenId]) -> String {
     format!("ids={csv}")
 }
 
-/// Parse the turn ids from a commit message (`ids=1,2,3`).
+/// A structural commit (ring basis changed, no new bits): the ids plus a
+/// `basis-change` suffix. The suffix makes the commit content unique (so the
+/// event is durable in the DAG) while staying parseable by
+/// [`parse_ids_message`].
+pub(crate) fn ids_message_structural(ids: &[TokenId]) -> String {
+    format!("{};basis-change", ids_message(ids))
+}
+
+/// Parse the turn ids from a commit message (`ids=1,2,3` with an optional
+/// `;reason` suffix introduced by structural commits).
 pub(crate) fn parse_ids_message(message: &str) -> Option<Vec<TokenId>> {
-    let csv = message.strip_prefix("ids=")?;
+    let head = message.strip_prefix("ids=")?.split(';').next()?;
     let mut ids = Vec::new();
-    for part in csv.split(',') {
+    for part in head.split(',') {
         let part = part.trim();
         if part.is_empty() {
             continue;
