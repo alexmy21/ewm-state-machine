@@ -1,6 +1,10 @@
 # Arrow Cache — design note for the cache layer of ewm-state-machine
 
-Status: **design note, no code yet** (decision record 2026-09-10).
+Status: **implemented** in `crates/ewm-cache` (2026-09-16); this document
+remains the design contract. The crate covers §4 schemas, §5 extended-cache
+layout, §5 manifest/seal/validate/restore, and the §9 acceptance tests
+(byte-identical IPC round-trips, restore equality, stable `h:` keys,
+corruption detection).
 
 ## 1. Context
 

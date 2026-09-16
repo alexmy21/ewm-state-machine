@@ -15,6 +15,7 @@ members = [
     "crates/ewm-scene",
     "crates/ewm-flux-host",
     "crates/ewm-ops",
+    "crates/ewm-cache",
 ]
 
 [workspace.package]
@@ -41,6 +42,7 @@ ewm-sm-explore = { path = "crates/ewm-sm-explore" }
 ewm-scene = { path = "crates/ewm-scene" }
 ewm-flux-host = { path = "crates/ewm-flux-host" }
 ewm-ops = { path = "crates/ewm-ops" }
+ewm-cache = { path = "crates/ewm-cache" }
 
 # ── external deps used by the moved crates ──
 murmur3 = "0.5"

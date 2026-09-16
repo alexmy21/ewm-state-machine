@@ -162,12 +162,14 @@ ewm-state-machine/
     │                          # shim, SidecarProbe, in-process loop, two-score eval)
     ├── ewm-ops/               # the operational graph: content-addressed values +
     │                          # programs + stack dispatcher (value/program lattice)
-    └── (planned) ewm-cache/   # Arrow-backed cache layer, per docs/ARROW_CACHE.md
+    └── ewm-cache/             # Arrow-backed extended cache (docs/ARROW_CACHE.md):
+                               # IPC spill/restore of the derived cache objects
 ```
 
-The Arrow cache layer is designed but not implemented; see
-[`docs/ARROW_CACHE.md`](docs/ARROW_CACHE.md) for the boundary, schemas, and
-the IPC extended-cache layout.
+`ewm-cache` is the Arrow cache layer (designed in
+[`docs/ARROW_CACHE.md`](docs/ARROW_CACHE.md)): HLLSets stay Roaring-native;
+Arrow IPC files spill/restore the derived cache objects behind a validated
+`MANIFEST.arrow`, and the cache is content-addressed as `c:<sha1>`.
 
 ## Explorer
 

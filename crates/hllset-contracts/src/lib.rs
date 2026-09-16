@@ -31,6 +31,11 @@ pub const PROTOCOL_VERSION: u32 = 1;
 /// additive changes bump the patch component, breaking changes the minor.
 pub const CONTRACT_VERSION: u32 = 2;
 
+/// Arrow cache schema version (docs/ARROW_CACHE.md §5 rule 4). The Arrow
+/// cache crate pins this constant; cache files whose manifest carries a
+/// different version are rejected. Bump on any schema/layout change.
+pub const ARROW_CACHE_SCHEMA_VERSION: u32 = 1;
+
 pub use hashing::{
     hash_to_position, murmur3_hash, murmur3_hash_seeded, sha1_hex, token_to_position,
     token_to_position_seeded, BitAddress, BITS_PER_REG, M, P, TOTAL_BITS,
