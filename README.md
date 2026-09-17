@@ -259,3 +259,10 @@ the cells.
 | 04 | `perceptron_pyramid` | Phase 2 simple model: m perceptrons per frame, the union top perceptron `u-HLLSet(t)`, and its three decompositions — D/R/N of the union stream, the joined per-perceptron components, and the u-ring basis decomposition |
 | 05 | `flux_sidecar` | Flux Phase-1 test bench on a synthetic random-weight MMDiT shim: `ewm-flux-host` runs the in-process loop per denoising step (S(t), D/R/N, ring, warnings), the two-score evaluation (loop accuracy = latent token restoration 1.0; decode quality = latent reconstruction cosine/MSE), and the trajectory plots with the injected-jump warning |
 | 06 | `ewm_ops_boot` | the operational graph (`ewm-ops`) boots like an OS: content-addressed boot file → compile → pick up the persisted state from the top of the stack → run the stack-pop dispatcher (fan-out by reference, deterministic fire sequence, feedback loop under a fire budget) → commit the fire log into `ewm-git` |
+
+Notebooks 01–04 were updated with the aarambh-vision-studio revisions:
+**01** adds structural commits (basis change) and the `ewm-ops` operational
+graph; **02–04** add **basis frames / time travel** — every frame is also
+projected into the first interpretation with its spill
+(`docs/BASIS_FRAMES.md`); **04** additionally rebuilds the union as an
+operational graph.

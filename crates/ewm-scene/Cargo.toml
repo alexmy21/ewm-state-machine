@@ -15,4 +15,5 @@ ewm-app = { workspace = true }
 ewm-boolring = { workspace = true }
 hllset-core = { workspace = true }
 hllset-morphisms = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }

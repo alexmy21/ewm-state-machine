@@ -216,6 +216,8 @@ fn run(args: &[String]) -> Result<(), String> {
                         "rotation_count": f.rotation_count,
                         "rotation_mass": f.rotation_mass,
                         "step": f.step,
+                        "soft_first": f.soft_first,
+                        "spill_first": f.spill_first,
                     })
                 })
                 .collect();
@@ -224,6 +226,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 "jumps": out.jumps,
                 "threshold": out.threshold,
                 "freeze": freeze,
+                "basis_history": out.basis_history,
             })
         }
         "pyramid" => {
@@ -271,6 +274,8 @@ fn run(args: &[String]) -> Result<(), String> {
                         "rotation_count": f.rotation_count,
                         "rotation_mass": f.rotation_mass,
                         "step": f.step,
+                        "soft_first": f.soft_first,
+                        "spill_first": f.spill_first,
                     })
                 })
                 .collect();
@@ -289,6 +294,7 @@ fn run(args: &[String]) -> Result<(), String> {
                     "frames": ring_frames,
                     "jumps": out.ring.jumps,
                     "threshold": out.ring.threshold,
+                    "basis_history": out.ring.basis_history,
                 },
                 "freeze": freeze,
             })

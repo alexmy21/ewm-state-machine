@@ -230,6 +230,25 @@ pub struct SidecarFrame {
     /// key, both recomputed against the current basis. `0.0` for the first
     /// frame.
     pub step: f64,
+    /// Time travel: the soft key of this frame projected into the **first**
+    /// recorded basis (the initial interpretation; docs/BASIS_FRAMES.md).
+    /// Same coordinate system for every frame — how the present lines up
+    /// with the past's directions.
+    pub soft_first: Vec<f64>,
+    /// Time travel: `|frame \ cover(F_0)|` — how many bits of this frame the
+    /// first basis cannot even see (the measurable error of the travel).
+    pub spill_first: u64,
+}
+
+/// One interpretation (basis frame) of the ring over time: the basis
+/// content at a generation change, stamped with the monotonic generation
+/// (docs/BASIS_FRAMES.md). The first entry is the initial interpretation;
+/// every later entry is a structural event.
+#[derive(Clone, Debug, Default, serde::Serialize)]
+pub struct BasisFrame {
+    pub generation: u64,
+    pub dimension: usize,
+    pub cover_pop: u64,
 }
 
 /// The Phase-1 side-car trajectory: per-frame soft/hard keys against the
@@ -242,6 +261,9 @@ pub struct SidecarOut {
     pub jumps: Vec<u64>,
     /// The step-length threshold the detector used.
     pub threshold: f64,
+    /// The basis history (one entry per generation change) — the
+    /// interpretation timeline the time-travel fields refer to.
+    pub basis_history: Vec<BasisFrame>,
 }
 
 impl FrameSet {
@@ -291,6 +313,13 @@ pub fn sidecar_series(
     let mut prev_set: Option<HLLSet> = None;
     let freeze = freeze.map(|n| n.max(1));
 
+    // Time travel: capture the first interpretation (basis + cover) and the
+    // full basis history (one entry per generation change).
+    let mut first_basis: Option<ewm_boolring::BoolBasis> = None;
+    let mut first_cover: Option<HLLSet> = None;
+    let mut basis_history: Vec<BasisFrame> = Vec::new();
+    let mut last_gen: u64 = 0;
+
     for (idx, set) in hllsets.iter().enumerate() {
         let frozen = freeze.is_some_and(|n| idx >= n);
         let basis = window.basis();
@@ -325,6 +354,29 @@ pub fn sidecar_series(
             (0, 0) // an evaluation never changes the basis
         } else {
             let ring_stats = window.push(set);
+            if first_basis.is_none() {
+                first_basis = Some(window.basis().clone());
+                first_cover = Some(
+                    window
+                        .basis()
+                        .basis
+                        .iter()
+                        .fold(HLLSet::new(), |acc, b| acc.union(b)),
+                );
+            }
+            let gen = window.generation();
+            if basis_history.is_empty() || gen != last_gen {
+                basis_history.push(BasisFrame {
+                    generation: gen,
+                    dimension: window.dimension(),
+                    cover_pop: window
+                        .basis()
+                        .basis
+                        .iter()
+                        .fold(0u64, |acc, b| acc + b.popcount()),
+                });
+                last_gen = gen;
+            }
             (ring_stats.rotation_count, ring_stats.rotation_mass)
         };
         frames.push(SidecarFrame {
@@ -337,8 +389,24 @@ pub fn sidecar_series(
             rotation_count,
             rotation_mass,
             step,
+            soft_first: Vec::new(),
+            spill_first: 0,
         });
         prev_set = Some(set.clone());
+    }
+
+    // Time travel: project every frame into the first basis — the same
+    // coordinate system, so the whole trajectory is comparable to the
+    // initial interpretation. Spill = |frame \ cover(F_0)|.
+    if let (Some(fb), Some(cover)) = (&first_basis, &first_cover) {
+        for (i, frame) in frames.iter_mut().enumerate() {
+            frame.soft_first = fb
+                .basis
+                .iter()
+                .map(|b| bss(&hllsets[i], b))
+                .collect();
+            frame.spill_first = hllsets[i].difference(cover).popcount();
+        }
     }
 
     // Jump detector over the step series: mean + 3σ (σ = standard
@@ -359,6 +427,7 @@ pub fn sidecar_series(
         frames,
         jumps,
         threshold,
+        basis_history,
     }
 }
 

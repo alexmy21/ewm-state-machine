@@ -528,6 +528,7 @@ dependencies = [
  "ewm-boolring",
  "hllset-core",
  "hllset-morphisms",
+ "serde",
  "serde_json",
 ]
 
