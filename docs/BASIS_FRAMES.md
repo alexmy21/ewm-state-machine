@@ -19,10 +19,10 @@ event).
 ### 1.1 Setting
 
 ```text
-𝔹  = {0, …, 32767}                the bit plane (M registers × 32 tz bits)
-X ⊆ 𝔹                             an HLLSet (a bitmap over the plane)
-(P(𝔹), ⊆, ∪, ∩)                  the Boolean lattice (join ∪, meet ∩)
-(P(𝔹), Δ, ∩)                     the GF(2) ring, with Δ = symmetric difference
+𝔹  = {0, …, 32767}               - the bit plane (M registers × 32 tz bits)
+X ⊆ 𝔹                            - an HLLSet (a bitmap over the plane)
+(P(𝔹), ⊆, ∪, ∩)                  - the Boolean lattice (join ∪, meet ∩)
+(P(𝔹), Δ, ∩)                     - the GF(2) ring, with Δ = symmetric difference
 ```
 
 Every node of the lattice already exists; a computation only *names* it
@@ -36,10 +36,10 @@ A **frame** is a named, ordered set of basis HLLSets together with their
 span and cover:
 
 ```text
-F = (B_1, …, B_k)                 an RREF GF(2) basis over some window
-span(F) = { Δ_{i ∈ J} B_i : J ⊆ {1..k} }       the GF(2) span
-cover(F) = B_1 ∪ … ∪ B_k                       the set-theoretic cover
-dim(F)  = k                                    the frame dimension
+F = (B_1, …, B_k)                              - an RREF GF(2) basis over some window
+span(F) = { Δ_{i ∈ J} B_i : J ⊆ {1..k} }       - the GF(2) span
+cover(F) = B_1 ∪ … ∪ B_k                       - the set-theoretic cover
+dim(F)  = k                                    - the frame dimension
 ```
 
 `span(F)` is what the frame can **reconstruct**; `cover(F)` is what the frame
@@ -52,10 +52,10 @@ The **interpretation** of an HLLSet `X` under frame `F` is the pair
 ```text
 Π_F(X) = ( w, c, s )
 
-  w_i = |X ∩ B_i| / |B_i|          soft key   ∈ [0,1]^k,  defined for ALL X
-  c   ∈ GF(2)^k with               hard key   defined iff X ∈ span(F):
-       X = Δ_{i : c_i = 1} B_i                 exact GF(2) coordinates
-  s   = |X \ cover(F)|             spill      ∈ ℕ, the part F cannot see
+  w_i = |X ∩ B_i| / |B_i|          - soft key   ∈ [0,1]^k,  defined for ALL X
+  c   ∈ GF(2)^k with               - hard key   defined iff X ∈ span(F):
+       X = Δ_{i : c_i = 1} B_i     - exact GF(2) coordinates
+  s   = |X \ cover(F)|             - spill      ∈ ℕ, the part F cannot see
 ```
 
 The soft key is a **similarity profile** over the frame's directions; it
@@ -86,8 +86,8 @@ linear novelty.
 the union of its operands. The converse is false:
 
 ```text
-F = ({1,2})     span(F) = {∅, {1,2}}     cover(F) = {1,2}
-X = {1}         s = 0                    but X ∉ span(F)
+F = ({1,2})     span(F) = {∅, {1,2}}    - cover(F) = {1,2}
+X = {1}         s = 0                    - but X ∉ span(F)
 ```
 
 So `s = 0` is necessary, not sufficient, for span membership.
@@ -139,9 +139,9 @@ rotation) or when eviction rebuilds the basis. Each change is a structural
 event — the context re-indexed itself — with two measurable magnitudes:
 
 ```text
-rotation_count, rotation_mass     how many old directions re-pivot and the
+rotation_count, rotation_mass     - how many old directions re-pivot and the
                                   total Hamming change of the old basis
-generation bump                   the event itself (monotone stamp)
+generation bump                   - the event itself (monotone stamp)
 ```
 
 The frame history `F_0, F_1, …, F_g` is the sequence of interpretations the
@@ -149,8 +149,8 @@ system passed through. Because a basis change is observable and grounded, it
 is the natural **second commit condition** next to `new bits > 0`:
 
 ```text
-commit when:  new bits > 0   (content changed)
-           or basis changed  (interpretation changed)
+commit when:  new bits > 0   - (content changed)
+           or basis changed  - (interpretation changed)
 ```
 
 ---
@@ -185,7 +185,7 @@ the flux run (800-bit query set, `k = 64` basis elements of 100–1300 bits):
 | --- | --- | --- |
 | BSS projection, `k = 64` | 0.57 ms | **0.41 ms** |
 | cover `⋃ B_i` (once per frame) | 0.29 ms | 0.22 ms |
-| spill `|X \ cover|` | 2.0 µs | 1.2 µs |
+| spill `\|X \ cover\|` | 2.0 µs | 1.2 µs |
 
 **Decision: do not store BSS vectors per HLLSet.** Storing vectors costs
 `O(n·k)` floats and goes stale on every basis change. Storing frames costs
@@ -197,12 +197,12 @@ pays ~12 ms for the whole consistent matrix.
 
 ```text
 BasisSnapshot::new(g, basis)
-    cover ← ⋃ B_i                                  (one union fold)
+    cover ← ⋃ B_i                                  - (one union fold)
 
 BasisSnapshot::project(X)
-    soft  ← [ |X ∩ B_i| / |B_i|  for i = 1..k ]    (P1: only the cover is seen)
-    spill ← |X \ cover|                            (one difference + popcount)
-    hard  ← basis.coordinates(X)                   (Some iff X ∈ span(F))
+    soft  ← [ |X ∩ B_i| / |B_i|  for i = 1..k ]    - (P1: only the cover is seen)
+    spill ← |X \ cover|                            - (one difference + popcount)
+    hard  ← basis.coordinates(X)                   - (Some iff X ∈ span(F))
     return (soft, hard, spill)
 
 BasisHistory::push_if_changed(window)
@@ -211,14 +211,14 @@ BasisHistory::push_if_changed(window)
 
 sidecar_series_with_window(originals)
     for each original X_t:
-        measure soft, hard against the pre-push basis      (online reading)
-        record basis_generation ← window.generation()       (pre-push)
+        measure soft, hard against the pre-push basis      - (online reading)
+        record basis_generation ← window.generation()      - (pre-push)
         stats ← window.push(X_t)
         record basis_change ← window.generation() != basis_generation
-        history.push_if_changed(&window)                    (frame history)
+        history.push_if_changed(&window)                   - (frame history)
 
 run()
-    F ← history.last()                                      (final interpretation)
+    F ← history.last()                                     - (final interpretation)
     for each original X_t:
         (soft_final_t, hard_final_t, spill_final_t) ← F.project(X_t)
     step_final_t ← L2(soft_final_{t-1}, soft_final_t)
