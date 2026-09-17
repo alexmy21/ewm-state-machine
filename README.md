@@ -259,6 +259,7 @@ the cells.
 | 04 | `perceptron_pyramid` | Phase 2 simple model: m perceptrons per frame, the union top perceptron `u-HLLSet(t)`, and its three decompositions — D/R/N of the union stream, the joined per-perceptron components, and the u-ring basis decomposition |
 | 05 | `flux_sidecar` | Flux Phase-1 test bench on a synthetic random-weight MMDiT shim: `ewm-flux-host` runs the in-process loop per denoising step (S(t), D/R/N, ring, warnings), the two-score evaluation (loop accuracy = latent token restoration 1.0; decode quality = latent reconstruction cosine/MSE), and the trajectory plots with the injected-jump warning |
 | 06 | `ewm_ops_boot` | the operational graph (`ewm-ops`) boots like an OS: content-addressed boot file → compile → pick up the persisted state from the top of the stack → run the stack-pop dispatcher (fan-out by reference, deterministic fire sequence, feedback loop under a fire budget) → commit the fire log into `ewm-git` |
+| 07 | `jepa_ewm_state_machine_cooperation` | the six `ewm-jepa` demos consolidated into one cooperation story: V-JEPA encoder/predictor ⇄ the Rust lattice — pipeline/IICA, three-LUT unification, recursive IICA chain, [UM]-Net agent fan-out, holographic D/R/N, and the grounding proof (fidelity + one-sided gate) |
 
 Notebooks 01–04 were updated with the aarambh-vision-studio revisions:
 **01** adds structural commits (basis change) and the `ewm-ops` operational
@@ -266,3 +267,38 @@ graph; **02–04** add **basis frames / time travel** — every frame is also
 projected into the first interpretation with its spill
 (`docs/BASIS_FRAMES.md`); **04** additionally rebuilds the union as an
 operational graph.
+
+### JEPA cooperation (notebook 07)
+
+Notebook 07 pairs this repo with the
+[`ewm-jepa`](https://github.com/alexmy21/ewm-jepa.git) project: V-JEPA
+produces the `tid{n}` streams, and the Rust binaries (`ewm-scene`,
+`ewm-app`, `ewm-ops`) provide the lattice side.
+
+**Prerequisites**
+
+- Clone `ewm-jepa` somewhere near this repo:
+  ```bash
+  git clone https://github.com/alexmy21/ewm-jepa.git ../ewm-jepa
+  ```
+- A JEPA-capable Python environment with `torch`, `ewm_jepa`, and
+  `hllset_py` (the `ewm-jepa` conda env if available) registered as a
+  Jupyter kernel named `ewm-jepa`.
+
+**Run**
+
+```bash
+jupyter notebook notebooks/07_jepa_ewm_state_machine_cooperation.ipynb
+```
+
+The notebook locates both projects automatically (marker search over the
+notebook root, its ancestors and their subdirectories). Overrides are
+available if the projects live elsewhere:
+
+```bash
+EWM_JEPA=/path/to/ewm-jepa EWM_SM=/path/to/ewm-state-machine \
+  jupyter notebook notebooks/07_jepa_ewm_state_machine_cooperation.ipynb
+```
+
+Without the JEPA side the setup cell stops with instructions on where to
+clone it and what the `EWM_JEPA` variable should point at.
