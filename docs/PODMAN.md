@@ -73,6 +73,80 @@ podman run --rm --userns=keep-id -v /tmp/ewm-podman:/var/lib/ewm:Z ewm-state-mac
     ewm-ops --store /var/lib/ewm
 ```
 
+## Notebook 08 with the container
+
+`notebooks/08_multi_llm_sidecar.ipynb` runs on the **host** Python/Jupyter by
+default, using the host `target/debug/ewm-scene` binary. The container image
+is binaries-only (no Python), so it is not the notebook runtime; it either
+supplies the `ewm-scene` binary to the host notebook, or a Python-capable
+image is derived from it for a fully containerized run.
+
+### Option A — host notebook, containerized ewm-scene (recommended)
+
+Keep the notebook and its data on the host. Replace the notebook's
+`ewm_scene()` helper with a podman wrapper that bind-mounts the WORK
+directory into the image and calls the release `ewm-scene` binary:
+
+```python
+def ewm_scene(*args):
+    # All notebook JSON/JSONL files live in one WORK dir, so mapping each
+    # path to /work/<basename> is enough.
+    mapped = [("/work/" + os.path.basename(a)) if a.endswith((".jsonl", ".json"))
+              else a for a in args]
+    r = subprocess.run(
+        ["podman", "run", "--rm", "--userns=keep-id",
+         "-v", f"{WORK}:/work:Z", "ewm-state-machine", "ewm-scene", *mapped],
+        capture_output=True, text=True, timeout=600)
+    if r.returncode != 0:
+        raise RuntimeError(f"ewm-scene failed: {r.stderr[-800:]}")
+    return json.loads(r.stdout.strip())
+```
+
+Notes:
+
+- `--userns=keep-id` keeps host-file ownership correct under rootless
+  Podman; drop the `:Z` on non-SELinux hosts.
+- This replaces the ~25 direct `ewm-scene` calls with ~25 `podman run`
+  spawns — slower than the host binary, but fine for a notebook.
+
+### Option B — fully containerized notebook run
+
+Derive a Python-capable image from the binaries image, then run the notebook
+headless with `jupyter nbconvert`. The canonical notebook stays on the host
+(repo); the container only executes a bind-mounted copy.
+
+```dockerfile
+# Containerfile.notebook
+FROM localhost/ewm-state-machine
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 python3-numpy python3-matplotlib jupyter-nbconvert \
+    && rm -rf /var/lib/apt/lists/*
+USER ewm
+```
+
+```bash
+podman build -t ewm-state-machine-notebook -f Containerfile.notebook .
+podman run --rm --userns=keep-id \
+  -v "$PWD/notebooks":/home/ewm/notebooks:Z \
+  -v /home/alexmy/.cache/ewm-multi-llm:/home/ewm/.cache/ewm-multi-llm:Z \
+  ewm-state-machine-notebook \
+  jupyter nbconvert --execute --to notebook \
+  /home/ewm/notebooks/08_multi_llm_sidecar.ipynb
+```
+
+Inside the container the notebook runs from `/home/ewm/notebooks`; the two
+paths at the top of the notebook need to point at the container layout:
+
+```python
+EWM_SCENE_BIN = "ewm-scene"                 # already on PATH in the image
+WORK = "/home/ewm/.cache/ewm-multi-llm"
+```
+
+(or make both constants environment-driven so the same notebook works in
+both modes).
+
 ## Notes
 
 - The container is **rootless-friendly**: it runs as UID 1000 (`ewm`) and

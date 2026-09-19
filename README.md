@@ -144,7 +144,17 @@ ewm-state-machine/
 │   ├── SEPARATION.md          # separation of concerns — the bit is the fiber
 │   ├── BOOLRING.md            # GF(2) Boolean-ring context index (spike, positive)
 │   ├── BASIS_FRAMES.md        # basis frames: HLLSet interpretation, time travel, commit conditions
+│   ├── TRAINER.md             # trainer layer: separation map, protocol interfaces, DSL roadmap
+│   ├── PODMAN.md              # podman packaging + notebook/container setup
 │   └── ASSIGNMENT_QWENDRIVE.md # next assignment — Qwen-Drive test bench
+├── trainer/                   # the trainer/controller reference implementation
+│   ├── protocol.py            # probe config / trajectory / predictor+selector shapes
+│   ├── predictors.py          # persistence / linear / dft-periodic / ridge portfolio
+│   ├── selector.py            # EWMA surprise + epsilon-greedy meta-controller
+│   ├── adapters.py            # probe adapters (SyntheticAdapter, LlmAdapter)
+│   ├── ewm.py                 # ewm-scene client (the only Rust-facing module)
+│   ├── loop.py                # open loop + closed loop (memory + curiosity)
+│   └── smoke_test.py          # full-pipeline self-check (no torch needed)
 └── crates/
     ├── hllset-contracts/      # soldered invariants (leaf)
     ├── hllset-cid/            # embedded SHA-1 CIDs
@@ -260,6 +270,11 @@ the cells.
 | 05 | `flux_sidecar` | Flux Phase-1 test bench on a synthetic random-weight MMDiT shim: `ewm-flux-host` runs the in-process loop per denoising step (S(t), D/R/N, ring, warnings), the two-score evaluation (loop accuracy = latent token restoration 1.0; decode quality = latent reconstruction cosine/MSE), and the trajectory plots with the injected-jump warning |
 | 06 | `ewm_ops_boot` | the operational graph (`ewm-ops`) boots like an OS: content-addressed boot file → compile → pick up the persisted state from the top of the stack → run the stack-pop dispatcher (fan-out by reference, deterministic fire sequence, feedback loop under a fire budget) → commit the fire log into `ewm-git` |
 | 07 | `jepa_ewm_state_machine_cooperation` | the six `ewm-jepa` demos consolidated into one cooperation story: V-JEPA encoder/predictor ⇄ the Rust lattice — pipeline/IICA, three-LUT unification, recursive IICA chain, [UM]-Net agent fan-out, holographic D/R/N, and the grounding proof (fidelity + one-sided gate) |
+| 08 | `multi_llm_sidecar` | the multi-LLM side-car environment: three synthetic LLM probes feed `ewm-scene pyramid`, the union state `S(t) = ∪ S_i(t)`, the m-dim BSS system trajectory over the per-LLM ring, the pattern matrix `(LLM, Ring)` → `(LLM, Ring, DRN)` → `(Ring, Ring, DRN)` (ring states as virtual LLMs), and the first trajectory training targets (next BSS vector, next commit signal) |
+| 09 | `multi_llm_sidecar_real` | the same side-car with three **real small LLMs** (DeepSeek-R1-Distill-Qwen-1.5B, Qwen2.5-1.5B-Instruct, gpt2) in the `ewm-nanolm` env: real `tid{n}` streams → union state, the pattern matrix `(LLM, Ring)` → `(LLM, Ring, DRN)` → `(Ring, Ring, DRN)`, and the discovered 16-step query cycle (`bss(t+16) == bss(t)`, rings plateau at dim 16) |
+| 10 | `multi_llm_sidecar_loop` | closes the loop **around** the unchanged apparatus: DFT observer detects the query period from the BSS trajectory and frozen soft keys, then a controller feeds the materialized union state (restored order) back into the LLM prompts as memory and uses a DFT-periodic predictor to pick the next query (curiosity); the prediction error is the surprise training signal |
+| 11 | `multi_llm_sidecar_predictor` | the predictor as a swappable **portfolio** — persistence / linear / DFT-periodic / online ridge behind one interface — and a meta-controller that tracks EWMA surprise per predictor and chooses ε-greedily online (the predictor layer trains itself to pick the most appropriate predictor); LeCun's encoder→context→predictor separation with HLLSets as the contexts and no decoder |
+| 12 | `multi_llm_sidecar_learned_selector` | the meta-controller learns from trajectory features: `LearnedSelector` conditions on `[bss, Δbss, DFT period, EWMA surprises, phase]`, fits one linear model per predictor online to reward = −surprise, and drives the same memory+curiosity loop through the extracted `trainer/` package with the real LLMs; EWMA is still the stronger selector on the 16-step loop (0.95 vs 1.11 meta/best) |
 
 Notebooks 01–04 were updated with the aarambh-vision-studio revisions:
 **01** adds structural commits (basis change) and the `ewm-ops` operational
@@ -302,3 +317,44 @@ EWM_JEPA=/path/to/ewm-jepa EWM_SM=/path/to/ewm-state-machine \
 
 Without the JEPA side the setup cell stops with instructions on where to
 clone it and what the `EWM_JEPA` variable should point at.
+
+### Multi-LLM side-car real (notebooks 09–12)
+
+Notebook 09 runs the same side-car as notebook 08 with three **real small
+LLMs** on the `ewm-nanolm` kernel. Notebook 10 keeps the same probes and
+closes the loop around the apparatus with a DFT observer + memory/curiosity
+controller. Notebook 11 isolates the predictor as a portfolio
+(persistence / linear / DFT-periodic / online ridge) with an ε-greedy
+meta-controller that learns which predictor to trust. Notebook 12 replaces
+the EWMA selector with a `LearnedSelector` that conditions on trajectory
+features and refits one linear model per predictor online. The models are
+loaded from the local HuggingFace cache on the RTX 3060
+(`CUDA_VISIBLE_DEVICES=1`):
+
+- `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`
+- `Qwen/Qwen2.5-1.5B-Instruct`
+- `gpt2`
+
+**Prerequisites**
+
+- The `ewm-nanolm` conda env (PyTorch cu124 + transformers), registered as a
+  Jupyter kernel named `ewm-nanolm`:
+  ```bash
+  /home/alexmy/.conda/envs/ewm-nanolm/bin/python -m ipykernel install \
+      --user --name ewm-nanolm --display-name "Python 3 (ewm-nanolm)"
+  ```
+- The three models cached under `~/.cache/huggingface/hub` (the notebooks use
+  `local_files_only=True`).
+- A GPU with ≥ 8 GB free (the three fp16 models total ~5.6 GB).
+
+**Run**
+
+```bash
+jupyter notebook notebooks/09_multi_llm_sidecar_real.ipynb
+jupyter notebook notebooks/10_multi_llm_sidecar_loop.ipynb
+jupyter notebook notebooks/11_multi_llm_sidecar_predictor.ipynb
+jupyter notebook notebooks/12_multi_llm_sidecar_learned_selector.ipynb
+```
+
+The notebooks set `CUDA_VISIBLE_DEVICES=1` before importing torch; override
+it in the first cell if the RTX 3060 is not the target GPU.
