@@ -23,6 +23,12 @@ The loop closes at the top: probes → ewm-sm → trajectory → trainer → pro
 config → probes. The apparatus never changes; the trainer is the integrating
 system that feeds itself with its own predictions.
 
+**Verified across notebooks 08–14** (synthetic probes → real LLMs → closed
+loop → predictor portfolio → learned selector → Jev router and its patterns):
+every extension lives in the notebooks and the `trainer/` package, and zero
+Rust crates of ewm-sm were modified. The two ewm-sm surfaces used are the
+`ewm-scene` JSON protocol and the `ewm-ops` boot DSL — nothing else.
+
 ## 2. Runtime environment (already well defined)
 
 1. **EWM state** — HLLSets over the bit plane, content-addressed
@@ -96,6 +102,25 @@ boot files.
 The predictor is a pure function of the trajectory history; the selector is
 a policy over predictor performance. Both are swappable behind these shapes.
 
+### 3.4 Decision record — decision model → controller
+
+A non-traditional decision model (e.g. TypeSafe AI's Jev / System One)
+returns typed decisions instead of text. Its output is the fourth shape:
+
+```jsonc
+{ "decision": "llm_b",
+  "confidence": 0.87,
+  "probabilities": { "llm_a": 0.05, "llm_b": 0.87, "llm_c": 0.08 },
+  "decision_type": "route_query",
+  "aux": { "needs_memory": 0.42 },
+  "model": "jev-latest", "input_tokens": 410, "output_tokens": 8,
+  "mock": false }
+```
+
+In the router scenario, the decision chooses which LLM answers; the record
+is logged into the trajectory. Probabilities are a fixed-size vector, so
+they can also feed the selector or the BSS soft state directly.
+
 ## 4. Reference implementation — `trainer/` package (implemented)
 
 The notebook logic is extracted into a `trainer/` Python package at the repo
@@ -103,12 +128,12 @@ root (numpy-only for the core; torch only inside `LlmAdapter`):
 
 | Module | Contents |
 | --- | --- |
-| `trainer/protocol.py` | `ProbeConfig`, `TrajectoryRecord`, `Prediction`, `Selection` — the §3 shapes as dataclasses |
+| `trainer/protocol.py` | `ProbeConfig`, `TrajectoryRecord`, `Prediction`, `Selection`, `DecisionRecord` — the §3 shapes as dataclasses |
 | `trainer/predictors.py` | `dft_period`, `Predictor` base, persistence / linear / dft-periodic / ridge, `default_portfolio()` |
 | `trainer/selector.py` | `EwmaSelector` + `LearnedSelector` (linear scoring policy over trajectory features, online ridge fit to reward = −surprise) + `selector_features` |
-| `trainer/adapters.py` | `Adapter`, `SyntheticAdapter`, `LlmAdapter`, `memory_tokens`, `build_prompt` |
+| `trainer/adapters.py` | `Adapter`, `SyntheticAdapter`, `LlmAdapter`, `DecisionRouter` ABC + `JevAdapter` (TypeSafe System One router with mock fallback), `decision_tokens`, `memory_tokens`, `build_prompt` |
 | `trainer/ewm.py` | `EwmScene` client (the only place that talks to the Rust apparatus) + JSONL writers |
-| `trainer/loop.py` | `run_open_loop`, `run_closed_loop` — the notebook-10/11 loop |
+| `trainer/loop.py` | `run_open_loop`, `run_open_loop_from_streams` (capture-first front-ends), `run_closed_loop`, `run_jev_loop` (Jev router loop with confidence gate and decision-in-state) |
 | `trainer/smoke_test.py` | full pipeline against real `ewm-scene` with a deterministic synthetic adapter (no torch) |
 
 Run the self-check with:
@@ -147,5 +172,16 @@ three JSON shapes, nothing more.
 3. ✅ Learned selector implemented (`LearnedSelector`, notebook 12): on the
    16-step real-LLM loop the EWMA baseline is still the stronger selector
    (meta/best 0.95 vs 1.11) — the learned selector needs a longer horizon.
-4. Next: longer closed loops, and surprise-driven updates to the predictors
-   themselves (e.g., surprise-weighted ridge).
+4. ✅ Jev integration surface (notebooks 13–14): `DecisionRecord` shape,
+   `JevAdapter` (real SDK / deterministic mock), `DecisionRouter` ABC,
+   confidence-gated routing, and decision-in-state (`jev_*` tokens ingested
+   into `S(t)`). The live TypeSafe API is waitlisted; the mock keeps the
+   loop executable and the real key is a drop-in env var.
+5. ✅ Heterogeneous front-ends (notebook 15): capture-first DeepSeek-OCR +
+   NVIDIA VLA + V-JEPA streams (`captures/capture_*.py`) run through the
+   unchanged ewm-sm — encoding-agnostic union `S(t)` verified across three
+   modalities.
+6. Next: live-Jev benchmark when the key arrives; `Score`/`Noul`
+   per-action gates; a closed loop across the heterogeneous front-ends
+   (memory + curiosity + front-end selection); longer closed loops and
+   surprise-driven updates to the predictors themselves.

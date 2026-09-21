@@ -25,6 +25,7 @@ class ProbeConfig:
     gate: Optional[str] = None
     temperature: Optional[float] = None
     max_new_tokens: int = 48
+    route: Optional[str] = None       # when set, only this LLM answers
 
     def to_dict(self) -> dict[str, Any]:
         from dataclasses import asdict
@@ -85,3 +86,28 @@ class Selection:
         from dataclasses import asdict
 
         return asdict(self)
+
+
+@dataclass
+class DecisionRecord:
+    """A typed, probabilistic decision — the output of a decision model
+    (e.g. TypeSafe AI's Jev / System One) used as the router in the loop."""
+
+    decision: str
+    confidence: float
+    probabilities: dict[str, float]
+    decision_type: str = "route_query"
+    aux: dict[str, float] = field(default_factory=dict)   # extra Noul/Score answers
+    model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    mock: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        from dataclasses import asdict
+
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "DecisionRecord":
+        return _from_dict(cls, d)

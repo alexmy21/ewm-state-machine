@@ -13,11 +13,12 @@ from __future__ import annotations
 
 import os
 import zlib
+from abc import ABC, abstractmethod
 from typing import Optional
 
 import numpy as np
 
-from .protocol import ProbeConfig
+from .protocol import DecisionRecord, ProbeConfig
 
 # The three real small LLMs (cached on this machine). GPT-Neo-1.3B is omitted:
 # its generate path crashes under transformers 5.16.1.
@@ -75,6 +76,9 @@ class SyntheticAdapter(Adapter):
         # Deterministic across runs (str.hash() is salted per process).
         qhash = zlib.crc32(cfg.query.encode("utf-8")) % 64
         for i, n in enumerate(self.names):
+            if cfg.route is not None and n != cfg.route:
+                out[n] = []                       # routing mode: only one answers
+                continue
             # Phase-only seed: with empty memory the stream is exactly
             # period-8; memory feedback (echo) breaks the periodicity.
             rng = np.random.default_rng(self.seed + phase * 101 + i * 7)
@@ -119,6 +123,9 @@ class LlmAdapter(Adapter):
         max_new = cfg.max_new_tokens or self.max_new_tokens
         out: dict[str, list[str]] = {}
         for n in self.names:
+            if cfg.route is not None and n != cfg.route:
+                out[n] = []                       # routing mode: only one answers
+                continue
             tok, model = self.loaded[n]
             inputs = tok(prompt, return_tensors="pt").to(model.device)
             with torch.no_grad():
@@ -131,3 +138,128 @@ class LlmAdapter(Adapter):
             new_ids = gen[0, inputs["input_ids"].shape[1]:].cpu().tolist()
             out[n] = [f"tid{i}" for i in new_ids]
         return out
+
+
+def decision_tokens(record: DecisionRecord) -> list[str]:
+    """Lower a typed decision into tid-style tokens, so the decision itself
+    can be ingested into S(t) as a first-class probe."""
+    toks = [f"jev_choice_{record.decision}"]
+    toks.append(f"jev_conf_{int(round(record.confidence * 10))}")
+    for name, p in record.probabilities.items():
+        toks.append(f"jev_p_{name}_{int(round(p * 100))}")
+    for key, val in record.aux.items():
+        toks.append(f"jev_{key}_{int(round(val * 10))}")
+    return toks
+
+
+class DecisionRouter(ABC):
+    """The generic decision-model boundary: any provider that returns a
+    typed DecisionRecord (Jev, a local classifier, a rule engine) implements
+    this interface."""
+
+    @abstractmethod
+    def route(
+        self,
+        state: dict,
+        options: dict[str, str],
+        instructions: str,
+        extra_noul: Optional[dict[str, str]] = None,
+    ) -> DecisionRecord:
+        raise NotImplementedError
+
+
+class JevAdapter(DecisionRouter):
+    """TypeSafe AI System One (Jev) as the router.
+
+    Jev returns typed, probabilistic decisions instead of text. This adapter
+    wraps the `typesafe-sdk` and exposes one call:
+
+        route(state, options, instructions, extra_noul=None) -> DecisionRecord
+
+    When `TYPESAFE_API_KEY` is missing, it falls back to a deterministic mock
+    with the same DecisionRecord shape, so the loop runs end-to-end without
+    the API (clearly flagged with `mock=True`).
+    """
+
+    def __init__(self, mock: bool = False):
+        self.mock = mock or not os.environ.get("TYPESAFE_API_KEY")
+        self._client = None
+        if not self.mock:
+            try:
+                from typesafe_sdk import TypeSafeClient
+
+                self._client = TypeSafeClient()
+            except Exception as exc:      # SDK missing or key invalid
+                self.mock = True
+                self._mock_reason = str(exc)
+            else:
+                self._mock_reason = ""
+        else:
+            self._mock_reason = "TYPESAFE_API_KEY not set"
+
+    def route(
+        self,
+        state: dict,
+        options: dict[str, str],
+        instructions: str,
+        extra_noul: Optional[dict[str, str]] = None,
+    ) -> DecisionRecord:
+        if self.mock:
+            return self._mock_route(state, options, instructions, extra_noul)
+
+        from typesafe_sdk import Choice, Noul
+
+        questions: dict = {
+            "route": Choice(instructions=instructions, criteria=dict(options))
+        }
+        if extra_noul:
+            for name, noul_instructions in extra_noul.items():
+                questions[name] = Noul(instructions=noul_instructions)
+
+        resp = self._client.system_one(state=state, questions=questions)
+        ans = resp.answers["route"]
+        aux = {name: float(resp.answers[name].noul) for name in (extra_noul or {})}
+        usage = resp.usage
+        return DecisionRecord(
+            decision=ans.choice,
+            confidence=float(ans.confidence),
+            probabilities={str(k): float(v) for k, v in ans.probabilities.items()},
+            decision_type="route_query",
+            aux=aux,
+            model=resp.model,
+            input_tokens=usage.input_tokens or 0,
+            output_tokens=usage.output_tokens or 0,
+            mock=False,
+        )
+
+    def _mock_route(
+        self,
+        state: dict,
+        options: dict[str, str],
+        instructions: str,
+        extra_noul: Optional[dict[str, str]] = None,
+    ) -> DecisionRecord:
+        # Deterministic, context-shaped mock: prefer the option whose name is
+        # closest to a crc32 hash of the query + memory, with a softmax-ish
+        # distribution so confidence and probabilities are realistic.
+        query = str(state.get("query", ""))
+        memory = str(state.get("memory", ""))
+        seed = zlib.crc32((query + memory).encode("utf-8"))
+        names = list(options)
+        rng = np.random.default_rng(seed)
+        logits = rng.uniform(0.0, 1.0, size=len(names))
+        probs = np.exp(logits) / np.exp(logits).sum()
+        probs = {n: float(p) for n, p in zip(names, probs)}
+        choice = max(probs, key=probs.get)
+        aux = {name: 0.5 for name in (extra_noul or {})}
+        return DecisionRecord(
+            decision=choice,
+            confidence=float(probs[choice]),
+            probabilities=probs,
+            decision_type="route_query",
+            aux=aux,
+            model="mock-jev",
+            input_tokens=0,
+            output_tokens=0,
+            mock=True,
+        )

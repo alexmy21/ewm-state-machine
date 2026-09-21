@@ -6,7 +6,7 @@
 #
 # See docs/TRAINER.md for the separation map and the three protocol shapes.
 
-from .protocol import ProbeConfig, TrajectoryRecord, Prediction, Selection
+from .protocol import DecisionRecord, ProbeConfig, TrajectoryRecord, Prediction, Selection
 from .predictors import (
     dft_period,
     Predictor,
@@ -17,13 +17,16 @@ from .predictors import (
     default_portfolio,
 )
 from .selector import EwmaSelector, LearnedSelector, selector_features
-from .adapters import Adapter, SyntheticAdapter, LlmAdapter, memory_tokens, build_prompt
+from .adapters import Adapter, SyntheticAdapter, LlmAdapter, JevAdapter, memory_tokens, build_prompt
 from .ewm import EwmScene, write_frames, write_pyramid, write_union
 from .loop import (
     LoopResult,
     OpenLoopResult,
+    JevLoopResult,
     run_open_loop,
+    run_open_loop_from_streams,
     run_closed_loop,
+    run_jev_loop,
 )
 
 __all__ = [
@@ -31,6 +34,7 @@ __all__ = [
     "TrajectoryRecord",
     "Prediction",
     "Selection",
+    "DecisionRecord",
     "dft_period",
     "Predictor",
     "PersistencePredictor",
@@ -44,6 +48,7 @@ __all__ = [
     "Adapter",
     "SyntheticAdapter",
     "LlmAdapter",
+    "JevAdapter",
     "memory_tokens",
     "build_prompt",
     "EwmScene",
@@ -52,6 +57,9 @@ __all__ = [
     "write_union",
     "LoopResult",
     "OpenLoopResult",
+    "JevLoopResult",
     "run_open_loop",
+    "run_open_loop_from_streams",
     "run_closed_loop",
+    "run_jev_loop",
 ]

@@ -155,6 +155,7 @@ ewm-state-machine/
 │   ├── ewm.py                 # ewm-scene client (the only Rust-facing module)
 │   ├── loop.py                # open loop + closed loop (memory + curiosity)
 │   └── smoke_test.py          # full-pipeline self-check (no torch needed)
+├── captures/                  # capture-first front-end scripts (OCR / VLA / JEPA)
 └── crates/
     ├── hllset-contracts/      # soldered invariants (leaf)
     ├── hllset-cid/            # embedded SHA-1 CIDs
@@ -275,6 +276,9 @@ the cells.
 | 10 | `multi_llm_sidecar_loop` | closes the loop **around** the unchanged apparatus: DFT observer detects the query period from the BSS trajectory and frozen soft keys, then a controller feeds the materialized union state (restored order) back into the LLM prompts as memory and uses a DFT-periodic predictor to pick the next query (curiosity); the prediction error is the surprise training signal |
 | 11 | `multi_llm_sidecar_predictor` | the predictor as a swappable **portfolio** — persistence / linear / DFT-periodic / online ridge behind one interface — and a meta-controller that tracks EWMA surprise per predictor and chooses ε-greedily online (the predictor layer trains itself to pick the most appropriate predictor); LeCun's encoder→context→predictor separation with HLLSets as the contexts and no decoder |
 | 12 | `multi_llm_sidecar_learned_selector` | the meta-controller learns from trajectory features: `LearnedSelector` conditions on `[bss, Δbss, DFT period, EWMA surprises, phase]`, fits one linear model per predictor online to reward = −surprise, and drives the same memory+curiosity loop through the extracted `trainer/` package with the real LLMs; EWMA is still the stronger selector on the 16-step loop (0.95 vs 1.11 meta/best) |
+| 13 | `multi_llm_sidecar_jev_router` | the first non-LLM actor in the loop: TypeSafe AI's **Jev** (System One) as router — the controller sends query + materialized memory + BSS to `JevAdapter`, Jev returns a typed `DecisionRecord` (choice + probabilities + confidence), only the chosen LLM answers, and ewm-sm ingests the answer unchanged; mock fallback runs when `TYPESAFE_API_KEY` is unset |
+| 14 | `multi_llm_sidecar_jev_patterns` | the two Jev patterns that matter for ewm-sm, built with the mock while the API key is waitlisted: **confidence-gated routing** (below a floor, route to a fallback LLM) and **decision-in-state** (the `DecisionRecord` is lowered to `jev_*` tokens and ingested into `S(t)`, so the decision joins the memory); live-Jev ready by setting `TYPESAFE_API_KEY` |
+| 15 | `hetero_sidecar_ocr_vla_jepa` | the realistic heterogeneous side-car: three non-LLM front-ends — **DeepSeek-OCR** (vision-encoder token ids), **NVIDIA Cosmos-Policy VLA** (quantized action chunk), **V-JEPA** (quantized patch ids) — captured first in their native envs (`captures/capture_*.py`), then one union `S(t) = S_ocr ∪ S_vla ∪ S_jepa` through the unchanged ewm-sm: `(Frontend, Ring)` pattern matrix, Noether D/R/N, materialized memory |
 
 Notebooks 01–04 were updated with the aarambh-vision-studio revisions:
 **01** adds structural commits (basis change) and the `ewm-ops` operational
@@ -290,17 +294,19 @@ Notebook 07 pairs this repo with the
 produces the `tid{n}` streams, and the Rust binaries (`ewm-scene`,
 `ewm-app`, `ewm-ops`) provide the lattice side.
 
-**Prerequisites**
+#### **Prerequisites**
 
 - Clone `ewm-jepa` somewhere near this repo:
+
   ```bash
   git clone https://github.com/alexmy21/ewm-jepa.git ../ewm-jepa
   ```
+
 - A JEPA-capable Python environment with `torch`, `ewm_jepa`, and
   `hllset_py` (the `ewm-jepa` conda env if available) registered as a
   Jupyter kernel named `ewm-jepa`.
 
-**Run**
+#### **Run**
 
 ```bash
 jupyter notebook notebooks/07_jepa_ewm_state_machine_cooperation.ipynb
@@ -318,7 +324,7 @@ EWM_JEPA=/path/to/ewm-jepa EWM_SM=/path/to/ewm-state-machine \
 Without the JEPA side the setup cell stops with instructions on where to
 clone it and what the `EWM_JEPA` variable should point at.
 
-### Multi-LLM side-car real (notebooks 09–12)
+### Multi-LLM side-car real (notebooks 09–15)
 
 Notebook 09 runs the same side-car as notebook 08 with three **real small
 LLMs** on the `ewm-nanolm` kernel. Notebook 10 keeps the same probes and
@@ -327,33 +333,48 @@ controller. Notebook 11 isolates the predictor as a portfolio
 (persistence / linear / DFT-periodic / online ridge) with an ε-greedy
 meta-controller that learns which predictor to trust. Notebook 12 replaces
 the EWMA selector with a `LearnedSelector` that conditions on trajectory
-features and refits one linear model per predictor online. The models are
-loaded from the local HuggingFace cache on the RTX 3060
+features and refits one linear model per predictor online. Notebook 13 adds
+TypeSafe AI's **Jev** (System One) as a typed-decision router, and notebook
+14 adds its confidence-gated routing + decision-in-state patterns. Notebook
+15 generalizes the side-car to **three heterogeneous non-LLM front-ends**
+(DeepSeek-OCR + NVIDIA VLA + V-JEPA) via capture-first JSONLs. The 09–14
+models are loaded from the local HuggingFace cache on the RTX 3060
 (`CUDA_VISIBLE_DEVICES=1`):
 
 - `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`
 - `Qwen/Qwen2.5-1.5B-Instruct`
 - `gpt2`
 
-**Prerequisites**
+#### **Prerequisites**
 
 - The `ewm-nanolm` conda env (PyTorch cu124 + transformers), registered as a
   Jupyter kernel named `ewm-nanolm`:
+
   ```bash
   /home/alexmy/.conda/envs/ewm-nanolm/bin/python -m ipykernel install \
       --user --name ewm-nanolm --display-name "Python 3 (ewm-nanolm)"
   ```
+
 - The three models cached under `~/.cache/huggingface/hub` (the notebooks use
   `local_files_only=True`).
 - A GPU with ≥ 8 GB free (the three fp16 models total ~5.6 GB).
+- For notebooks 13–14 with the real Jev model: `pip install typesafe-sdk` and
+  `export TYPESAFE_API_KEY=...` (without the key the notebooks use the
+  deterministic mock router).
+- For notebook 15: the three captures under `~/.cache/ewm-hetero/`, produced
+  by `captures/capture_*.py` in their native envs (see the capture scripts'
+  docstrings); the notebook itself runs on the plain `python3` kernel.
 
-**Run**
+#### **Run**
 
 ```bash
 jupyter notebook notebooks/09_multi_llm_sidecar_real.ipynb
 jupyter notebook notebooks/10_multi_llm_sidecar_loop.ipynb
 jupyter notebook notebooks/11_multi_llm_sidecar_predictor.ipynb
 jupyter notebook notebooks/12_multi_llm_sidecar_learned_selector.ipynb
+jupyter notebook notebooks/13_multi_llm_sidecar_jev_router.ipynb
+jupyter notebook notebooks/14_multi_llm_sidecar_jev_patterns.ipynb
+jupyter notebook notebooks/15_hetero_sidecar_ocr_vla_jepa.ipynb
 ```
 
 The notebooks set `CUDA_VISIBLE_DEVICES=1` before importing torch; override

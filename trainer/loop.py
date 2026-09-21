@@ -13,10 +13,10 @@ from typing import Optional
 
 import numpy as np
 
-from .adapters import Adapter, memory_tokens
+from .adapters import Adapter, JevAdapter, decision_tokens, memory_tokens
 from .ewm import EwmScene, write_pyramid, write_union
 from .predictors import dft_period
-from .protocol import ProbeConfig
+from .protocol import DecisionRecord, ProbeConfig
 from .selector import EwmaSelector, LearnedSelector, selector_features
 
 
@@ -56,7 +56,6 @@ def run_open_loop(
     """
     names = list(adapter.names)
     T = cycles * len(queries)
-    os.makedirs(work_dir, exist_ok=True)
 
     streams: dict[str, list[list[str]]] = {n: [] for n in names}
     for t in range(T):
@@ -64,6 +63,22 @@ def run_open_loop(
         per = adapter.run(cfg)
         for n in names:
             streams[n].append(per[n])
+
+    return run_open_loop_from_streams(ewm, streams, work_dir, proto_len=len(queries))
+
+
+def run_open_loop_from_streams(
+    ewm: EwmScene,
+    streams: dict[str, list[list[str]]],
+    work_dir: str,
+    proto_len: Optional[int] = None,
+) -> OpenLoopResult:
+    """Open loop over pre-captured streams (capture-first front-ends): write
+    the pyramid + union, run the ewm-sm pipeline, and project the union onto
+    the per-front-end cumulative frame."""
+    names = list(streams)
+    T = min(len(streams[n]) for n in names)
+    os.makedirs(work_dir, exist_ok=True)
 
     pyramid_path = f"{work_dir}/open_pyramid.jsonl"
     write_pyramid(
@@ -82,19 +97,18 @@ def run_open_loop(
         uni["frames"][i]["key"] == pyr["frames"][i]["union_key"] for i in range(T)
     )
 
-    # Fixed frame: the ring over the per-LLM HLLSets (cumulative vocabulary).
+    # Fixed frame: the ring over the per-front-end HLLSets (cumulative vocabulary).
     cum = {n: sorted({tok for t in range(T) for tok in streams[n][t]}) for n in names}
-    frame_path = f"{work_dir}/frame_llms.json"
+    frame_path = f"{work_dir}/frame_frontends.json"
     with open(frame_path, "w") as fh:
         json.dump({"dimensions": [{"name": n, "tokens": cum[n]} for n in names]}, fh)
 
     proj = ewm.project(union_path, frame_path)
     M_ol = np.array([f["bss"] for f in proj["frames"]])
-    M_proto = M_ol[:len(queries)]
 
     return OpenLoopResult(
         M_ol=M_ol,
-        M_proto=M_proto,
+        M_proto=M_ol[:proto_len] if proto_len else M_ol,
         frame_path=frame_path,
         union_path=union_path,
         pyramid_path=pyramid_path,
@@ -193,4 +207,112 @@ def run_closed_loop(
         surprise_all=surprise_all,
         ewma_log=ewma_log,
         counts=dict(selector.counts),
+    )
+
+
+@dataclass
+class JevLoopResult:
+    M_jev: np.ndarray
+    query_log: list[int]
+    decision_log: list[DecisionRecord]
+    union_path: str
+    gated_log: list[bool] = field(default_factory=list)
+
+
+def run_jev_loop(
+    adapter: Adapter,
+    jev: JevAdapter,
+    ewm: EwmScene,
+    open_result: OpenLoopResult,
+    queries: list[str],
+    work_dir: str,
+    T: int = 16,
+    max_new_tokens: int = 48,
+    instructions: Optional[str] = None,
+    options: Optional[dict[str, str]] = None,
+    confidence_floor: Optional[float] = None,
+    fallback: Optional[str] = None,
+    ingest_decision: bool = True,
+) -> JevLoopResult:
+    """Jev as the router: each step, Jev returns a typed decision about which
+    LLM should answer the query; only the chosen LLM generates.
+
+    - `confidence_floor` gates the decision: below the floor, the query is
+      routed to `fallback` (Pattern 2 from the Jev guide).
+    - `ingest_decision` lowers the DecisionRecord into tokens and appends
+      them to the union frame, so the decision itself becomes part of S(t)
+      and of the materialized memory.
+    """
+    names = open_result.names
+    options = options or {
+        "llm_a": "DeepSeek reasoning distill — longer, structured explanations",
+        "llm_b": "Qwen2.5 instruct — general instructions and factual answers",
+        "llm_c": "gpt2 — tiny and fast, short answers",
+    }
+    instructions = instructions or "Which LLM should answer this query?"
+    union_path = f"{work_dir}/jev_union.jsonl"
+    os.makedirs(os.path.dirname(union_path), exist_ok=True)
+    open(union_path, "w").close()
+
+    mat_ol = ewm.materialize(open_result.union_path)
+    mem = memory_tokens(mat_ol["frames"][-1]["ordered"])
+
+    M_rows: list[np.ndarray] = []
+    query_log: list[int] = []
+    decision_log: list[DecisionRecord] = []
+    gated_log: list[bool] = []
+
+    for t in range(T):
+        q = t % len(queries)
+        query_log.append(q)
+        state = {
+            "query": queries[q],
+            "memory": " ".join(mem),
+            "step": t,
+            "bss": ({n: round(float(M_rows[-1][i]), 4) for i, n in enumerate(names)}
+                    if M_rows else {}),
+        }
+        decision = jev.route(
+            state, options, instructions,
+            extra_noul={"needs_memory": "The query requires context from previous answers"},
+        )
+        decision_log.append(decision)
+
+        gated = bool(confidence_floor is not None and decision.confidence < confidence_floor)
+        gated_log.append(gated)
+        route_name = decision.decision
+        if gated and fallback is not None:
+            route_name = fallback
+
+        cfg = ProbeConfig(
+            step=t,
+            query=queries[q],
+            memory=list(mem),
+            max_new_tokens=max_new_tokens,
+            route=route_name,
+        )
+        per = adapter.run(cfg)
+        toks = [x for n in names for x in per[n]]
+        if ingest_decision:
+            toks = toks + decision_tokens(decision)
+        with open(union_path, "a") as fh:
+            fh.write(json.dumps({"id": t + 1, "tokens": toks}) + "\n")
+
+        proj = ewm.project(union_path, open_result.frame_path)
+        m_t = np.array(proj["frames"][-1]["bss"])
+        M_rows.append(m_t)
+
+        mat = ewm.materialize(union_path)
+        mem = memory_tokens(mat["frames"][-1]["ordered"])
+
+        if t % 4 == 0 or t == T - 1:
+            print(f"t={t:2d} q={q}  route={route_name:6s}  "
+                  f"confidence={decision.confidence:.3f}  gated={gated}  mock={decision.mock}")
+
+    return JevLoopResult(
+        M_jev=np.array(M_rows),
+        query_log=query_log,
+        decision_log=decision_log,
+        union_path=union_path,
+        gated_log=gated_log,
     )

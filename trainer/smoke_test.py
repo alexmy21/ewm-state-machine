@@ -7,6 +7,7 @@ binary with a deterministic SyntheticAdapter (no torch needed):
     python3 trainer/smoke_test.py
 """
 
+import json
 import os
 import sys
 
@@ -17,12 +18,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from trainer import (
     EwmScene,
     EwmaSelector,
+    JevAdapter,
     LearnedSelector,
     ProbeConfig,
     SyntheticAdapter,
     default_portfolio,
     dft_period,
     run_closed_loop,
+    run_jev_loop,
     run_open_loop,
 )
 
@@ -103,6 +106,23 @@ def main() -> int:
     for name in portfolio:
         print(f"    {name:12s} {np.mean(loop_learned.surprise_all[name][1:]):.6f}")
     print(f"    {'meta':12s} {np.mean(loop_learned.surprise_meta[1:]):.6f}")
+
+    # ── Jev as router (mock mode: no TYPESAFE_API_KEY needed) ──────────────
+    jev = JevAdapter(mock=True)
+    jev_result = run_jev_loop(
+        adapter, jev, ewm, open_result, QUERIES, work_dir, T=12,
+        confidence_floor=0.45, fallback="llm_b", ingest_decision=True,
+    )
+    assert jev_result.M_jev.shape == (12, 3)
+    assert len(jev_result.decision_log) == 12
+    assert len(jev_result.gated_log) == 12
+    assert all(d.mock for d in jev_result.decision_log)
+    assert all(d.decision in ("llm_a", "llm_b", "llm_c") for d in jev_result.decision_log)
+    assert any("jev_choice_" in tok for line in open(jev_result.union_path)
+               for tok in json.loads(line)["tokens"])
+    print("jev router (mock, confidence-gated, decision-in-state): ok")
+    print("  gated steps:", sum(jev_result.gated_log), "of", len(jev_result.gated_log))
+    print("  first decision:", jev_result.decision_log[0].to_dict())
     print("smoke test passed")
     return 0
 
