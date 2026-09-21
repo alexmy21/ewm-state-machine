@@ -131,9 +131,9 @@ root (numpy-only for the core; torch only inside `LlmAdapter`):
 | `trainer/protocol.py` | `ProbeConfig`, `TrajectoryRecord`, `Prediction`, `Selection`, `DecisionRecord` — the §3 shapes as dataclasses |
 | `trainer/predictors.py` | `dft_period`, `Predictor` base, persistence / linear / dft-periodic / ridge, `default_portfolio()` |
 | `trainer/selector.py` | `EwmaSelector` + `LearnedSelector` (linear scoring policy over trajectory features, online ridge fit to reward = −surprise) + `selector_features` |
-| `trainer/adapters.py` | `Adapter`, `SyntheticAdapter`, `LlmAdapter`, `DecisionRouter` ABC + `JevAdapter` (TypeSafe System One router with mock fallback), `decision_tokens`, `memory_tokens`, `build_prompt` |
+| `trainer/adapters.py` | `Adapter`, `SyntheticAdapter`, `LlmAdapter`, `DecisionRouter` ABC + `JevAdapter` (TypeSafe System One router with mock fallback) + `LayaAdapter` (open-source Laya on a persistent Rust/candle daemon), `decision_tokens`, `memory_tokens`, `build_prompt` |
 | `trainer/ewm.py` | `EwmScene` client (the only place that talks to the Rust apparatus) + JSONL writers |
-| `trainer/loop.py` | `run_open_loop`, `run_open_loop_from_streams` (capture-first front-ends), `run_closed_loop`, `run_jev_loop` (Jev router loop with confidence gate and decision-in-state) |
+| `trainer/loop.py` | `run_open_loop`, `run_open_loop_from_streams` (capture-first front-ends), `run_closed_loop`, `run_jev_loop` (Jev/Laya router loop with confidence gate and decision-in-state), `run_jev_loop_from_streams` (router over pre-captured streams) |
 | `trainer/smoke_test.py` | full pipeline against real `ewm-scene` with a deterministic synthetic adapter (no torch) |
 
 Run the self-check with:
@@ -181,7 +181,20 @@ three JSON shapes, nothing more.
    NVIDIA VLA + V-JEPA streams (`captures/capture_*.py`) run through the
    unchanged ewm-sm — encoding-agnostic union `S(t)` verified across three
    modalities.
-6. Next: live-Jev benchmark when the key arrives; `Score`/`Noul`
-   per-action gates; a closed loop across the heterogeneous front-ends
-   (memory + curiosity + front-end selection); longer closed loops and
-   surprise-driven updates to the predictors themselves.
+6. ✅ Open-source decision model (notebook 16): `LayaAdapter` — Laya
+   (Apache-2.0, ungated, 421M, non-autoregressive typed decisions) runs as
+   a persistent pure-Rust candle daemon behind the same `DecisionRouter`
+   seam as Jev. No API key, no Python model; confidence gating and
+   decision-in-state work with real calibrated probabilities.
+7. ✅ Laya prompt fix + heterogeneous routing (notebooks 17–18): the
+   article's failure mode (prose + answer-type phrases) measured and fixed
+   in an A/B; `run_jev_loop_from_streams` lets Laya route the OCR/VLA/JEPA
+   front-ends over the notebook-15 captures. CUDA build diagnosed:
+   `candle-kernels` builds with `CUDA_COMPUTE_CAP=86`, but nvcc 12.8 emits
+   PTX ISA 8.7 and the 565.77 driver supports ≤ 12.7 — so the daemon runs
+   on CPU (~600 ms/decision) until the driver is updated or an nvcc ≤ 12.7
+   is used.
+8. Next: live-Jev benchmark when the key arrives; `Score`/`Noul`
+   per-action gates; make the heterogeneous loop fully live (live front-end
+   calls instead of captures); longer closed loops and surprise-driven
+   updates to the predictors themselves.

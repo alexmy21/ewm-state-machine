@@ -13,7 +13,7 @@ from typing import Optional
 
 import numpy as np
 
-from .adapters import Adapter, JevAdapter, decision_tokens, memory_tokens
+from .adapters import Adapter, DecisionRouter, decision_tokens, memory_tokens
 from .ewm import EwmScene, write_pyramid, write_union
 from .predictors import dft_period
 from .protocol import DecisionRecord, ProbeConfig
@@ -221,7 +221,7 @@ class JevLoopResult:
 
 def run_jev_loop(
     adapter: Adapter,
-    jev: JevAdapter,
+    jev: DecisionRouter,
     ewm: EwmScene,
     open_result: OpenLoopResult,
     queries: list[str],
@@ -245,11 +245,11 @@ def run_jev_loop(
     """
     names = open_result.names
     options = options or {
-        "llm_a": "DeepSeek reasoning distill — longer, structured explanations",
-        "llm_b": "Qwen2.5 instruct — general instructions and factual answers",
-        "llm_c": "gpt2 — tiny and fast, short answers",
+        "llm_a": "the query needs a longer, structured, reasoned explanation",
+        "llm_b": "the query needs a general knowledge answer or a short factual reply",
+        "llm_c": "the query is a trivial lookup needing only a very short completion",
     }
-    instructions = instructions or "Which LLM should answer this query?"
+    instructions = instructions or "What kind of answer does this query need?"
     union_path = f"{work_dir}/jev_union.jsonl"
     os.makedirs(os.path.dirname(union_path), exist_ok=True)
     open(union_path, "w").close()
@@ -299,6 +299,88 @@ def run_jev_loop(
             fh.write(json.dumps({"id": t + 1, "tokens": toks}) + "\n")
 
         proj = ewm.project(union_path, open_result.frame_path)
+        m_t = np.array(proj["frames"][-1]["bss"])
+        M_rows.append(m_t)
+
+        mat = ewm.materialize(union_path)
+        mem = memory_tokens(mat["frames"][-1]["ordered"])
+
+        if t % 4 == 0 or t == T - 1:
+            print(f"t={t:2d} q={q}  route={route_name:6s}  "
+                  f"confidence={decision.confidence:.3f}  gated={gated}  mock={decision.mock}")
+
+    return JevLoopResult(
+        M_jev=np.array(M_rows),
+        query_log=query_log,
+        decision_log=decision_log,
+        union_path=union_path,
+        gated_log=gated_log,
+    )
+
+
+def run_jev_loop_from_streams(
+    ewm: EwmScene,
+    streams: dict[str, list[list[str]]],
+    router: DecisionRouter,
+    frame_path: str,
+    queries: list[str],
+    work_dir: str,
+    T: int = 24,
+    instructions: Optional[str] = None,
+    options: Optional[dict[str, str]] = None,
+    confidence_floor: Optional[float] = None,
+    fallback: Optional[str] = None,
+    ingest_decision: bool = True,
+) -> JevLoopResult:
+    """Router loop over pre-captured front-end streams (notebook 15 style):
+    each step, the router decides which front-end should handle the query;
+    that front-end's next captured frame joins the union S(t)."""
+    names = list(streams)
+    options = options or {
+        "ocr": "the query asks to read or verify text from a page or document",
+        "vla": "the query asks which physical action the robot should take next",
+        "jepa": "the query asks what happens next in a video or scene",
+    }
+    instructions = instructions or "Which front-end should handle this query?"
+    union_path = f"{work_dir}/router_union.jsonl"
+    os.makedirs(os.path.dirname(union_path), exist_ok=True)
+    open(union_path, "w").close()
+
+    mem: list[str] = []
+    M_rows: list[np.ndarray] = []
+    query_log: list[int] = []
+    decision_log: list[DecisionRecord] = []
+    gated_log: list[bool] = []
+
+    for t in range(T):
+        q = t % len(queries)
+        query_log.append(q)
+        state = {
+            "query": queries[q],
+            "memory": " ".join(mem),
+            "step": t,
+            "bss": ({n: round(float(M_rows[-1][i]), 4) for i, n in enumerate(names)}
+                    if M_rows else {}),
+        }
+        decision = router.route(
+            state, options, instructions,
+            extra_noul={"needs_memory": "The query requires context from previous steps"},
+        )
+        decision_log.append(decision)
+
+        gated = bool(confidence_floor is not None and decision.confidence < confidence_floor)
+        gated_log.append(gated)
+        route_name = decision.decision
+        if gated and fallback is not None:
+            route_name = fallback
+
+        toks = list(streams[route_name][t])
+        if ingest_decision:
+            toks = toks + decision_tokens(decision)
+        with open(union_path, "a") as fh:
+            fh.write(json.dumps({"id": t + 1, "tokens": toks}) + "\n")
+
+        proj = ewm.project(union_path, frame_path)
         m_t = np.array(proj["frames"][-1]["bss"])
         M_rows.append(m_t)
 

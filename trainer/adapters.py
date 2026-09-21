@@ -11,7 +11,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import subprocess
 import zlib
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -263,3 +265,168 @@ class JevAdapter(DecisionRouter):
             output_tokens=0,
             mock=True,
         )
+
+
+class LayaAdapter(DecisionRouter):
+    """Rust Laya (the open-source System One decision model) as the router.
+
+    Laya is the Apache-2.0, ungated sibling of TypeSafe's Jev: a
+    non-autoregressive ModernBERT-large encoder + RL decision head that
+    answers typed questions (choice / score / noul) with calibrated
+    probabilities in one forward pass. This adapter talks to a persistent
+    `laya-jsonl` daemon (pure Rust on candle — no Python, no torch), so the
+    checkpoint is loaded once and every `route()` is a single batched pass.
+
+    Falls back to the deterministic mock when the binary or checkpoint is
+    missing.
+    """
+
+    def __init__(
+        self,
+        bin_path: Optional[str] = None,
+        model_dir: Optional[str] = None,
+        device: str = "cpu",
+    ):
+        self.bin = bin_path or os.environ.get(
+            "LAYA_BIN", "/home/alexmy/tools/laya-rust/target/release/laya-jsonl"
+        )
+        self.model_dir = model_dir or os.environ.get(
+            "LAYA_MODEL", "/home/alexmy/.cache/laya/typed-decisions"
+        )
+        self.device = device
+        self.mock = not (
+            os.path.exists(self.bin)
+            and os.path.exists(os.path.join(self.model_dir, "model.safetensors"))
+        )
+        self._mock_reason = (
+            ""
+            if not self.mock
+            else f"laya binary or checkpoint missing ({self.bin}, {self.model_dir})"
+        )
+        self._proc = None
+        self._req_id = 0
+
+    def _ensure_proc(self):
+        if self._proc is None or self._proc.poll() is not None:
+            self._proc = subprocess.Popen(
+                [self.bin, "--model", self.model_dir, "--device", self.device],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+    def route(
+        self,
+        state: dict,
+        options: dict[str, str],
+        instructions: str,
+        extra_noul: Optional[dict[str, str]] = None,
+    ) -> DecisionRecord:
+        if self.mock:
+            return self._mock_route(state, options, instructions, extra_noul)
+
+        questions = {
+            "route": {
+                "type": "choice",
+                "instructions": instructions,
+                "criteria": dict(options),
+            }
+        }
+        for name, instr in (extra_noul or {}).items():
+            questions[name] = {"type": "noul", "instructions": instr}
+
+        self._ensure_proc()
+        self._req_id += 1
+        payload = {
+            "id": self._req_id,
+            "state": self._prose_state(state),
+            "questions": questions,
+        }
+        self._proc.stdin.write(json.dumps(payload) + "\n")
+        self._proc.stdin.flush()
+        line = self._proc.stdout.readline()
+        resp = json.loads(line)["response"]
+        ans = resp["answers"]["route"]
+
+        probabilities = {str(k): float(v) for k, v in ans.get("probabilities", {}).items()}
+        aux = {
+            name: float(resp["answers"][name].get("noul", 0.0))
+            for name in (extra_noul or {})
+        }
+        usage = resp.get("usage", {})
+        return DecisionRecord(
+            decision=str(ans.get("choice", "")),
+            confidence=float(ans.get("confidence", 0.0)),
+            probabilities=probabilities,
+            decision_type="route_query",
+            aux=aux,
+            model=str(resp.get("model", "laya")),
+            input_tokens=int(usage.get("input_tokens", 0)),
+            output_tokens=int(usage.get("output_tokens", 0)),
+            mock=False,
+        )
+
+    @staticmethod
+    def _prose_state(state: dict) -> str:
+        """Laya rewards prose, not raw structs (see the model card): name the
+        situation the way a person would, put the query first, keep the
+        opaque tid memory short and framed."""
+        parts = []
+        query = str(state.get("query", "")).strip()
+        memory = str(state.get("memory", "")).strip()
+        bss = state.get("bss", {})
+        if query:
+            parts.append(f"The user asked: \"{query}\".")
+        if memory:
+            toks = memory.split()
+            shown = " ".join(toks[:8])
+            parts.append(
+                f"The system's memory holds {len(toks)} content-addressed token ids "
+                f"from earlier answers; the most recent are: {shown}."
+            )
+        if bss:
+            parts.append(
+                "The three models' current coverage of the conversation is: "
+                + ", ".join(f"{k} {float(v):.3f}" for k, v in bss.items())
+                + "."
+            )
+        return " ".join(parts)
+
+    def _mock_route(
+        self,
+        state: dict,
+        options: dict[str, str],
+        instructions: str,
+        extra_noul: Optional[dict[str, str]] = None,
+    ) -> DecisionRecord:
+        query = str(state.get("query", ""))
+        memory = str(state.get("memory", ""))
+        seed = zlib.crc32((query + memory).encode("utf-8"))
+        names = list(options)
+        rng = np.random.default_rng(seed)
+        logits = rng.uniform(0.0, 1.0, size=len(names))
+        probs = np.exp(logits) / np.exp(logits).sum()
+        probs = {n: float(p) for n, p in zip(names, probs)}
+        choice = max(probs, key=probs.get)
+        aux = {name: 0.5 for name in (extra_noul or {})}
+        return DecisionRecord(
+            decision=choice,
+            confidence=float(probs[choice]),
+            probabilities=probs,
+            decision_type="route_query",
+            aux=aux,
+            model="mock-laya",
+            input_tokens=0,
+            output_tokens=0,
+            mock=True,
+        )
+
+    def close(self):
+        if self._proc is not None and self._proc.poll() is None:
+            self._proc.terminate()
+            try:
+                self._proc.wait(timeout=10)
+            except Exception:
+                self._proc.kill()
+        self._proc = None

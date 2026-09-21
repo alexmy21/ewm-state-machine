@@ -279,6 +279,9 @@ the cells.
 | 13 | `multi_llm_sidecar_jev_router` | the first non-LLM actor in the loop: TypeSafe AI's **Jev** (System One) as router — the controller sends query + materialized memory + BSS to `JevAdapter`, Jev returns a typed `DecisionRecord` (choice + probabilities + confidence), only the chosen LLM answers, and ewm-sm ingests the answer unchanged; mock fallback runs when `TYPESAFE_API_KEY` is unset |
 | 14 | `multi_llm_sidecar_jev_patterns` | the two Jev patterns that matter for ewm-sm, built with the mock while the API key is waitlisted: **confidence-gated routing** (below a floor, route to a fallback LLM) and **decision-in-state** (the `DecisionRecord` is lowered to `jev_*` tokens and ingested into `S(t)`, so the decision joins the memory); live-Jev ready by setting `TYPESAFE_API_KEY` |
 | 15 | `hetero_sidecar_ocr_vla_jepa` | the realistic heterogeneous side-car: three non-LLM front-ends — **DeepSeek-OCR** (vision-encoder token ids), **NVIDIA Cosmos-Policy VLA** (quantized action chunk), **V-JEPA** (quantized patch ids) — captured first in their native envs (`captures/capture_*.py`), then one union `S(t) = S_ocr ∪ S_vla ∪ S_jepa` through the unchanged ewm-sm: `(Frontend, Ring)` pattern matrix, Noether D/R/N, materialized memory |
+| 16 | `multi_llm_sidecar_rust_laya` | the open-source decision model in the loop: **Laya** (Apache-2.0, ungated, 421M, non-autoregressive typed decisions) runs as a persistent pure-Rust candle daemon behind the same `DecisionRouter` seam as Jev — no API key, no Python model; confidence gating + decision-in-state reuse notebook 14 with real calibrated probabilities (here the near-uniform confidences gate all steps to the fallback — the gate working as designed) |
+| 17 | `multi_llm_sidecar_rust_laya_prompts` | the article's one failure mode, measured and fixed: an A/B over the eight queries (model-name options vs answer-type phrases, prose state) roughly doubles Laya's confidence and rebalances its choices; the improved router loop on the real LLMs keeps gating low-confidence steps to the fallback |
+| 18 | `hetero_sidecar_rust_laya_router` | Laya routes the **heterogeneous** front-ends of notebook 15: each step the typed decision model picks OCR / VLA / JEPA for the query and that front-end's captured frame joins the union — options are genuinely different worlds, so Laya separates them (ocr 9 / vla 2 / jepa 13) with the same gating + decision-in-state |
 
 Notebooks 01–04 were updated with the aarambh-vision-studio revisions:
 **01** adds structural commits (basis change) and the `ewm-ops` operational
@@ -324,7 +327,7 @@ EWM_JEPA=/path/to/ewm-jepa EWM_SM=/path/to/ewm-state-machine \
 Without the JEPA side the setup cell stops with instructions on where to
 clone it and what the `EWM_JEPA` variable should point at.
 
-### Multi-LLM side-car real (notebooks 09–15)
+### Multi-LLM side-car real (notebooks 09–18)
 
 Notebook 09 runs the same side-car as notebook 08 with three **real small
 LLMs** on the `ewm-nanolm` kernel. Notebook 10 keeps the same probes and
@@ -334,11 +337,14 @@ controller. Notebook 11 isolates the predictor as a portfolio
 meta-controller that learns which predictor to trust. Notebook 12 replaces
 the EWMA selector with a `LearnedSelector` that conditions on trajectory
 features and refits one linear model per predictor online. Notebook 13 adds
-TypeSafe AI's **Jev** (System One) as a typed-decision router, and notebook
-14 adds its confidence-gated routing + decision-in-state patterns. Notebook
+TypeSafe AI's **Jev** (System One) as a typed-decision router, notebook
+14 adds its confidence-gated routing + decision-in-state patterns, notebook
 15 generalizes the side-car to **three heterogeneous non-LLM front-ends**
-(DeepSeek-OCR + NVIDIA VLA + V-JEPA) via capture-first JSONLs. The 09–14
-models are loaded from the local HuggingFace cache on the RTX 3060
+(DeepSeek-OCR + NVIDIA VLA + V-JEPA) via capture-first JSONLs, notebook
+16 swaps in the open-source **Laya** decision model on a pure-Rust candle
+daemon, notebook 17 measures and fixes the prompt failure mode, and
+notebook 18 lets Laya route the heterogeneous front-ends. The 09–14 models
+are loaded from the local HuggingFace cache on the RTX 3060
 (`CUDA_VISIBLE_DEVICES=1`):
 
 - `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`
@@ -364,6 +370,11 @@ models are loaded from the local HuggingFace cache on the RTX 3060
 - For notebook 15: the three captures under `~/.cache/ewm-hetero/`, produced
   by `captures/capture_*.py` in their native envs (see the capture scripts'
   docstrings); the notebook itself runs on the plain `python3` kernel.
+- For notebooks 16–18: the Rust Laya daemon `laya-jsonl`
+  (`/home/alexmy/tools/laya-rust`) and the checkpoint
+  `/home/alexmy/.cache/laya/typed-decisions` (Apache-2.0, ungated;
+  `LayaAdapter` falls back to a mock when either is missing). Notebook 18
+  reuses the notebook-15 captures and runs on the plain `python3` kernel.
 
 #### **Run**
 
@@ -375,6 +386,9 @@ jupyter notebook notebooks/12_multi_llm_sidecar_learned_selector.ipynb
 jupyter notebook notebooks/13_multi_llm_sidecar_jev_router.ipynb
 jupyter notebook notebooks/14_multi_llm_sidecar_jev_patterns.ipynb
 jupyter notebook notebooks/15_hetero_sidecar_ocr_vla_jepa.ipynb
+jupyter notebook notebooks/16_multi_llm_sidecar_rust_laya.ipynb
+jupyter notebook notebooks/17_multi_llm_sidecar_rust_laya_prompts.ipynb
+jupyter notebook notebooks/18_hetero_sidecar_rust_laya_router.ipynb
 ```
 
 The notebooks set `CUDA_VISIBLE_DEVICES=1` before importing torch; override

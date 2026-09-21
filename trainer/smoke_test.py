@@ -19,6 +19,7 @@ from trainer import (
     EwmScene,
     EwmaSelector,
     JevAdapter,
+    LayaAdapter,
     LearnedSelector,
     ProbeConfig,
     SyntheticAdapter,
@@ -123,6 +124,23 @@ def main() -> int:
     print("jev router (mock, confidence-gated, decision-in-state): ok")
     print("  gated steps:", sum(jev_result.gated_log), "of", len(jev_result.gated_log))
     print("  first decision:", jev_result.decision_log[0].to_dict())
+
+    # ── Rust Laya as router (real decision model, no torch) ────────────────
+    laya = LayaAdapter()
+    if laya.mock:
+        print("laya router: SKIPPED (binary/checkpoint missing)")
+    else:
+        laya_result = run_jev_loop(
+            adapter, laya, ewm, open_result, QUERIES, work_dir, T=6,
+            confidence_floor=0.15, fallback="llm_b", ingest_decision=True,
+        )
+        assert laya_result.M_jev.shape == (6, 3)
+        assert len(laya_result.decision_log) == 6
+        assert all(d.decision in ("llm_a", "llm_b", "llm_c") for d in laya_result.decision_log)
+        assert not any(d.mock for d in laya_result.decision_log)
+        laya.close()
+        print("laya router (rust/candle): ok")
+        print("  first decision:", laya_result.decision_log[0].to_dict())
     print("smoke test passed")
     return 0
 
