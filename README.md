@@ -145,6 +145,7 @@ ewm-state-machine/
 │   ├── BOOLRING.md            # GF(2) Boolean-ring context index (spike, positive)
 │   ├── BASIS_FRAMES.md        # basis frames: HLLSet interpretation, time travel, commit conditions
 │   ├── TRAINER.md             # trainer layer: separation map, protocol interfaces, DSL roadmap
+│   ├── BONSAI_COLLAB.md       # Bonsai + ewm-sm collaborative model architecture + CLI
 │   ├── PODMAN.md              # podman packaging + notebook/container setup
 │   └── ASSIGNMENT_QWENDRIVE.md # next assignment — Qwen-Drive test bench
 ├── trainer/                   # the trainer/controller reference implementation
@@ -154,6 +155,7 @@ ewm-state-machine/
 │   ├── adapters.py            # probe adapters (SyntheticAdapter, LlmAdapter)
 │   ├── ewm.py                 # ewm-scene client (the only Rust-facing module)
 │   ├── loop.py                # open loop + closed loop (memory + curiosity)
+│   ├── bonsai_cli.py          # BonsaiSession + the ewm-bonsai REPL
 │   └── smoke_test.py          # full-pipeline self-check (no torch needed)
 ├── captures/                  # capture-first front-end scripts (OCR / VLA / JEPA)
 └── crates/

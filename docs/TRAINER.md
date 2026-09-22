@@ -134,6 +134,7 @@ root (numpy-only for the core; torch only inside `LlmAdapter`):
 | `trainer/adapters.py` | `Adapter`, `SyntheticAdapter`, `LlmAdapter`, `DecisionRouter` ABC + `JevAdapter` (TypeSafe System One router with mock fallback) + `LayaAdapter` (open-source Laya on a persistent Rust/candle daemon) + `BonsaiAdapter` (PrismML Bonsai llama.cpp server: chat + tokenize + detokenize), `decision_tokens`, `displacement_tokens` (the D-part novelty filter), `memory_tokens`, `build_prompt` |
 | `trainer/ewm.py` | `EwmScene` client (the only place that talks to the Rust apparatus) + JSONL writers |
 | `trainer/loop.py` | `run_open_loop`, `run_open_loop_from_streams` (capture-first front-ends), `run_closed_loop`, `run_jev_loop` (Jev/Laya router loop with confidence gate and decision-in-state), `run_jev_loop_from_streams` (router over pre-captured streams) |
+| `trainer/bonsai_cli.py` | `BonsaiSession` (the collaborative controller: lattice state + context proposal + Bonsai) + the `ewm-bonsai` REPL |
 | `trainer/smoke_test.py` | full pipeline against real `ewm-scene` with a deterministic synthetic adapter (no torch) |
 
 Run the self-check with:
