@@ -41,6 +41,19 @@ def memory_tokens(ordered: list[str], cap: int = 24) -> list[str]:
     return toks[-cap:]
 
 
+def displacement_tokens(seen: set, tids: list[str]) -> list[str]:
+    """The D-part of the Noether decomposition at token granularity: only the
+    tids that are new to the lattice (`t not in seen`) are returned, and they
+    are added to `seen`. This is the compressed, information-bearing context —
+    repeated content collapses to nothing, exactly like the HLLSet union."""
+    out: list[str] = []
+    for t in tids:
+        if t not in seen:
+            out.append(t)
+            seen.add(t)
+    return out
+
+
 def build_prompt(cfg: ProbeConfig) -> str:
     """Probe prompt: memory prefix (token format) + the query."""
     if cfg.memory:
@@ -430,3 +443,70 @@ class LayaAdapter(DecisionRouter):
             except Exception:
                 self._proc.kill()
         self._proc = None
+
+
+class BonsaiAdapter:
+    """PrismML Bonsai (ternary 27B) served by the PrismML llama.cpp fork.
+
+    Bonsai is a reasoning model; the server exposes the OpenAI-compatible
+    chat API plus llama.cpp's /tokenize and /detokenize endpoints. The
+    adapter turns Bonsai's answers into the same `tid{n}` streams the rest
+    of the trainer understands — and turns materialized tid memory back into
+    text for the next prompt, so ewm-sm can act as Bonsai's context manager.
+    """
+
+    def __init__(self, base_url: str = "http://127.0.0.1:8081", timeout: int = 600):
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        import urllib.request
+
+        self._urllib = urllib.request
+
+    def _post(self, path: str, payload: dict) -> dict:
+        import json as _json
+
+        req = self._urllib.Request(
+            self.base_url + path,
+            data=_json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with self._urllib.urlopen(req, timeout=self.timeout) as resp:
+            return _json.loads(resp.read().decode("utf-8"))
+
+    def health(self) -> bool:
+        try:
+            with self._urllib.urlopen(self.base_url + "/health", timeout=10) as resp:
+                import json as _json
+
+                return _json.loads(resp.read().decode("utf-8")).get("status") == "ok"
+        except Exception:
+            return False
+
+    def chat(self, prompt: str, max_tokens: int = 256, temperature: float = 0.0):
+        """-> (answer_text, reasoning_text)."""
+        full = self.chat_full(prompt, max_tokens=max_tokens, temperature=temperature)
+        return full["content"], full["reasoning"]
+
+    def chat_full(self, prompt: str, max_tokens: int = 256, temperature: float = 0.0) -> dict:
+        """Full response: content, reasoning and usage (incl. prompt_tokens)."""
+        r = self._post(
+            "/v1/chat/completions",
+            {
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": False,
+            },
+        )
+        msg = r["choices"][0]["message"]
+        return {
+            "content": str(msg.get("content") or ""),
+            "reasoning": str(msg.get("reasoning_content") or ""),
+            "usage": dict(r.get("usage", {})),
+        }
+
+    def tokenize(self, text: str) -> list[int]:
+        return list(self._post("/tokenize", {"content": text}).get("tokens", []))
+
+    def detokenize(self, tokens: list[int]) -> str:
+        return str(self._post("/detokenize", {"tokens": tokens}).get("content", ""))

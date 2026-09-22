@@ -17,7 +17,7 @@ from .predictors import (
     default_portfolio,
 )
 from .selector import EwmaSelector, LearnedSelector, selector_features
-from .adapters import Adapter, SyntheticAdapter, LlmAdapter, JevAdapter, LayaAdapter, memory_tokens, build_prompt
+from .adapters import Adapter, SyntheticAdapter, LlmAdapter, JevAdapter, LayaAdapter, BonsaiAdapter, memory_tokens, displacement_tokens, build_prompt
 from .ewm import EwmScene, write_frames, write_pyramid, write_union
 from .loop import (
     LoopResult,
@@ -51,7 +51,9 @@ __all__ = [
     "LlmAdapter",
     "JevAdapter",
     "LayaAdapter",
+    "BonsaiAdapter",
     "memory_tokens",
+    "displacement_tokens",
     "build_prompt",
     "EwmScene",
     "write_frames",

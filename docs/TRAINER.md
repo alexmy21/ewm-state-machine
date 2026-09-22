@@ -131,7 +131,7 @@ root (numpy-only for the core; torch only inside `LlmAdapter`):
 | `trainer/protocol.py` | `ProbeConfig`, `TrajectoryRecord`, `Prediction`, `Selection`, `DecisionRecord` — the §3 shapes as dataclasses |
 | `trainer/predictors.py` | `dft_period`, `Predictor` base, persistence / linear / dft-periodic / ridge, `default_portfolio()` |
 | `trainer/selector.py` | `EwmaSelector` + `LearnedSelector` (linear scoring policy over trajectory features, online ridge fit to reward = −surprise) + `selector_features` |
-| `trainer/adapters.py` | `Adapter`, `SyntheticAdapter`, `LlmAdapter`, `DecisionRouter` ABC + `JevAdapter` (TypeSafe System One router with mock fallback) + `LayaAdapter` (open-source Laya on a persistent Rust/candle daemon), `decision_tokens`, `memory_tokens`, `build_prompt` |
+| `trainer/adapters.py` | `Adapter`, `SyntheticAdapter`, `LlmAdapter`, `DecisionRouter` ABC + `JevAdapter` (TypeSafe System One router with mock fallback) + `LayaAdapter` (open-source Laya on a persistent Rust/candle daemon) + `BonsaiAdapter` (PrismML Bonsai llama.cpp server: chat + tokenize + detokenize), `decision_tokens`, `displacement_tokens` (the D-part novelty filter), `memory_tokens`, `build_prompt` |
 | `trainer/ewm.py` | `EwmScene` client (the only place that talks to the Rust apparatus) + JSONL writers |
 | `trainer/loop.py` | `run_open_loop`, `run_open_loop_from_streams` (capture-first front-ends), `run_closed_loop`, `run_jev_loop` (Jev/Laya router loop with confidence gate and decision-in-state), `run_jev_loop_from_streams` (router over pre-captured streams) |
 | `trainer/smoke_test.py` | full pipeline against real `ewm-scene` with a deterministic synthetic adapter (no torch) |
@@ -194,7 +194,19 @@ three JSON shapes, nothing more.
    PTX ISA 8.7 and the 565.77 driver supports ≤ 12.7 — so the daemon runs
    on CPU (~600 ms/decision) until the driver is updated or an nvcc ≤ 12.7
    is used.
-8. Next: live-Jev benchmark when the key arrives; `Score`/`Noul`
-   per-action gates; make the heterogeneous loop fully live (live front-end
-   calls instead of captures); longer closed loops and surprise-driven
-   updates to the predictors themselves.
+8. ✅ Bonsai behind the lattice (notebook 19): PrismML Bonsai 2 27B
+   (ternary weights, 5.9 GB on the RTX 3060, ~8 tok/s) through the
+   PrismML llama.cpp fork; `BonsaiAdapter` (chat + tokenize + detokenize)
+   feeds answer/reasoning tid streams into `S(t)` and the lattice-
+   materialized memory is the only context Bonsai sees next turn — ewm-sm
+   as Bonsai's content-addressed context manager, above its token-level
+   KV/prompt cache.
+9. ✅ Compressed Bonsai context (notebook 20): `displacement_tokens`
+   keeps only tids new to the lattice (the D-part at token granularity) as
+   the context prefix; measured with Bonsai's own `prompt_tokens` — ~1.8%
+   fewer on 6 short turns, scaling with conversation redundancy.
+10. Next: live-Jev benchmark when the key arrives; `Score`/`Noul`
+   per-action gates; a context-aware filter (D + Noether R/N-surprising
+   tids) with a Laya-decided cap per turn; one Laya/Jev router over
+   Bonsai + the three small LLMs + the heterogeneous front-ends; longer
+   closed loops and surprise-driven updates to the predictors themselves.

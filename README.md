@@ -282,6 +282,8 @@ the cells.
 | 16 | `multi_llm_sidecar_rust_laya` | the open-source decision model in the loop: **Laya** (Apache-2.0, ungated, 421M, non-autoregressive typed decisions) runs as a persistent pure-Rust candle daemon behind the same `DecisionRouter` seam as Jev — no API key, no Python model; confidence gating + decision-in-state reuse notebook 14 with real calibrated probabilities (here the near-uniform confidences gate all steps to the fallback — the gate working as designed) |
 | 17 | `multi_llm_sidecar_rust_laya_prompts` | the article's one failure mode, measured and fixed: an A/B over the eight queries (model-name options vs answer-type phrases, prose state) roughly doubles Laya's confidence and rebalances its choices; the improved router loop on the real LLMs keeps gating low-confidence steps to the fallback |
 | 18 | `hetero_sidecar_rust_laya_router` | Laya routes the **heterogeneous** front-ends of notebook 15: each step the typed decision model picks OCR / VLA / JEPA for the query and that front-end's captured frame joins the union — options are genuinely different worlds, so Laya separates them (ocr 9 / vla 2 / jepa 13) with the same gating + decision-in-state |
+| 19 | `bonsai_sidecar_context` | PrismML **Bonsai 2 27B** (ternary weights, 5.9 GB, reasoning) runs on the RTX 3060 through their llama.cpp fork, with the ewm-sm side-car **above its token-level context**: answers + reasoning traces are tid streams, `S(t)` accumulates them, and the lattice-materialized memory (restored order) is the only context Bonsai sees on the next turn — ewm-sm as Bonsai's content-addressed context manager |
+| 20 | `bonsai_compressed_context` | the Bonsai-specific compressed context: `displacement_tokens` keeps only tids that are **new** to the lattice (the D-part of the Noether decomposition at token granularity) as the context prefix; measured against the full-memory baseline with Bonsai's own `prompt_tokens` — honest ~1.8% win on 6 short turns, and the win scales with conversation redundancy |
 
 Notebooks 01–04 were updated with the aarambh-vision-studio revisions:
 **01** adds structural commits (basis change) and the `ewm-ops` operational
@@ -327,7 +329,7 @@ EWM_JEPA=/path/to/ewm-jepa EWM_SM=/path/to/ewm-state-machine \
 Without the JEPA side the setup cell stops with instructions on where to
 clone it and what the `EWM_JEPA` variable should point at.
 
-### Multi-LLM side-car real (notebooks 09–18)
+### Multi-LLM side-car real (notebooks 09–20)
 
 Notebook 09 runs the same side-car as notebook 08 with three **real small
 LLMs** on the `ewm-nanolm` kernel. Notebook 10 keeps the same probes and
@@ -342,9 +344,11 @@ TypeSafe AI's **Jev** (System One) as a typed-decision router, notebook
 15 generalizes the side-car to **three heterogeneous non-LLM front-ends**
 (DeepSeek-OCR + NVIDIA VLA + V-JEPA) via capture-first JSONLs, notebook
 16 swaps in the open-source **Laya** decision model on a pure-Rust candle
-daemon, notebook 17 measures and fixes the prompt failure mode, and
-notebook 18 lets Laya route the heterogeneous front-ends. The 09–14 models
-are loaded from the local HuggingFace cache on the RTX 3060
+daemon, notebook 17 measures and fixes the prompt failure mode, notebook
+18 lets Laya route the heterogeneous front-ends, notebook 19 puts
+PrismML **Bonsai 2 27B** behind the lattice as its context manager, and
+notebook 20 compresses that context to the D-part (new tids only). The
+09–14 models are loaded from the local HuggingFace cache on the RTX 3060
 (`CUDA_VISIBLE_DEVICES=1`):
 
 - `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`
@@ -375,6 +379,17 @@ are loaded from the local HuggingFace cache on the RTX 3060
   `/home/alexmy/.cache/laya/typed-decisions` (Apache-2.0, ungated;
   `LayaAdapter` falls back to a mock when either is missing). Notebook 18
   reuses the notebook-15 captures and runs on the plain `python3` kernel.
+- For notebook 19: the PrismML Bonsai demo at `/home/alexmy/tools/Bonsai-demo`
+  (`./setup.sh` downloads the 27B PQ2_0 GGUF + llama.cpp CUDA binaries) with
+  the server running on `127.0.0.1:8081`:
+  ```bash
+  cd /home/alexmy/tools/Bonsai-demo
+  LD_LIBRARY_PATH="$PWD/bin/cuda" ./bin/cuda/llama-server \
+      -m models/bonsai2-gguf/27B/Ternary-Bonsai-2-27B-PQ2_0.gguf \
+      -ngl 99 -fa on -c 2048 --host 127.0.0.1 --port 8081
+  ```
+  (Do **not** set `CUDA_VISIBLE_DEVICES`: this llama fork lists the RTX 3060
+  as CUDA0 and the Quadro M1200 as CUDA1.)
 
 #### **Run**
 
@@ -389,6 +404,8 @@ jupyter notebook notebooks/15_hetero_sidecar_ocr_vla_jepa.ipynb
 jupyter notebook notebooks/16_multi_llm_sidecar_rust_laya.ipynb
 jupyter notebook notebooks/17_multi_llm_sidecar_rust_laya_prompts.ipynb
 jupyter notebook notebooks/18_hetero_sidecar_rust_laya_router.ipynb
+jupyter notebook notebooks/19_bonsai_sidecar_context.ipynb
+jupyter notebook notebooks/20_bonsai_compressed_context.ipynb
 ```
 
 The notebooks set `CUDA_VISIBLE_DEVICES=1` before importing torch; override
