@@ -90,16 +90,17 @@ impl Ingest {
         self.hllsets.iter().fold(HLLSet::new(), |acc, s| acc.union(s))
     }
 
-    /// The key of the projection: `h:<sha1>`. G1/G2/G3 are shared,
-    /// scheme-agnostic channels; the bootstrap scheme lives on the LUT
-    /// names, not on the Gn keys.
+    /// The key of the projection: `c:<sha1>` — the **catalog** mark. The
+    /// n-seed ingest populates unordered token collections, so its HLLSets
+    /// carry the `c:` prefix, mirroring the `ns:` LUT names; ordered n-gram
+    /// ingests carry `h:` / `ng:`.
     pub fn key(&self) -> String {
-        self.projection().content_key()
+        self.projection().content_key_c()
     }
 
-    /// The keys of the three channel HLLSets (`h:<sha1>` for G1, G2, G3).
+    /// The keys of the three channel HLLSets (`c:<sha1>` for G1, G2, G3).
     pub fn keys(&self) -> [String; N_SEEDS] {
-        std::array::from_fn(|i| self.hllsets[i].content_key())
+        std::array::from_fn(|i| self.hllsets[i].content_key_c())
     }
 
     /// The scheme-prefixed names of the n-seed LUTs: `ns:G1`, `ns:G2`,
@@ -142,17 +143,17 @@ mod tests {
     }
 
     #[test]
-    fn n_seed_keys_are_scheme_agnostic_and_luts_are_named() {
+    fn n_seed_keys_are_catalog_marked_and_luts_are_named() {
         let mut ingest = Ingest::new();
         ingest.ingest_tokens([&b"alpha"[..], &b"beta"[..]]);
 
         let key = ingest.key();
-        assert!(key.starts_with("h:"), "key = {key}");
-        assert_eq!(key, ingest.projection().content_key());
+        assert!(key.starts_with("c:"), "catalog key = {key}");
+        assert_eq!(key, ingest.projection().content_key_c());
 
         for (i, k) in ingest.keys().iter().enumerate() {
-            assert!(k.starts_with("h:"));
-            assert_eq!(*k, ingest.hllset(i).content_key());
+            assert!(k.starts_with("c:"), "channel key = {k}");
+            assert_eq!(*k, ingest.hllset(i).content_key_c());
         }
 
         // The scheme prefix lives on the LUT names.

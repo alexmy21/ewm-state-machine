@@ -11,6 +11,9 @@ description = "The [UM] harness: the stateless driver loop of the state machine 
 ewm-git = { workspace = true }
 context-tree = { workspace = true }
 
+# ── cache layer (Arrow spill/restore; shared reverse LUT auto-merge) ──
+ewm-cache = { workspace = true }
+
 # ── foundation (the state representation + default morphisms) ──
 hllset-core = { workspace = true }
 hllset-contracts = { workspace = true }

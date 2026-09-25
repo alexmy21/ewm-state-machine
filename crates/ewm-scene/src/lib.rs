@@ -22,13 +22,16 @@ pub struct Frame {
     pub tokens: Vec<String>,
 }
 
-/// Ingest every frame; keep the projection HLLSet (`G1 ∪ G2 ∪ G3`) and its key.
+/// Ingest every frame; keep the projection HLLSet (`G1 ∪ G2 ∪ G3`), its key,
+/// and the G1 sketch (the channel shared verbatim between n-gram and n-seed
+/// schemes — used for G1-scoped comparisons).
 #[derive(Clone, Debug)]
 pub struct FrameSet {
     pub frames: Vec<Frame>,
     pub hllsets: Vec<HLLSet>,
     pub keys: Vec<String>,
     pub pops: Vec<u64>,
+    pub g1s: Vec<HLLSet>,
 }
 
 impl FrameSet {
@@ -36,6 +39,7 @@ impl FrameSet {
         let mut hllsets = Vec::with_capacity(frames.len());
         let mut keys = Vec::with_capacity(frames.len());
         let mut pops = Vec::with_capacity(frames.len());
+        let mut g1s = Vec::with_capacity(frames.len());
         for frame in &frames {
             // The lattice line is n-seed: the frame HLLSet is the set of the
             // frame's token atoms (projection G1 ∪ G2 ∪ G3, no PAD). The
@@ -46,12 +50,14 @@ impl FrameSet {
             keys.push(ig.key());
             pops.push(projection.popcount());
             hllsets.push(projection);
+            g1s.push(ig.hllset(0).clone());
         }
         Self {
             frames,
             hllsets,
             keys,
             pops,
+            g1s,
         }
     }
 
@@ -529,11 +535,13 @@ pub fn pyramid(frames: &[PyramidFrame], cap: usize, freeze: Option<usize>) -> Py
 
 /// One projection dimension: a named HLLSet — the `i`-th axis of a
 /// decomposition frame (a perceptron state, a D/R/N set, a ring basis
-/// element, any named HLLSet).
+/// element, any named HLLSet). The `g1` sketch is the dimension's G1
+/// channel, used for G1-scoped (cross-scheme safe) BSS.
 #[derive(Clone, Debug)]
 pub struct Dimension {
     pub name: String,
     pub hll: HLLSet,
+    pub g1: HLLSet,
 }
 
 impl Dimension {
@@ -545,6 +553,7 @@ impl Dimension {
         Dimension {
             name,
             hll: ig.projection(),
+            g1: ig.hllset(0).clone(),
         }
     }
 }
@@ -558,6 +567,9 @@ pub struct ProjectFrameOut {
     /// The BSS similarity vector `(|X ∩ D_i| / |D_i|)` — the coordinates of
     /// `X` in the decomposition frame.
     pub bss: Vec<f64>,
+    /// The G1-scoped BSS `(|X_G1 ∩ D_i_G1| / |D_i_G1|)` — the cross-scheme
+    /// safe comparison (only 1-gram/seed-0 bits are matched).
+    pub bss_g1: Vec<f64>,
 }
 
 /// The BSS trajectory of a stream over a decomposition frame: every
@@ -571,15 +583,26 @@ pub struct ProjectOut {
     pub frames: Vec<ProjectFrameOut>,
 }
 
-/// Project a stream of HLLSets onto a frame of named dimensions.
-pub fn project(hllsets: &[HLLSet], ids: &[u64], dims: &[Dimension]) -> ProjectOut {
+/// Project a stream of HLLSets onto a frame of named dimensions. `g1s` holds
+/// each stream frame's G1 sketch (parallel to `hllsets`) for the G1-scoped
+/// BSS — comparing an n-gram stream with n-seed dimensions on the full
+/// projection would dilute identical-token similarity to ~1/3.
+pub fn project(
+    hllsets: &[HLLSet],
+    g1s: &[HLLSet],
+    ids: &[u64],
+    dims: &[Dimension],
+) -> ProjectOut {
     assert_eq!(hllsets.len(), ids.len(), "stream and ids must align");
+    assert_eq!(hllsets.len(), g1s.len(), "stream and g1 sketches must align");
     let names: Vec<String> = dims.iter().map(|d| d.name.clone()).collect();
     let pops: Vec<u64> = dims.iter().map(|d| d.hll.popcount()).collect();
+    let g1_pops: Vec<u64> = dims.iter().map(|d| d.g1.popcount()).collect();
     let frames = hllsets
         .iter()
+        .zip(g1s)
         .zip(ids)
-        .map(|(x, id)| {
+        .map(|((x, x_g1), id)| {
             let intersections: Vec<u64> = dims
                 .iter()
                 .map(|d| x.intersection(&d.hll).popcount())
@@ -595,10 +618,23 @@ pub fn project(hllsets: &[HLLSet], ids: &[u64], dims: &[Dimension]) -> ProjectOu
                     }
                 })
                 .collect();
+            let bss_g1: Vec<f64> = dims
+                .iter()
+                .zip(&g1_pops)
+                .map(|(d, pop)| {
+                    let inter = x_g1.intersection(&d.g1).popcount() as f64;
+                    if *pop == 0 {
+                        1.0
+                    } else {
+                        inter / *pop as f64
+                    }
+                })
+                .collect();
             ProjectFrameOut {
                 id: *id,
                 intersections,
                 bss,
+                bss_g1,
             }
         })
         .collect();
@@ -1123,7 +1159,7 @@ mod tests {
             frame(2, &["c", "d"]),
         ]);
         let ids: Vec<u64> = fs.frames.iter().map(|f| f.id).collect();
-        let out = project(&fs.hllsets, &ids, &dims);
+        let out = project(&fs.hllsets, &fs.g1s, &ids, &dims);
 
         assert_eq!(out.names, vec!["D", "N"]);
         assert_eq!(out.frames.len(), 2);

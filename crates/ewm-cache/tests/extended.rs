@@ -195,3 +195,50 @@ fn hllset_keys_are_stable_across_the_cache() {
     assert_eq!(restored.content_key(), format!("h:{sha1}"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn shared_lut_merges_and_materializes_without_a_live_ingest() {
+    use hllset_lut::LutIndex;
+
+    let dir = tmp_dir("shared-lut");
+    let cache = ExtendedCache::open(&dir).unwrap();
+
+    // Two ingests contribute fibers to the shared ns:G1 table.
+    let mut a = LutIndex::default();
+    a.insert_token_at(b"fin_a".to_vec(), 5);
+    a.insert_token_at(b"fin_b".to_vec(), 5);
+    let mut b = LutIndex::default();
+    b.insert_token_at(b"fin_b".to_vec(), 5); // duplicate (bit, token) — deduped
+    b.insert_token_at(b"med_x".to_vec(), 9);
+
+    cache.merge_lut("ns:G1", &a).unwrap();
+    cache.merge_lut("ns:G1", &b).unwrap();
+
+    let batch = cache.read_table("ns:G1").unwrap().unwrap();
+    let rows = lut_rows(&batch);
+    assert_eq!(
+        rows,
+        vec![
+            (5, b"fin_a".to_vec()),
+            (5, b"fin_b".to_vec()),
+            (9, b"med_x".to_vec()),
+        ]
+    );
+
+    // Materialize a state HLLSet against the shared table — no live ingest.
+    let mut state = HLLSet::new();
+    state.add_bit(5);
+    let tokens = cache.materialize_lut(&state, "ns:G1").unwrap();
+    assert_eq!(tokens.len(), 2);
+    assert!(tokens.contains(&b"fin_a".to_vec()));
+    assert!(tokens.contains(&b"fin_b".to_vec()));
+    assert!(!tokens.contains(&b"med_x".to_vec()));
+
+    // A missing table is a clean error.
+    assert!(matches!(
+        cache.materialize_lut(&state, "ng:G1"),
+        Err(ewm_cache::CacheError::Missing { .. })
+    ));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

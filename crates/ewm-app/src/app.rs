@@ -26,12 +26,13 @@ use crate::state::{ids_message, ids_message_structural, StateCache, TurnRecord};
 use crate::encoder::Encoder;
 use context_tree::Leaf;
 use ewm_boolring::RingStats;
+use ewm_cache::ExtendedCache;
 use ewm_git::{
     view, CommitView, IngestSink, LatticeState, ObjectId, ObjectStore, Repository, StoreError,
 };
 use hllset_contracts::token::{parse_token_id, token_in_bytes, TokenId};
 use hllset_core::HLLSet;
-use hllset_morphisms::{ingest, materialize};
+use hllset_morphisms::{ingest, lut_name, materialize, NS};
 
 /// The harness's inscription choice, explicit per NEXT_SESSION §3.7.
 ///
@@ -98,11 +99,14 @@ impl IngestSink for NoopSink {
 
 /// The [UM] — stateless and disposable.
 ///
-/// It owns only the handle to the persistent store. S(t) and H(t-1) live in
-/// the [`StateCache`], which the caller passes in for each turn; the driver
-/// keeps nothing between steps. Dropping the driver loses no state.
+/// It owns only the handle to the persistent store (and, optionally, the
+/// handle to the Arrow extended cache for the shared reverse LUT). S(t) and
+/// H(t-1) live in the [`StateCache`], which the caller passes in for each
+/// turn; the driver keeps nothing between steps. Dropping the driver loses
+/// no state.
 pub struct StateMachine<S: ObjectStore> {
     repo: Repository<S>,
+    shared_lut: Option<ExtendedCache>,
 }
 
 impl<S: ObjectStore> StateMachine<S> {
@@ -110,6 +114,7 @@ impl<S: ObjectStore> StateMachine<S> {
     pub fn new(store: S) -> Self {
         Self {
             repo: Repository::new(store),
+            shared_lut: None,
         }
     }
 
@@ -118,7 +123,19 @@ impl<S: ObjectStore> StateMachine<S> {
     pub fn open(store: S) -> Self {
         Self {
             repo: Repository::open(store),
+            shared_lut: None,
         }
+    }
+
+    /// Attach the Arrow extended cache: every turn's per-pass token LUTs are
+    /// then auto-merged into the shared reverse LUT tables (`ns:G1` …).
+    pub fn attach_shared_lut(&mut self, dir: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+        self.shared_lut = Some(ExtendedCache::open(dir)?);
+        Ok(())
+    }
+
+    pub fn shared_lut(&self) -> Option<&ExtendedCache> {
+        self.shared_lut.as_ref()
     }
 
     pub fn repo(&self) -> &Repository<S> {
@@ -158,6 +175,17 @@ impl<S: ObjectStore> StateMachine<S> {
         // 1. ingest — complete, single-touch; accumulates into the cache.
         let pass = cache.ingestor.ingest_stream(bytes.iter(), &mut NoopSink);
         let turn_g1 = pass.channels[0].clone();
+
+        // 1b. auto-merge the pass's token LUTs into the shared reverse LUT
+        // (the Arrow cache tables) — no-op when no cache is attached.
+        if let Some(lut_cache) = &self.shared_lut {
+            for (ch, index) in pass.luts.iter().enumerate() {
+                let table = lut_name(NS, ch);
+                lut_cache
+                    .merge_lut(&table, index)
+                    .map_err(|e| AppError::Other(format!("shared lut merge {table}: {e}")))?;
+            }
+        }
 
         // 2. S(t) — the cumulative working set (lattice join of all turns).
         for (i, channel) in pass.channels.iter().enumerate() {
@@ -256,6 +284,38 @@ mod tests {
             second.commit.is_none(),
             "same ids inside the window: no new bits, no basis change"
         );
+    }
+
+    #[test]
+    fn turns_auto_merge_into_the_shared_lut() {
+        let dir = std::env::temp_dir().join(format!(
+            "ewm-app-shared-lut-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let mut um = StateMachine::new(MemoryStore::default());
+        um.attach_shared_lut(&dir).unwrap();
+        let mut cache = StateCache::empty();
+
+        um.run_turn(&mut cache, &[1, 2, 3]).unwrap();
+
+        // The shared table restores the turn's tokens from the cumulative
+        // working set — no live ingest involved.
+        let lut_cache = um.shared_lut().unwrap();
+        let tokens = lut_cache
+            .materialize_lut(&cache.working[0], "ns:G1")
+            .unwrap();
+        let expected: std::collections::BTreeSet<Vec<u8>> = vec![
+            b"tid1".to_vec(),
+            b"tid2".to_vec(),
+            b"tid3".to_vec(),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(tokens, expected);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

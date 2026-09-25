@@ -184,6 +184,10 @@ ewm-state-machine/
 Arrow IPC files spill/restore the derived cache objects behind a validated
 `MANIFEST.arrow`, and the cache is content-addressed as `c:<sha1>`.
 
+The full picture of every LUT — run-time and Arrow, token LUTs vs HLLSet
+LUTs, `ng:`/`ns:` names, `h:`/`c:` key marks — is drawn in
+[`docs/LUT_MAP.md`](docs/LUT_MAP.md).
+
 ## Explorer
 
 The state machine is one data structure over three locations — S(t)
@@ -197,6 +201,24 @@ cargo run -p ewm-sm-explore -- store /tmp/ewm-sm-demo [--json]
 cargo run -p ewm-app -- --stub "1,2,3;2,3,4" --repo /tmp/ewm-sm-demo \
     --snapshot /tmp/ewm-sm-demo/snapshot.json
 cargo run -p ewm-sm-explore -- snapshot /tmp/ewm-sm-demo/snapshot.json
+
+# Per-user codebook gate projection (lab notebook 11): c(t) ∩ G_u, stateless
+cargo run -p ewm-sm-explore -- project-user --store /tmp/ewm-sm-demo \
+    --user acme-finance --commit head --codebook /tmp/acme-codebook.json
+
+# ... or from the store's gates/ section (the per-user catalog registry):
+cargo run -p ewm-git -- gate put --store /tmp/ewm-sm-demo \
+    --user acme-finance --tokens /tmp/acme-tokens.txt   # one token per line
+cargo run -p ewm-git -- gate list --store /tmp/ewm-sm-demo
+cargo run -p ewm-sm-explore -- project-user --store /tmp/ewm-sm-demo \
+    --user acme-finance --commit head                    # --codebook optional
+```
+
+And the direct-morphism side-car gates materialization the same way:
+
+```bash
+# Per-user gated restoration: only the named dimension's codebook tokens
+ewm-scene materialize frames.jsonl --gate codebooks.json --dim acme-finance
 ```
 
 See [`docs/EXPLORER.md`](docs/EXPLORER.md).
@@ -286,6 +308,11 @@ the cells.
 | 18 | `hetero_sidecar_rust_laya_router` | Laya routes the **heterogeneous** front-ends of notebook 15: each step the typed decision model picks OCR / VLA / JEPA for the query and that front-end's captured frame joins the union — options are genuinely different worlds, so Laya separates them (ocr 9 / vla 2 / jepa 13) with the same gating + decision-in-state |
 | 19 | `bonsai_sidecar_context` | PrismML **Bonsai 2 27B** (ternary weights, 5.9 GB, reasoning) runs on the RTX 3060 through their llama.cpp fork, with the ewm-sm side-car **above its token-level context**: answers + reasoning traces are tid streams, `S(t)` accumulates them, and the lattice-materialized memory (restored order) is the only context Bonsai sees on the next turn — ewm-sm as Bonsai's content-addressed context manager |
 | 20 | `bonsai_compressed_context` | the Bonsai-specific compressed context: `displacement_tokens` keeps only tids that are **new** to the lattice (the D-part of the Noether decomposition at token granularity) as the context prefix; measured against the full-memory baseline with Bonsai's own `prompt_tokens` — honest ~1.8% win on 6 short turns, and the win scales with conversation redundancy |
+| 21 | `structural_llm_router` | the local-LLM replacement for Jev/Laya as the router: `StructuralLlmRouter` prompts a cached Qwen2.5-1.5B-Instruct with the **structural state** (BSS coverage, Noether D/R/N, Boolean-ring residual/in_span/dim/rotation/spill, multi-window moving averages + crossover events) and parses a typed JSON decision behind the same `DecisionRouter` seam; the loop runs with `structural=True` and logs every `(state, options, decision)` into `routing_log.jsonl`, and §3 projects each lattice commit onto the per-LLM codebook gates with `bss`/`bss_g1` |
+
+> Notebooks 22–25 (typed-head distillation, multi-window crossings,
+> per-user training, shared-lattice projection) moved to the R&D lab:
+> `../ewm-laya-bonsai-lab/notebooks/07–10`.
 
 Notebooks 01–04 were updated with the aarambh-vision-studio revisions:
 **01** adds structural commits (basis change) and the `ewm-ops` operational
@@ -331,7 +358,7 @@ EWM_JEPA=/path/to/ewm-jepa EWM_SM=/path/to/ewm-state-machine \
 Without the JEPA side the setup cell stops with instructions on where to
 clone it and what the `EWM_JEPA` variable should point at.
 
-### Multi-LLM side-car real (notebooks 09–20)
+### Multi-LLM side-car real (notebooks 09–21)
 
 Notebook 09 runs the same side-car as notebook 08 with three **real small
 LLMs** on the `ewm-nanolm` kernel. Notebook 10 keeps the same probes and
@@ -348,8 +375,16 @@ TypeSafe AI's **Jev** (System One) as a typed-decision router, notebook
 16 swaps in the open-source **Laya** decision model on a pure-Rust candle
 daemon, notebook 17 measures and fixes the prompt failure mode, notebook
 18 lets Laya route the heterogeneous front-ends, notebook 19 puts
-PrismML **Bonsai 2 27B** behind the lattice as its context manager, and
-notebook 20 compresses that context to the D-part (new tids only). The
+PrismML **Bonsai 2 27B** behind the lattice as its context manager,
+notebook 20 compresses that context to the D-part (new tids only), and
+notebook 21 replaces the Jev/Laya router with a **local Qwen2.5-1.5B-Instruct**
+prompted with the full structural state (BSS + D/R/N + ring + **multi-window
+moving averages and crossover events**) behind the same `DecisionRouter` seam,
+and projects every lattice commit onto the **per-LLM codebook gates** with the
+new G1-scoped `bss_g1` coordinates. The follow-on experiments (typed-head
+distillation, multi-window crossings, per-user training, shared-lattice
+projection) moved to the R&D lab
+(`../ewm-laya-bonsai-lab/notebooks/07–10`). The
 09–14 models are loaded from the local HuggingFace cache on the RTX 3060
 (`CUDA_VISIBLE_DEVICES=1`):
 
@@ -384,12 +419,14 @@ notebook 20 compresses that context to the D-part (new tids only). The
 - For notebook 19: the PrismML Bonsai demo at `/home/alexmy/tools/Bonsai-demo`
   (`./setup.sh` downloads the 27B PQ2_0 GGUF + llama.cpp CUDA binaries) with
   the server running on `127.0.0.1:8081`:
+
   ```bash
   cd /home/alexmy/tools/Bonsai-demo
   LD_LIBRARY_PATH="$PWD/bin/cuda" ./bin/cuda/llama-server \
       -m models/bonsai2-gguf/27B/Ternary-Bonsai-2-27B-PQ2_0.gguf \
       -ngl 99 -fa on -c 2048 --host 127.0.0.1 --port 8081
   ```
+
   (Do **not** set `CUDA_VISIBLE_DEVICES`: this llama fork lists the RTX 3060
   as CUDA0 and the Quadro M1200 as CUDA1.)
 
@@ -408,7 +445,12 @@ jupyter notebook notebooks/17_multi_llm_sidecar_rust_laya_prompts.ipynb
 jupyter notebook notebooks/18_hetero_sidecar_rust_laya_router.ipynb
 jupyter notebook notebooks/19_bonsai_sidecar_context.ipynb
 jupyter notebook notebooks/20_bonsai_compressed_context.ipynb
+jupyter notebook notebooks/21_structural_llm_router.ipynb
 ```
 
 The notebooks set `CUDA_VISIBLE_DEVICES=1` before importing torch; override
 it in the first cell if the RTX 3060 is not the target GPU.
+
+## References
+
+1. [epoch_stack.rs](https://gist.github.com/aovestdipaperino/383e676e508bea7703a268f021234706)

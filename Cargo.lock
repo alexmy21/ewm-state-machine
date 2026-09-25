@@ -460,6 +460,7 @@ version = "0.3.0"
 dependencies = [
  "context-tree",
  "ewm-boolring",
+ "ewm-cache",
  "ewm-git",
  "hllset-contracts",
  "hllset-core",
@@ -482,6 +483,7 @@ dependencies = [
  "arrow",
  "hllset-contracts",
  "hllset-core",
+ "hllset-lut",
  "serde",
  "serde_json",
  "thiserror",
@@ -538,6 +540,8 @@ version = "0.3.0"
 dependencies = [
  "ewm-app",
  "ewm-git",
+ "hllset-core",
+ "hllset-morphisms",
  "serde_json",
 ]
 

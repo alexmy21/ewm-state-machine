@@ -2,7 +2,7 @@
 //! objects under `objects/`, one IPC file per table under `tables/`, and
 //! the `MANIFEST.arrow` atomic commit point.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -11,9 +11,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use hllset_contracts::{sha1_hex, ARROW_CACHE_SCHEMA_VERSION};
 use hllset_core::HLLSet;
+use hllset_lut::LutIndex;
 
 use crate::manifest::{content_key, Manifest, HLLSET_OBJECTS, TFVEC_OBJECT};
-use crate::schema::{from_ipc, to_ipc};
+use crate::schema::{from_ipc, lut_batch, lut_rows, to_ipc};
 
 /// Cache errors.
 #[derive(Debug, thiserror::Error)]
@@ -139,6 +140,47 @@ impl ExtendedCache {
             return Ok(None);
         }
         Ok(Some(from_ipc(&fs::read(path)?)?))
+    }
+
+    /// Merge one ingest's token LUT into the shared reverse LUT table
+    /// `tables/<name>.arrow` (append-only union, deduplicated by
+    /// `(bit, token)`). Returns the SHA1 of the new IPC bytes.
+    ///
+    /// The shared table accumulates across ingests, so materialization can
+    /// run against it without a live `Ingest`/`Ingested` — the shared LUT.
+    pub fn merge_lut(&self, name: &str, index: &LutIndex) -> Result<String, CacheError> {
+        let mut rows: BTreeSet<(u32, Vec<u8>)> = BTreeSet::new();
+        if let Some(batch) = self.read_table(name)? {
+            rows.extend(lut_rows(&batch));
+        }
+        rows.extend(index.rows());
+        let rows: Vec<(u32, Vec<u8>)> = rows.into_iter().collect();
+        self.write_table(name, &lut_batch(&rows)?)
+    }
+
+    /// Materialize an HLLSet against a shared token-LUT table — the shared
+    /// reverse LUT: every candidate referenced by an active bit is kept
+    /// (probabilistic restoration, no TF filtering, no live ingest).
+    pub fn materialize_lut(
+        &self,
+        hllset: &HLLSet,
+        table: &str,
+    ) -> Result<BTreeSet<Vec<u8>>, CacheError> {
+        let batch = self.read_table(table)?.ok_or_else(|| CacheError::Missing {
+            what: "table".into(),
+            name: table.to_string(),
+        })?;
+        let mut fibers: BTreeMap<u32, BTreeSet<Vec<u8>>> = BTreeMap::new();
+        for (bit, token) in lut_rows(&batch) {
+            fibers.entry(bit).or_default().insert(token);
+        }
+        let mut out = BTreeSet::new();
+        for addr in hllset.bit_addresses() {
+            if let Some(tokens) = fibers.get(&addr.bit()) {
+                out.extend(tokens.iter().cloned());
+            }
+        }
+        Ok(out)
     }
 
     // ── manifest ────────────────────────────────────────────────────────

@@ -42,9 +42,10 @@ pub mod tensor;
 pub mod tf;
 
 pub use api::{
-    gate, ingest, ingest_key, ingest_with_pad, materialize, materialize_beam, materialize_no_order,
-    materialize_with, unordered_tokens, Ingested, MaterializeOptions, Order, CHANNELS,
-    CHANNEL_NAMES, CHANNEL_SEEDS, PAD,
+    bss_g1, gate, ingest, ingest_gated_set, ingest_key, ingest_with_pad, materialize,
+    materialize_beam, materialize_gated, materialize_no_order, materialize_with, unordered_tokens,
+    unordered_tokens_gated, Ingested, MaterializeOptions, Order, CHANNELS, CHANNEL_NAMES,
+    CHANNEL_SEEDS, PAD,
 };
 pub use conv::{channel_name, seed, ConvSpec};
 pub use grid::{

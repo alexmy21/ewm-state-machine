@@ -32,7 +32,75 @@ fn sentence_tokens(text: &str) -> Vec<Vec<Vec<u8>>> {
         .collect()
 }
 
+fn gate_arg(args: &[String], name: &str) -> Result<String, String> {
+    for (i, a) in args.iter().enumerate() {
+        if a == name {
+            return args
+                .get(i + 1)
+                .cloned()
+                .ok_or_else(|| format!("{name}: missing value"));
+        }
+    }
+    Err(format!("{name}: missing"))
+}
+
+fn run_gate_cli(args: &[String]) {
+    let result = (|| -> Result<(), String> {
+        let sub = args.first().ok_or("gate: missing subcommand (put|list|show)")?;
+        match sub.as_str() {
+            "put" => {
+                let store = gate_arg(args, "--store")?;
+                let user = gate_arg(args, "--user")?;
+                let tokens_file = gate_arg(args, "--tokens")?;
+                let text = std::fs::read_to_string(&tokens_file)
+                    .map_err(|e| format!("{tokens_file}: {e}"))?;
+                let codebook: Vec<String> = text
+                    .lines()
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect();
+                let mut repo = Repository::new(LooseStore::new(&store));
+                let id = repo.put_gate(&user, &codebook).map_err(|e| e.to_string())?;
+                println!("gate {user} -> {} ({})", id.short(), store);
+                Ok(())
+            }
+            "list" => {
+                let store = gate_arg(args, "--store")?;
+                let repo = Repository::open(LooseStore::new(&store));
+                for name in repo.gate_names() {
+                    println!("{name}");
+                }
+                Ok(())
+            }
+            "show" => {
+                let store = gate_arg(args, "--store")?;
+                let user = gate_arg(args, "--user")?;
+                let repo = Repository::open(LooseStore::new(&store));
+                let (key, tokens) = repo.gate(&user).map_err(|e| e.to_string())?;
+                println!("{key}");
+                for t in tokens {
+                    println!("{t}");
+                }
+                Ok(())
+            }
+            other => Err(format!("gate: unknown subcommand: {other}")),
+        }
+    })();
+    if let Err(e) = result {
+        eprintln!("ewm-git gate: {e}");
+        eprintln!("usage: ewm-git gate put --store <path> --user <id> --tokens <file>");
+        eprintln!("       ewm-git gate list --store <path>");
+        eprintln!("       ewm-git gate show --store <path> --user <id>");
+        std::process::exit(2);
+    }
+}
+
 fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(|s| s.as_str()) == Some("gate") {
+        run_gate_cli(&args[1..]);
+        return;
+    }
     let path = "/home/alexmy/SGS/SGS_lib/fractal_manifold/ewm-cortex/corpus/conversation.txt";
     let text = std::fs::read_to_string(path).expect("corpus file");
     let sentences = sentence_tokens(&text);

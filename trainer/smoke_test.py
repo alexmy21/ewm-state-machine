@@ -22,6 +22,7 @@ from trainer import (
     LayaAdapter,
     LearnedSelector,
     ProbeConfig,
+    StructuralLlmRouter,
     SyntheticAdapter,
     default_portfolio,
     dft_period,
@@ -141,6 +142,25 @@ def main() -> int:
         laya.close()
         print("laya router (rust/candle): ok")
         print("  first decision:", laya_result.decision_log[0].to_dict())
+
+    # ── Structural local-LLM router (mock mode: no torch needed) ────────────
+    srouter = StructuralLlmRouter(mock=True)
+    s_result = run_jev_loop(
+        adapter, srouter, ewm, open_result, QUERIES, work_dir, T=8,
+        structural=True, confidence_floor=0.45, fallback="llm_b",
+        ingest_decision=True,
+    )
+    assert s_result.M_jev.shape == (8, 3)
+    assert len(s_result.decision_log) == 8
+    assert all(d.decision in ("llm_a", "llm_b", "llm_c") for d in s_result.decision_log)
+    assert all(d.mock for d in s_result.decision_log)
+    assert len(s_result.routing_log) == 8
+    assert all("state" in r and "options" in r and "decision" in r for r in s_result.routing_log)
+    assert any("drn" in r["state"] and "ring" in r["state"] for r in s_result.routing_log[1:])
+    print("structural llm router (mock, structural state, routing log): ok")
+    print("  first routing state keys:", sorted(s_result.routing_log[1]["state"].keys()))
+    print("  first routing decision:", s_result.routing_log[1]["decision"]["decision"])
+
     print("smoke test passed")
     return 0
 

@@ -58,6 +58,25 @@ pub trait ObjectStore {
     fn read_head(&self) -> Option<ObjectId> {
         None
     }
+
+    /// Persist a named gate catalog under the gates section. Default:
+    /// unsupported.
+    fn put_gate(&mut self, _name: &str, _catalog: &str) -> Result<()> {
+        Err(StoreError::Io(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "gate section unsupported",
+        )))
+    }
+
+    /// Read a named gate catalog. Default: not found.
+    fn get_gate(&self, name: &str) -> Result<String> {
+        Err(StoreError::NotFound(ObjectId::of_bytes(name.as_bytes())))
+    }
+
+    /// List the stored gate names. Default: empty.
+    fn list_gates(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 // ── In-memory store ────────────────────────────────────────────────────────
@@ -65,6 +84,7 @@ pub trait ObjectStore {
 #[derive(Clone, Debug, Default)]
 pub struct MemoryStore {
     map: HashMap<ObjectId, Object>,
+    gates: HashMap<String, String>,
 }
 
 impl ObjectStore for MemoryStore {
@@ -94,6 +114,24 @@ impl ObjectStore for MemoryStore {
             .remove(id)
             .map(|_| ())
             .ok_or_else(|| StoreError::NotFound(id.clone()))
+    }
+
+    fn put_gate(&mut self, name: &str, catalog: &str) -> Result<()> {
+        self.gates.insert(name.to_string(), catalog.to_string());
+        Ok(())
+    }
+
+    fn get_gate(&self, name: &str) -> Result<String> {
+        self.gates
+            .get(name)
+            .cloned()
+            .ok_or_else(|| StoreError::NotFound(ObjectId::of_bytes(name.as_bytes())))
+    }
+
+    fn list_gates(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.gates.keys().cloned().collect();
+        names.sort();
+        names
     }
 }
 
@@ -131,6 +169,15 @@ impl LooseStore {
 
     fn head_path(&self) -> PathBuf {
         self.root.join("HEAD")
+    }
+
+    /// The gates section directory: `root/gates/<name>.catalog`.
+    fn gates_dir(&self) -> PathBuf {
+        self.root.join("gates")
+    }
+
+    fn gate_path(&self, name: &str) -> PathBuf {
+        self.gates_dir().join(format!("{name}.catalog"))
     }
 }
 
@@ -208,6 +255,37 @@ impl ObjectStore for LooseStore {
         } else {
             ObjectId::validated(trimmed.to_string())
         }
+    }
+
+    fn put_gate(&mut self, name: &str, catalog: &str) -> Result<()> {
+        std::fs::create_dir_all(self.gates_dir()).map_err(StoreError::Io)?;
+        std::fs::write(self.gate_path(name), catalog).map_err(StoreError::Io)
+    }
+
+    fn get_gate(&self, name: &str) -> Result<String> {
+        match std::fs::read_to_string(self.gate_path(name)) {
+            Ok(text) => Ok(text),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Err(StoreError::NotFound(ObjectId::of_bytes(name.as_bytes())))
+            }
+            Err(e) => Err(StoreError::Io(e)),
+        }
+    }
+
+    fn list_gates(&self) -> Vec<String> {
+        let Ok(entries) = std::fs::read_dir(self.gates_dir()) else {
+            return Vec::new();
+        };
+        let mut names: Vec<String> = entries
+            .flatten()
+            .filter_map(|e| {
+                let name = e.file_name();
+                let name = name.to_string_lossy();
+                name.strip_suffix(".catalog").map(|n| n.to_string())
+            })
+            .collect();
+        names.sort();
+        names
     }
 }
 

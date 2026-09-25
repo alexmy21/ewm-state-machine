@@ -217,6 +217,101 @@ class JevLoopResult:
     decision_log: list[DecisionRecord]
     union_path: str
     gated_log: list[bool] = field(default_factory=list)
+    # (state, options, instructions, decision) per step — the distillation
+    # dataset for the typed-head router (behavioral cloning target).
+    routing_log: list[dict] = field(default_factory=list)
+
+
+def _structural_state(
+    ewm: EwmScene,
+    union_path: str,
+    bss_history: Optional[list] = None,
+    bss_names: Optional[list] = None,
+) -> dict:
+    """Latest Noether D/R/N + Boolean-ring reading from the current union file
+    (all frames up to the decision point), plus a **multi-window moving-average
+    view** of the structural series and **crossover events** (short window
+    crossing long window from above/below) — the "last 2-3-4-5 messages"
+    temporal context for the router. Best-effort: an apparatus failure must
+    never break the loop."""
+    out: dict = {}
+    n_out = None
+    s_out = None
+    try:
+        n_out = ewm.noether(union_path)
+        if n_out.get("dp"):
+            out["drn"] = {
+                "dp": n_out["dp"][-1],
+                "rp": n_out["rp"][-1],
+                "np": n_out["np"][-1],
+            }
+            if n_out.get("ind1") and n_out.get("ind3"):
+                out["drn"]["ind1"] = n_out["ind1"][-1]
+                out["drn"]["ind3"] = n_out["ind3"][-1]
+    except Exception:
+        pass
+    try:
+        s_out = ewm.sidecar(union_path)
+        frames = s_out.get("frames") or []
+        if frames:
+            f = frames[-1]
+            out["ring"] = {
+                "residual": f.get("residual", 0),
+                "in_span": bool(f.get("in_span", False)),
+                "dim": f.get("dim", 0),
+                "rotation_count": f.get("rotation_count", 0),
+                "spill_first": f.get("spill_first", 0),
+            }
+    except Exception:
+        pass
+
+    # ---- multi-window moving averages + crossings over the full series ----
+    try:
+        series: dict[str, list[float]] = {}
+        if n_out:
+            for key in ("np", "rp", "dp", "ind1", "ind3"):
+                if n_out.get(key):
+                    series[key] = [float(v) for v in n_out[key]]
+        if s_out:
+            frames = s_out.get("frames") or []
+            for key in ("residual", "dim", "rotation_count", "spill_first"):
+                series[key] = [float(f.get(key, 0)) for f in frames]
+        if bss_history is not None:
+            bss_arr = np.asarray(bss_history, dtype=float)
+            if bss_arr.ndim == 2 and bss_arr.shape[0] > 0:
+                names = list(bss_names or [f"d{i}" for i in range(bss_arr.shape[1])])
+                for i, name in enumerate(names[: bss_arr.shape[1]]):
+                    series[f"bss_{name}"] = bss_arr[:, i].tolist()
+
+        def _ma(xs: list[float], k: int) -> float:
+            win = xs[-k:] if len(xs) >= k else xs
+            return float(np.mean(win)) if win else 0.0
+
+        def _ma_prev(xs: list[float], k: int) -> float:
+            win = xs[-k - 1 : -1] if len(xs) >= k + 1 else xs[:-1]
+            return float(np.mean(win)) if win else 0.0
+
+        windows: dict[str, float] = {}
+        for name, xs in series.items():
+            if not xs:
+                continue
+            for k in (2, 3, 4, 5):
+                windows[f"{name}_ma{k}"] = round(_ma(xs, k), 4)
+        out["windows"] = windows
+
+        crossings: dict[str, bool] = {}
+        for name, xs in series.items():
+            if not xs:
+                continue
+            for ks, kl in ((2, 4), (3, 5)):
+                cur = _ma(xs, ks) - _ma(xs, kl)
+                prev = _ma_prev(xs, ks) - _ma_prev(xs, kl)
+                crossings[f"{name}_x{ks}x{kl}_up"] = bool(prev <= 0 < cur)
+                crossings[f"{name}_x{ks}x{kl}_down"] = bool(prev >= 0 > cur)
+        out["crossings"] = crossings
+    except Exception:
+        pass
+    return out
 
 
 def run_jev_loop(
@@ -233,6 +328,7 @@ def run_jev_loop(
     confidence_floor: Optional[float] = None,
     fallback: Optional[str] = None,
     ingest_decision: bool = True,
+    structural: bool = False,
 ) -> JevLoopResult:
     """Jev as the router: each step, Jev returns a typed decision about which
     LLM should answer the query; only the chosen LLM generates.
@@ -261,6 +357,7 @@ def run_jev_loop(
     query_log: list[int] = []
     decision_log: list[DecisionRecord] = []
     gated_log: list[bool] = []
+    routing_log: list[dict] = []
 
     for t in range(T):
         q = t % len(queries)
@@ -272,11 +369,20 @@ def run_jev_loop(
             "bss": ({n: round(float(M_rows[-1][i]), 4) for i, n in enumerate(names)}
                     if M_rows else {}),
         }
+        if structural and t > 0:
+            state.update(_structural_state(ewm, union_path, bss_history=M_rows, bss_names=names))
         decision = jev.route(
             state, options, instructions,
             extra_noul={"needs_memory": "The query requires context from previous answers"},
         )
         decision_log.append(decision)
+        routing_log.append({
+            "step": t,
+            "state": {k: v for k, v in state.items()},
+            "options": dict(options),
+            "instructions": instructions,
+            "decision": decision.to_dict(),
+        })
 
         gated = bool(confidence_floor is not None and decision.confidence < confidence_floor)
         gated_log.append(gated)
@@ -315,6 +421,7 @@ def run_jev_loop(
         decision_log=decision_log,
         union_path=union_path,
         gated_log=gated_log,
+        routing_log=routing_log,
     )
 
 
@@ -331,6 +438,7 @@ def run_jev_loop_from_streams(
     confidence_floor: Optional[float] = None,
     fallback: Optional[str] = None,
     ingest_decision: bool = True,
+    structural: bool = False,
 ) -> JevLoopResult:
     """Router loop over pre-captured front-end streams (notebook 15 style):
     each step, the router decides which front-end should handle the query;
@@ -351,6 +459,7 @@ def run_jev_loop_from_streams(
     query_log: list[int] = []
     decision_log: list[DecisionRecord] = []
     gated_log: list[bool] = []
+    routing_log: list[dict] = []
 
     for t in range(T):
         q = t % len(queries)
@@ -362,11 +471,20 @@ def run_jev_loop_from_streams(
             "bss": ({n: round(float(M_rows[-1][i]), 4) for i, n in enumerate(names)}
                     if M_rows else {}),
         }
+        if structural and t > 0:
+            state.update(_structural_state(ewm, union_path, bss_history=M_rows, bss_names=names))
         decision = router.route(
             state, options, instructions,
             extra_noul={"needs_memory": "The query requires context from previous steps"},
         )
         decision_log.append(decision)
+        routing_log.append({
+            "step": t,
+            "state": {k: v for k, v in state.items()},
+            "options": dict(options),
+            "instructions": instructions,
+            "decision": decision.to_dict(),
+        })
 
         gated = bool(confidence_floor is not None and decision.confidence < confidence_floor)
         gated_log.append(gated)
@@ -397,4 +515,5 @@ def run_jev_loop_from_streams(
         decision_log=decision_log,
         union_path=union_path,
         gated_log=gated_log,
+        routing_log=routing_log,
     )

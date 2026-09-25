@@ -14,6 +14,7 @@
 //! Input: one JSON object per line, `{"id": 1, "tokens": ["tid12", ...]}`.
 //! Output: a single JSON value on stdout.
 
+use std::collections::BTreeSet;
 use std::io::{BufRead, Write};
 
 use ewm_boolring::InsertResult;
@@ -21,6 +22,7 @@ use ewm_scene::{
     grid_restore_with, project, pyramid, restore_with, subframes, tensor_restore_with, Dimension,
     Frame, FrameSet, GridFrame, PerceptronTokens, PyramidFrame, TensorFrame,
 };
+use hllset_morphisms::{gate, ingest, ingest_gated_set, Ingest};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -42,6 +44,8 @@ fn run(args: &[String]) -> Result<(), String> {
              \x20 ma <file> --short N --long N   HLLSet moving averages\n\
              \x20 noether <file>                 D/R/N + three indicators\n\
              \x20 materialize <file>             ordered / set / beam-2 restoration
+             \x20 materialize <file> --gate <frame.json> --dim <name>
+             \x20                                 per-user gated restoration (codebook gate)
              \x20 grid <file> [--beam N]          2D morphisms (conv dim=2) restoration
              \x20 tensor <file> [--beam N]        N-d morphisms (conv dim=N) restoration
              \x20 subframes <file> --i N --j N    D/R/N subframes of a transition
@@ -181,20 +185,52 @@ fn run(args: &[String]) -> Result<(), String> {
         }
         "materialize" => {
             let beam = arg_usize(args, "--beam")?.unwrap_or(2);
+            let gate_path = arg_str(args, "--gate")?;
+            let gate_dim = arg_str(args, "--dim")?;
+            // The gate travels with its ingest: an n-seed codebook gate was
+            // ingested with `Ingest`, so its seed LUTs are populated and the
+            // materializer runs against those — never the frame's n-gram LUTs.
+            let gate_state: Option<(Ingest, BTreeSet<Vec<u8>>)> = match (gate_path, gate_dim) {
+                (Some(p), Some(d)) => Some(read_gate(p, d)?),
+                (None, None) => None,
+                _ => return Err("materialize: --gate and --dim must be given together".to_string()),
+            };
             let frames: Vec<serde_json::Value> = fs
                 .frames
                 .iter()
-                .map(|f| {
-                    let r = restore_with(f, beam);
-                    serde_json::json!({
-                        "id": r.id,
-                        "ordered": r.ordered,
-                        "set": r.set,
-                        "beam2": r.beam2,
-                    })
+                .map(|f| match &gate_state {
+                    Some((gate_ing, codebook)) => {
+                        let frame_ing = ingest(f.tokens.iter().map(|t| t.as_bytes()));
+                        // G1 scope only: 1-gram == seed-0 match verbatim, while
+                        // 2-gram vs seed-1 and 3-gram vs seed-2 would only add
+                        // cross-scheme collision noise.
+                        let gated = gate(gate_ing.hllset(0), &frame_ing.sketches[0]);
+                        let set: Vec<String> = ingest_gated_set(gate_ing, &gated, Some(codebook))
+                            .into_iter()
+                            .map(|v| String::from_utf8_lossy(&v).into_owned())
+                            .collect();
+                        serde_json::json!({
+                            "id": f.id,
+                            "gate_dim": gate_dim,
+                            "set": set,
+                        })
+                    }
+                    None => {
+                        let r = restore_with(f, beam);
+                        serde_json::json!({
+                            "id": r.id,
+                            "ordered": r.ordered,
+                            "set": r.set,
+                            "beam2": r.beam2,
+                        })
+                    }
                 })
                 .collect();
-            serde_json::json!({ "frames": frames })
+            let mut doc = serde_json::json!({ "frames": frames });
+            if let Some(d) = gate_dim {
+                doc["gate"] = serde_json::Value::String(d.to_string());
+            }
+            doc
         }
         "sidecar" => {
             let cap = arg_usize(args, "--cap")?.unwrap_or(ewm_app::RING_CAPACITY);
@@ -303,7 +339,7 @@ fn run(args: &[String]) -> Result<(), String> {
             let frame_path = arg_str(args, "--frame")?.ok_or("project: missing --frame <frame.json>")?;
             let dims = read_dimensions(frame_path)?;
             let ids: Vec<u64> = fs.frames.iter().map(|f| f.id).collect();
-            let out = project(&fs.hllsets, &ids, &dims);
+            let out = project(&fs.hllsets, &fs.g1s, &ids, &dims);
             let frames: Vec<serde_json::Value> = out
                 .frames
                 .iter()
@@ -312,6 +348,7 @@ fn run(args: &[String]) -> Result<(), String> {
                         "id": f.id,
                         "intersections": f.intersections,
                         "bss": f.bss,
+                        "bss_g1": f.bss_g1,
                     })
                 })
                 .collect();
@@ -384,6 +421,45 @@ fn read_dimensions(path: &str) -> Result<Vec<Dimension>, String> {
         out.push(Dimension::from_tokens(name, &tokens));
     }
     Ok(out)
+}
+
+/// Read one dimension as a per-user **gate**: a codebook is an unordered
+/// token collection, so the gate is **ingested** with the n-seed `Ingest` —
+/// this populates the seed LUTs (`ns:G1/G2/G3`) that gated materialization
+/// runs against. The gate travels as the ingest itself (HLLSet + LUTs
+/// together); a Gx-HLLSet is one channel, a gate-HLLSet is the projection
+/// `G1 ∪ G2 ∪ G3` over all three seeds.
+fn read_gate(path: &str, dim_name: &str) -> Result<(Ingest, BTreeSet<Vec<u8>>), String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+    let v: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("{path}: {e}"))?;
+    let dims = v["dimensions"]
+        .as_array()
+        .ok_or_else(|| format!("{path}: missing dimensions"))?;
+    for d in dims {
+        let name = d["name"]
+            .as_str()
+            .ok_or_else(|| format!("{path}: dimension missing name"))?;
+        if name != dim_name {
+            continue;
+        }
+        let tokens: Vec<String> = d["tokens"]
+            .as_array()
+            .ok_or_else(|| format!("{path}: dimension {name} missing tokens"))?
+            .iter()
+            .map(|t| {
+                t.as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| format!("{path}: dimension {name} token is not a string"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut gate_ing = Ingest::new();
+        gate_ing.ingest_tokens(tokens.iter().map(|t| t.as_bytes()));
+        let codebook: BTreeSet<Vec<u8>> =
+            tokens.iter().map(|t| t.as_bytes().to_vec()).collect();
+        return Ok((gate_ing, codebook));
+    }
+    Err(format!("{path}: dimension {dim_name} not found"))
 }
 
 fn read_grid_frames(path: &str) -> Result<Vec<GridFrame>, String> {

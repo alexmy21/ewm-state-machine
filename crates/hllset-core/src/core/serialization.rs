@@ -34,9 +34,21 @@ impl HLLSet {
 
     /// Generate content-addressable key: `h:<sha1>`.
     ///
-    /// The `h:` prefix denotes a heterogeneous HLLSet (n-gram tokenized).
+    /// The `h:` prefix denotes a **heterogeneous** HLLSet (n-gram tokenized,
+    /// ordered stream). A homogeneous catalog (n-seed, unordered) uses the
+    /// `c:` prefix — see [`content_key_c`](Self::content_key_c).
     pub fn content_key(&self) -> String {
         format!("h:{}", self.content_hash())
+    }
+
+    /// Generate the catalog content key: `c:<sha1>`.
+    ///
+    /// The `c:` prefix denotes a **homogeneous catalog** HLLSet (n-seed
+    /// tokenized, unordered tokens). The explicit mark keeps the two
+    /// bootstrap schemes distinguishable at the key level, the same way the
+    /// LUT names carry `ng:` vs `ns:`.
+    pub fn content_key_c(&self) -> String {
+        format!("c:{}", self.content_hash())
     }
 }
 
@@ -63,6 +75,16 @@ mod tests {
         let key = h.content_key();
         assert!(key.starts_with("h:"), "key = {key}");
         assert_eq!(key.len(), 42); // "h:" + 40 hex chars
+    }
+
+    #[test]
+    fn test_catalog_key_prefix() {
+        let mut h = HLLSet::new();
+        h.add_token(b"test");
+        let key = h.content_key_c();
+        assert!(key.starts_with("c:"), "key = {key}");
+        assert_eq!(key.len(), 42); // "c:" + 40 hex chars
+        assert_eq!(key[2..], h.content_key()[2..], "same sha1, different mark");
     }
 
     #[test]

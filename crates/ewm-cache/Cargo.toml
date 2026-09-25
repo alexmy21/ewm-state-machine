@@ -9,6 +9,7 @@ description = "Arrow-backed extended cache for ewm-state-machine (docs/ARROW_CAC
 [dependencies]
 hllset-core = { workspace = true }
 hllset-contracts = { workspace = true }
+hllset-lut = { workspace = true }
 arrow = { version = "55", features = ["ipc"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

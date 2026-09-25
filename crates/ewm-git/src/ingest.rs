@@ -7,6 +7,7 @@
 
 use hllset_core::core::hashing::sha1_hex;
 use hllset_core::{HLLSet, TFVec};
+use hllset_lut::LutIndex;
 use hllset_morphisms::Ingest;
 use std::collections::{HashMap, HashSet};
 
@@ -24,11 +25,14 @@ pub struct IngestStats {
     pub active_bits: u64,
 }
 
-/// One streaming pass: the per-pass channel HLLSets plus stats.
+/// One streaming pass: the per-pass channel HLLSets, their token LUTs, and
+/// stats. The LUTs leave the pass so the app can merge them into the shared
+/// reverse LUT of the extended cache.
 #[derive(Clone, Debug)]
 pub struct IngestOutput {
     pub stats: IngestStats,
     pub channels: Vec<HLLSet>,
+    pub luts: Vec<LutIndex>,
 }
 
 /// The streaming ingestor: cumulative across passes.
@@ -126,6 +130,7 @@ impl Ingestor {
         IngestOutput {
             stats,
             channels: working,
+            luts: foundation.luts.iter().cloned().collect(),
         }
     }
 }

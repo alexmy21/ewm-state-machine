@@ -107,10 +107,13 @@ pub struct Ingested {
     pub tokens: usize,
     /// The pad token used at the boundaries.
     pub pad: Vec<u8>,
-    /// The 4-gram order side channel (n-gram only, seed 3). It is not part
-    /// of the shared G1/G2/G3 projection; the ordered materializer uses it
-    /// to make De Bruijn transitions essentially collision-free.
-    pub g4: HLLSet,
+    /// The 4-slide order side channel (`conv(4, 1)` = `S4_1d`, seed 3).
+    ///
+    /// This is an **n-slide** window, not an n-gram: the slide algorithm is
+    /// applied without a pointed-to-token LUT (the NO-LUT flag). It is not
+    /// part of the shared G1/G2/G3 projection; the ordered materializer uses
+    /// it to make De Bruijn transitions essentially collision-free.
+    pub slide4: HLLSet,
     /// The projection HLLSet of the collection: `G1 ∪ G2 ∪ G3`
     /// (`pr-HLLSet(L) = ingest(L)` — the new HLLSet the default ingest
     /// returns the key of).
@@ -143,7 +146,7 @@ impl Ingested {
             tf: TfTable::new(),
             tokens: 0,
             pad: PAD.to_vec(),
-            g4: HLLSet::new(),
+            slide4: HLLSet::new(),
             projection: empty,
             key,
             keys: std::array::from_fn(|_| String::new()),
@@ -232,12 +235,14 @@ where
         }
     }
 
-    // The 4-gram order side channel: set atoms for every 4-gram window (no
-    // LUT insert — it is used only for order restoration).
+    // The 4-gram order side channel: an n-slide window — set atoms for every
+    // 4-gram window with NO LUT insert (projection-only, order restoration).
+    // Same slide algorithm as the n-gram channels, without the pointed-to
+    // token.
     for window in padded.windows(4) {
         let ngram = join(window);
         let addr = BitAddress::of_token_seeded(&ngram, 3);
-        out.g4.add_bit(addr.bit());
+        out.slide4.add_bit(addr.bit());
     }
 
     for token in &real {
@@ -392,6 +397,18 @@ pub fn unordered_tokens(ingested: &Ingested) -> BTreeSet<Vec<u8>> {
 /// G1 = G1_ng ∪ G1_ns      G2 = G2_ng ∪ G2_ns      G3 = G3_ng ∪ G3_ns
 /// ```
 ///
+/// Both bootstrap schemes map onto the **same** channels:
+///
+/// ```text
+/// ordered streams   (n-gram):  1-gram → G1,  2-gram → G2,  3-gram → G3
+/// unordered tokens (n-seed):  seed-0 → G1,  seed-1 → G2,  seed-2 → G3
+/// ```
+///
+/// A **gate-HLLSet** is a projection — `G1 ∪ G2 ∪ G3`, all channels (all
+/// seeds / all n-grams). A **Gx-HLLSet** is one specific channel (one
+/// x-gram or x-seed hash family). `gate()` is the symmetric lattice
+/// intersection used for both.
+///
 /// **Bits are anonymous.** A bit does not remember which token — or which
 /// bootstrap scheme — set it. The same bit may have been set by a 1-gram,
 /// a seed-0 hash, or PAD; a collision is fine, and resolving it is the
@@ -404,6 +421,88 @@ pub fn unordered_tokens(ingested: &Ingested) -> BTreeSet<Vec<u8>> {
 /// the channel role explicit in the same way `project` does for time travel.
 pub fn gate(gx: &HLLSet, h: &HLLSet) -> HLLSet {
     gx.intersection(h)
+}
+
+/// G1-scoped BSSτ inclusion: `|(A ∩ G1) ∩ (B ∩ G1)| / |B ∩ G1|`.
+///
+/// Comparing an n-gram set with an n-seed set on the **full projection**
+/// dilutes the similarity to ~1/3 for identical token collections: only
+/// 1-gram/seed-0 match, while 2-gram vs seed-1 and 3-gram vs seed-2 differ.
+/// Scoping to G1 — the one channel both schemes populate identically —
+/// eliminates the effect. Pass each set's own G1 sketch
+/// (`Ingested.sketches[0]` / `Ingest.hllset(0)`).
+pub fn bss_g1(a_g1: &HLLSet, b_g1: &HLLSet) -> f64 {
+    let inter = a_g1.intersection(b_g1).popcount() as f64;
+    let denom = b_g1.popcount() as f64;
+    if denom == 0.0 {
+        1.0
+    } else {
+        inter / denom
+    }
+}
+
+/// Gated unordered restoration: LUT-first over `gate ∩ sketches` only, with an
+/// optional codebook filter — the per-user vocabulary gate (lab notebook 11).
+///
+/// The gate HLLSet must be built with the same scheme as the sketches
+/// (`ingest(codebook).projection` for ordered streams, `Ingest` n-seed
+/// projection for unordered codebooks). The codebook filter removes the
+/// foreign candidates whose bits collide into the gate, making restoration
+/// exact for the user's vocabulary up to hash collisions.
+pub fn unordered_tokens_gated(
+    ingested: &Ingested,
+    gate_set: &HLLSet,
+    codebook: Option<&BTreeSet<Vec<u8>>>,
+) -> BTreeSet<Vec<u8>> {
+    let mut gated = ingested.clone();
+    for ch in 0..CHANNELS {
+        gated.sketches[ch] = gate(&ingested.sketches[ch], gate_set);
+    }
+    gated.projection = gate(&ingested.projection, gate_set);
+    let tokens = unordered_tokens(&gated);
+    match codebook {
+        Some(cb) => tokens.intersection(cb).cloned().collect(),
+        None => tokens,
+    }
+}
+
+/// Gated ordered restoration (best-effort De Bruijn walk over the gated
+/// candidates; falls back to the gated set when no chain completes).
+pub fn materialize_gated(
+    ingested: &Ingested,
+    gate_set: &HLLSet,
+    codebook: Option<&BTreeSet<Vec<u8>>>,
+) -> Vec<Vec<u8>> {
+    let tokens = unordered_tokens_gated(ingested, gate_set, codebook);
+    order_tokens(&tokens, ingested, 1)
+}
+
+/// Gated unordered restoration over a flat n-seed [`crate::ingest::Ingest`].
+///
+/// The per-user codebook-gate case (lab notebook 11): `ingest` is the LUT
+/// rebuilt from the codebook hash list (the shared LUT when one is
+/// persisted), `gate_set` is `c(t) ∩ G_u`, and the codebook filter makes the
+/// per-user LUT degradable to the token/hash list — hashes ↔ tokens are
+/// isomorphic under the shared soldered rule, so the materializer runs
+/// against the ingest's own per-seed LUTs and the user side stores hashes
+/// only.
+pub fn ingest_gated_set(
+    ingest: &crate::ingest::Ingest,
+    gate_set: &HLLSet,
+    codebook: Option<&BTreeSet<Vec<u8>>>,
+) -> BTreeSet<Vec<u8>> {
+    let gated_sketches: Vec<HLLSet> = ingest
+        .hllsets
+        .iter()
+        .map(|h| gate(h, gate_set))
+        .collect();
+    let pairs: Vec<(&HLLSet, &LutIndex)> =
+        gated_sketches.iter().zip(ingest.luts.iter()).collect();
+    let tokens = materialize_lut_first(&pairs);
+    match codebook {
+        Some(cb) => tokens.intersection(cb).cloned().collect(),
+        None => tokens,
+    }
 }
 
 /// Reconstruct the original order by following the 3-gram chain anchored at
@@ -557,7 +656,7 @@ fn beam_search(
                     } else {
                         st.path[st.path.len() - 3].clone()
                     };
-                    base && sketch4_contains(ingested, &join4(&prevprev, prev, cur, pad))
+                    base && slide4_contains(ingested, &join4(&prevprev, prev, cur, pad))
                 };
                 if ok {
                     completed.push((st.path.clone(), st.score));
@@ -586,7 +685,7 @@ fn beam_search(
                     } else {
                         st.path[st.path.len() - 3].clone()
                     };
-                    base && sketch4_contains(ingested, &join4(&prevprev, &prev, &cur, c))
+                    base && slide4_contains(ingested, &join4(&prevprev, &prev, &cur, c))
                 };
                 if !ok {
                     continue;
@@ -661,7 +760,7 @@ fn walk(
             } else {
                 path[path.len() - 3].clone()
             };
-            base && sketch4_contains(ingested, &join4(&prevprev, &prev, &cur, pad))
+            base && slide4_contains(ingested, &join4(&prevprev, &prev, &cur, pad))
         };
     }
 
@@ -683,7 +782,7 @@ fn walk(
                 } else {
                     path[path.len() - 3].clone()
                 };
-                base && sketch4_contains(ingested, &join4(&prevprev, &prev, &cur, c))
+                base && slide4_contains(ingested, &join4(&prevprev, &prev, &cur, c))
             }
         })
         .cloned()
@@ -727,11 +826,11 @@ fn sketch_contains(ingested: &Ingested, channel: usize, bytes: &[u8]) -> bool {
     ingested.sketches[channel].has_bit(addr.reg(), addr.tz())
 }
 
-/// `true` when the 4-gram order side channel contains the atom of `bytes`
-/// (hashed with seed 3).
-fn sketch4_contains(ingested: &Ingested, bytes: &[u8]) -> bool {
+/// `true` when the 4-slide order side channel (`S4_1d`) contains the
+/// atom of `bytes` (hashed with seed 3).
+fn slide4_contains(ingested: &Ingested, bytes: &[u8]) -> bool {
     let addr = BitAddress::of_token_seeded(bytes, 3);
-    ingested.g4.has_bit(addr.reg(), addr.tz())
+    ingested.slide4.has_bit(addr.reg(), addr.tz())
 }
 
 /// Join tokens with the soldered NUL separator (single tokens pass through
@@ -994,6 +1093,73 @@ mod tests {
     }
 
     #[test]
+    fn gated_materialization_restores_exactly_one_user() {
+        // Two disjoint codebooks; a mixed collection of both users' tokens.
+        let fin: Vec<Vec<u8>> = bytes(&["fin_a", "fin_b", "fin_c", "fin_d", "fin_e"]);
+        let gate_hll = ingest(&fin).projection.clone();
+        let codebook: BTreeSet<Vec<u8>> = fin.iter().cloned().collect();
+
+        let mixed = bytes(&[
+            "fin_a", "med_x", "fin_b", "med_y", "fin_a", "med_z", "fin_c",
+        ]);
+        let ing = ingest(&mixed);
+
+        let gated = unordered_tokens_gated(&ing, &gate_hll, Some(&codebook));
+        let expected: BTreeSet<Vec<u8>> =
+            bytes(&["fin_a", "fin_b", "fin_c"]).into_iter().collect();
+        assert_eq!(gated, expected, "gated restoration keeps only the user's own tokens");
+
+        // No codebook filter: the gate alone already excludes med-only bits;
+        // foreign candidates may leak in only through bit collisions.
+        let gated_unfiltered = unordered_tokens_gated(&ing, &gate_hll, None);
+        assert!(gated_unfiltered.is_superset(&expected));
+        assert!(gated_unfiltered.len() >= expected.len());
+    }
+
+    #[test]
+    fn flat_ingest_gated_set_restores_the_user_component() {
+        use crate::ingest::Ingest;
+
+        // The store's commit channels are flat seed-0/1/2 token bits; the
+        // codebook gate is the flat projection of the user's vocabulary.
+        let mut codebook_ing = Ingest::new();
+        codebook_ing.ingest_tokens([&b"fin_a"[..], &b"fin_b"[..], &b"fin_c"[..]]);
+        let gate_hll = codebook_ing.projection();
+        let codebook: BTreeSet<Vec<u8>> =
+            bytes(&["fin_a", "fin_b", "fin_c"]).into_iter().collect();
+
+        // A shared commit lattice: the user's fin_a/fin_b plus a foreign med_x.
+        let mut shared = Ingest::new();
+        shared.ingest_tokens([&b"fin_a"[..], &b"med_x"[..], &b"fin_b"[..]]);
+        let gated = gate(&gate_hll, &shared.projection());
+
+        let restored = ingest_gated_set(&codebook_ing, &gated, Some(&codebook));
+        let expected: BTreeSet<Vec<u8>> =
+            bytes(&["fin_a", "fin_b"]).into_iter().collect();
+        assert_eq!(restored, expected, "flat gate restores exactly the user's tokens");
+    }
+
+    #[test]
+    fn cross_scheme_bss_diluted_but_g1_scoped_is_exact() {
+        use crate::ingest::Ingest;
+
+        let tokens = bytes(&["a", "b", "c", "d", "a", "e", "f", "g"]);
+        let ng = ingest(&tokens);                       // ordered: n-gram
+        let mut ns = Ingest::new();                     // unordered: n-seed
+        ns.ingest_tokens(tokens.iter().map(|t| t.as_slice()));
+
+        // Full projection: only 1-gram/seed-0 match; 2-gram vs seed-1 and
+        // 3-gram vs seed-2 differ → diluted to ~1/3 for identical tokens.
+        let full = ng.projection.intersection(&ns.projection()).popcount() as f64
+            / ns.projection().popcount() as f64;
+        assert!(full < 0.5, "cross-scheme full BSS diluted: {full}");
+
+        // G1 scope: 1-gram == seed-0 → exact.
+        let g1 = bss_g1(&ng.sketches[0], ns.hllset(0));
+        assert!((g1 - 1.0).abs() < 1e-9, "G1-scoped BSS should be exact, got {g1}");
+    }
+
+    #[test]
     fn tf_ranks_de_bruijn_successors_in_order_restoration() {
         // Two valid chains of the same length share the start (x, y) and
         // branch on the next 3-gram: (x,y,a) vs (x,y,b). Bytewise order
@@ -1048,7 +1214,7 @@ mod tests {
         ];
         for gram in &fours {
             let addr = BitAddress::of_token_seeded(gram, 3);
-            ing.g4.add_bit(addr.bit());
+            ing.slide4.add_bit(addr.bit());
         }
 
         // 2-gram channel: both chains' transitions and terminations.
@@ -1133,7 +1299,7 @@ mod tests {
         ];
         for gram in &fours {
             let addr = BitAddress::of_token_seeded(gram, 3);
-            ing.g4.add_bit(addr.bit());
+            ing.slide4.add_bit(addr.bit());
         }
 
         // 2-gram channel: both chains' transitions and terminations.
@@ -1238,7 +1404,7 @@ mod tests {
         ];
         for gram in &fours {
             let addr = BitAddress::of_token_seeded(gram, 3);
-            ing.g4.add_bit(addr.bit());
+            ing.slide4.add_bit(addr.bit());
         }
 
         assert_eq!(

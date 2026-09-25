@@ -128,6 +128,19 @@ impl LutIndex {
     pub fn fiber(&self, i: u32) -> BTreeSet<Token> {
         self.by_bit.get(&i).cloned().unwrap_or_default()
     }
+
+    /// Export the fibers as sorted `(bit, token)` rows — the Arrow token-LUT
+    /// batch shape (`bit` UInt32, `token` Binary), used to merge this index
+    /// into the shared reverse LUT of the extended cache.
+    pub fn rows(&self) -> Vec<(u32, Vec<u8>)> {
+        let mut rows: Vec<(u32, Vec<u8>)> = self
+            .by_bit
+            .iter()
+            .flat_map(|(bit, tokens)| tokens.iter().map(move |t| (*bit, t.clone())))
+            .collect();
+        rows.sort();
+        rows
+    }
 }
 
 /// The sparse Merkle tree over `B` — the sketch-space presentation of a LUT

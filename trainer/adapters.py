@@ -109,9 +109,13 @@ class LlmAdapter(Adapter):
     """The three real small LLMs, loaded once on the pinned GPU."""
 
     def __init__(self, models: Optional[dict[str, str]] = None, max_new_tokens: int = 48):
-        # Pin the GPU before torch is imported anywhere else.
+        # Pin the GPU before torch is imported anywhere else. With
+        # CUDA_DEVICE_ORDER=PCI_BUS_ID on this machine the Quadro M1200 is
+        # device 0 and the RTX 3060 is device 1. Respect an explicit
+        # CUDA_VISIBLE_DEVICES (the notebooks set it in the first cell);
+        # default to device 1 (the RTX).
         os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
-        os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+        os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
         os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
         import torch
@@ -443,6 +447,307 @@ class LayaAdapter(DecisionRouter):
             except Exception:
                 self._proc.kill()
         self._proc = None
+
+
+# ---------------------------------------------------------------------------
+# Structural local-LLM router — the prompted Jev/Laya replacement.
+# ---------------------------------------------------------------------------
+
+STRUCTURAL_ROUTER_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
+
+STRUCTURAL_ROUTER_SYSTEM = (
+    "You are the routing controller of a multi-LLM memory system. "
+    "You answer with exactly one JSON object and nothing else."
+)
+
+
+def structural_decision_prompt(
+    state: dict,
+    options: dict[str, str],
+    instructions: str,
+    extra_noul: Optional[dict[str, str]] = None,
+) -> str:
+    """Serialize the ewm-sm structural state into the decision prompt (the
+    *user* message; the router wraps it with a system message / chat template).
+
+    The state may carry, beyond query/memory/step/bss:
+      - drn  {dp, rp, np, ind1, ind3}          latest Noether transition
+      - ring {residual, in_span, dim, rotation_count, spill_first}
+    Missing fields are omitted, so the prompt degrades gracefully to the
+    query/memory/bss surface the Laya adapter already uses.
+    """
+    names = list(options)
+    lines = []
+    query = str(state.get("query", "")).strip()
+    lines.append(f'Query: "{query}"')
+    memory = str(state.get("memory", "")).strip()
+    if memory:
+        toks = memory.split()
+        lines.append(
+            f"Memory: {len(toks)} content-addressed token ids; most recent: "
+            + " ".join(toks[:8])
+        )
+    bss = state.get("bss") or {}
+    if bss:
+        lines.append(
+            "BSS coverage (fraction of the conversation each model's frame covers): "
+            + ", ".join(f"{k} {float(v):.3f}" for k, v in bss.items())
+        )
+    drn = state.get("drn") or {}
+    if drn:
+        lines.append(
+            "Noether D/R/N of the last transition (departed/retained/new bits): "
+            + f"dp={drn.get('dp', 0)} rp={drn.get('rp', 0)} np={drn.get('np', 0)}"
+        )
+        if "ind1" in drn and "ind3" in drn:
+            lines.append(f"indicators ind1={drn['ind1']:.3f} ind3={drn['ind3']:.3f}")
+    ring = state.get("ring") or {}
+    if ring:
+        lines.append(
+            "Boolean-ring reading of the last frame: "
+            + f"residual={ring.get('residual', 0)} "
+            + f"in_span={bool(ring.get('in_span', False))} "
+            + f"dim={ring.get('dim', 0)} "
+            + f"rotation_count={ring.get('rotation_count', 0)} "
+            + f"spill_first={ring.get('spill_first', 0)}"
+        )
+    windows = state.get("windows") or {}
+    if windows:
+        # compact per-feature multi-window view: name ma2/ma3/ma4/ma5
+        by_feat: dict[str, list[str]] = {}
+        for key, val in windows.items():
+            if key.endswith("_ma2") or key.endswith("_ma3") or key.endswith("_ma4") or key.endswith("_ma5"):
+                feat, _, k = key.rpartition("_ma")
+                by_feat.setdefault(feat, []).append((int(k), float(val)))
+        if by_feat:
+            parts = []
+            for feat in sorted(by_feat):
+                seq = " ".join(f"ma{k}={v:.3f}" for k, v in sorted(by_feat[feat]))
+                parts.append(f"{feat} {seq}")
+            lines.append(
+                "Moving averages of the structural series over the last 2/3/4/5 "
+                "steps: " + "; ".join(parts)
+            )
+    crossings = state.get("crossings") or {}
+    if crossings:
+        events = sorted(k for k, v in crossings.items() if v)
+        lines.append(
+            "Moving-average crossovers (short vs long window, from below = up / "
+            "from above = down): " + (", ".join(events) if events else "none")
+        )
+    lines.append("Options:")
+    for n in names:
+        lines.append(f"- {n}: {options[n]}")
+    lines.append(f"Instructions: {instructions}")
+    if extra_noul:
+        aux_names = ", ".join(f'"{n}"' for n in extra_noul)
+        lines.append(
+            f"Also answer the numeric questions {aux_names} in the aux object "
+            "(each 0.0 to 1.0)."
+        )
+    probs_schema = ", ".join(f'"{n}": 0.0' for n in names)
+    aux_schema = ", ".join(f'"{n}": 0.0' for n in (extra_noul or {}))
+    lines.append(
+        'JSON schema: {"decision": "<option name>", "confidence": 0.0, '
+        f'"probabilities": {{{probs_schema}}}'
+        + (f', "aux": {{{aux_schema}}}' if extra_noul else "")
+        + "}"
+    )
+    return "\n".join(lines)
+
+
+def _extract_json_object(text: str) -> Optional[dict]:
+    """Pull the first {...} span out of a model reply (fences, prose, etc.)."""
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    try:
+        obj = json.loads(text[start : end + 1])
+        return obj if isinstance(obj, dict) else None
+    except Exception:
+        return None
+
+
+def _structural_fallback(
+    state: dict, options: dict[str, str], extra_noul: Optional[dict[str, str]]
+) -> DecisionRecord:
+    """Parse-proof fallback: trust the state, not the parser.
+
+    Chooses the option with the highest BSS coverage (the model whose frame
+    covers the conversation best), with zero confidence so a configured
+    confidence gate can fall back further. Used when the local LM is missing
+    or its JSON reply cannot be parsed.
+    """
+    names = list(options)
+    if not names:
+        decision = ""
+    else:
+        bss = state.get("bss") or {}
+        try:
+            decision = max(names, key=lambda n: float(bss.get(n, 0.0)))
+        except Exception:
+            decision = names[0]
+    probs = {n: (1.0 if n == decision else 0.0) for n in names}
+    return DecisionRecord(
+        decision=decision,
+        confidence=0.0,
+        probabilities=probs,
+        decision_type="route_query",
+        aux={name: 0.5 for name in (extra_noul or {})},
+        model="structural-llm-fallback",
+        mock=True,
+    )
+
+
+class StructuralLlmRouter(DecisionRouter):
+    """A local small LLM prompted with the ewm-sm structural state (BSS,
+    D/R/N, Boolean ring) that returns a typed routing decision as JSON.
+
+    Drop-in replacement for Jev/Laya behind `DecisionRouter`::
+
+        router = StructuralLlmRouter()
+        result = run_jev_loop(..., jev=router, ..., structural=True)
+
+    When torch/transformers or the checkpoint are unavailable — or
+    `mock=True` is passed — it degrades to the deterministic structural
+    fallback (`mock=True`), so the loop always runs.
+    """
+
+    def __init__(
+        self,
+        model_id: Optional[str] = None,
+        max_new_tokens: int = 192,
+        temperature: float = 0.0,
+        mock: bool = False,
+    ):
+        self.model_id = model_id or STRUCTURAL_ROUTER_MODEL
+        self.max_new_tokens = max_new_tokens
+        self.temperature = temperature
+        self.mock = mock
+        self._mock_reason = ""
+        if mock:
+            self._mock_reason = "mock=True"
+            return
+        # Pin the GPU before torch is imported anywhere else. With
+        # CUDA_DEVICE_ORDER=PCI_BUS_ID on this machine the Quadro M1200 is
+        # device 0 and the RTX 3060 is device 1. Respect an explicit
+        # CUDA_VISIBLE_DEVICES; default to device 1 (the RTX).
+        os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
+        os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
+        os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except Exception as exc:
+            self.mock = True
+            self._mock_reason = f"torch/transformers unavailable: {exc}"
+            return
+        try:
+            self.tok = AutoTokenizer.from_pretrained(self.model_id, local_files_only=True)
+            # Force the router onto the selected CUDA device. `device_map="auto"`
+            # may otherwise offload it to CPU when the probe LLMs already hold
+            # the GPU, which turns every decision into a ~60 s CPU generation.
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_id, local_files_only=True, dtype=torch.float16
+            ).to("cuda:0")
+            self.model.eval()
+        except Exception as exc:
+            self.mock = True
+            self._mock_reason = f"checkpoint unavailable for {self.model_id}: {exc}"
+            return
+        self._torch = torch
+        self._device = torch.device("cuda:0")
+
+    def _generate_json(self, user_prompt: str) -> tuple[str, int, int]:
+        tok = self.tok
+        messages = [
+            {"role": "system", "content": STRUCTURAL_ROUTER_SYSTEM},
+            {"role": "user", "content": user_prompt},
+        ]
+        try:
+            text = tok.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        except Exception:
+            text = STRUCTURAL_ROUTER_SYSTEM + "\n\n" + user_prompt
+        inputs = tok(text, return_tensors="pt").to(self._device)
+        prompt_tokens = int(inputs["input_ids"].shape[1])
+        with self._torch.no_grad():
+            gen = self.model.generate(
+                **inputs,
+                max_new_tokens=self.max_new_tokens,
+                do_sample=self.temperature > 0,
+                temperature=self.temperature if self.temperature > 0 else 1.0,
+                pad_token_id=tok.eos_token_id,
+            )
+        new_ids = gen[0, inputs["input_ids"].shape[1] :].cpu().tolist()
+        reply = tok.decode(new_ids, skip_special_tokens=True)
+        return reply, prompt_tokens, len(new_ids)
+
+    def route(
+        self,
+        state: dict,
+        options: dict[str, str],
+        instructions: str,
+        extra_noul: Optional[dict[str, str]] = None,
+    ) -> DecisionRecord:
+        names = list(options)
+        if self.mock:
+            return _structural_fallback(state, options, extra_noul)
+
+        user_prompt = structural_decision_prompt(state, options, instructions, extra_noul)
+        reply, prompt_tokens, new_tokens = self._generate_json(user_prompt)
+        obj = _extract_json_object(reply)
+        if obj is None:
+            rec = _structural_fallback(state, options, extra_noul)
+            rec.model = "structural-llm-parse-fallback"
+            return rec
+
+        probs: dict[str, float] = {}
+        raw_probs = obj.get("probabilities") or {}
+        if isinstance(raw_probs, dict):
+            for n in names:
+                try:
+                    probs[n] = float(raw_probs.get(n, 0.0))
+                except Exception:
+                    probs[n] = 0.0
+        if not any(v > 0 for v in probs.values()):
+            probs = {n: 1.0 / len(names) for n in names} if names else {}
+        total = sum(probs.values())
+        if total > 0:
+            probs = {n: v / total for n, v in probs.items()}
+        elif names:
+            probs = {n: 1.0 / len(names) for n in names}
+
+        decision = str(obj.get("decision", "")).strip()
+        if decision not in names:
+            decision = max(probs, key=probs.get) if probs else (names[0] if names else "")
+        try:
+            confidence = float(obj.get("confidence", probs.get(decision, 0.0)))
+        except Exception:
+            confidence = probs.get(decision, 0.0)
+        confidence = min(1.0, max(0.0, confidence))
+
+        aux = {}
+        for name in (extra_noul or {}):
+            try:
+                v = float((obj.get("aux") or {}).get(name, 0.5))
+            except Exception:
+                v = 0.5
+            aux[name] = min(1.0, max(0.0, v))
+
+        return DecisionRecord(
+            decision=decision,
+            confidence=confidence,
+            probabilities=probs,
+            decision_type="route_query",
+            aux=aux,
+            model=self.model_id,
+            input_tokens=prompt_tokens,
+            output_tokens=new_tokens,
+            mock=False,
+        )
 
 
 class BonsaiAdapter:

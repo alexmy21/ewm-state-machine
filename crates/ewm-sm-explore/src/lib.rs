@@ -16,7 +16,7 @@
 //! - [`store_json`] — the persistent layer as JSON for tooling.
 
 use ewm_app::StateSnapshot;
-use ewm_git::{view, Gx, ObjectStore, Repository};
+use ewm_git::{view, Gx, ObjectId, ObjectStore, Repository};
 
 /// Render the persistent layer of an open repository, tip-first.
 pub fn render_store<S: ObjectStore>(repo: &Repository<S>, store_label: &str) -> String {
@@ -198,3 +198,123 @@ fn truncate(s: &str, n: usize) -> String {
         format!("{cut}…")
     }
 }
+
+/// Per-user projection of one commit: the codebook gate `G_u` intersected
+/// with the commit's shared lattice `c(t) = G1 ∪ G2 ∪ G3` (lab notebook 11).
+///
+/// The store commits unordered token collections, so the gate-HLLSet is the
+/// **n-seed projection** `G1 ∪ G2 ∪ G3` over seeds 0/1/2 — the same shared
+/// channels the n-gram scheme uses for ordered streams (1-gram/seed-0 → G1,
+/// 2-gram/seed-1 → G2, 3-gram/seed-2 → G3); a Gx-HLLSet is one channel only.
+/// The scheme mark is explicit in the keys: the catalog gate and its gated
+/// projection carry `c:<sha1>` (n-seed), the commit lattice carries `h:<sha1>`
+/// (n-gram), mirroring the `ns:`/`ng:` LUT names.
+/// The materializer runs against the LUT rebuilt from the codebook hash list
+/// — hashes ↔ tokens are isomorphic under the shared soldered rule, so the
+/// per-user LUT degrades to the token/hash list; when a persisted shared
+/// reverse LUT lands (the Arrow cache), the same call runs against it.
+/// Returns `gated_pop`/`gated_key` (`c(t) ∩ G_u`) and the restored tokens.
+pub fn project_user_json<S: ObjectStore>(
+    repo: &Repository<S>,
+    user: &str,
+    cid: &ObjectId,
+    codebook: &[String],
+) -> Result<serde_json::Value, String> {
+    // Flat n-seed gate: G1/G2/G3 = seed-0/1/2 token bits, matching the store.
+    let mut gate_ing = hllset_morphisms::Ingest::new();
+    gate_ing.ingest_tokens(codebook.iter().map(|t| t.as_bytes()));
+    let gate_hll = gate_ing.projection();
+    let codebook_set: std::collections::BTreeSet<Vec<u8>> =
+        codebook.iter().map(|t| t.as_bytes().to_vec()).collect();
+
+    let states = repo.states(cid).map_err(|e| e.to_string())?;
+    let shared = states[0].union(&states[1]).union(&states[2]);
+    let gated = hllset_morphisms::gate(&gate_hll, &shared);
+
+    // Materialize against the gate's own per-seed LUTs (derived from the
+    // hash list), filtered by the codebook — exact per-user restoration up
+    // to hash collisions.
+    let restored: Vec<String> = hllset_morphisms::ingest_gated_set(
+        &gate_ing,
+        &gated,
+        Some(&codebook_set),
+    )
+    .into_iter()
+    .map(|v| String::from_utf8_lossy(&v).into_owned())
+    .collect();
+
+    Ok(serde_json::json!({
+        "user": user,
+        "commit": cid.as_str(),
+        "commit_pop": shared.popcount(),
+        "commit_key": shared.content_key(),
+        "gate_pop": gate_hll.popcount(),
+        "gate_key": gate_ing.key(),
+        "gated_pop": gated.popcount(),
+        "gated_key": gated.content_key_c(),
+        "n_restored": restored.len(),
+        "restored_tokens": restored,
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ewm_git::{LatticeState, LooseStore, MemoryStore, Repository};
+
+    #[test]
+    fn project_user_gates_the_commit_lattice() {
+        let mut repo = Repository::new(MemoryStore::default());
+
+        // User A's codebook, and a commit whose shared lattice mixes A and B
+        // tokens — the gated projection keeps only the A-component.
+        let codebook: Vec<String> = ["fin_a", "fin_b", "fin_c", "fin_d"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let state_a = LatticeState::single(&hllset_core::HLLSet::from_tokens(
+            ["fin_a", "fin_b"].iter(),
+        ));
+        let commit = repo.commit(&state_a, &[], "user A").unwrap();
+
+        let doc = project_user_json(&repo, "acme-finance", &commit, &codebook).unwrap();
+        let gate_pop = doc["gate_pop"].as_u64().unwrap();
+        let gated_pop = doc["gated_pop"].as_u64().unwrap();
+        assert!(gate_pop >= gated_pop, "gated bits are a subset of the gate");
+        assert!(gated_pop > 0, "the commit carries some of the user's bits");
+        assert_eq!(doc["restored_tokens"], serde_json::json!(["fin_a", "fin_b"]));
+
+        // The gated key is stable: same projection twice, same address.
+        let doc2 = project_user_json(&repo, "acme-finance", &commit, &codebook).unwrap();
+        assert_eq!(doc["gated_key"], doc2["gated_key"]);
+    }
+
+    #[test]
+    fn project_user_reads_a_loose_store() {
+        // Exercise the same path the CLI uses: a persisted LooseStore.
+        let root = std::env::temp_dir().join(format!(
+            "ewm-project-user-smoke-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let mut repo = Repository::new(LooseStore::new(&root));
+
+        let mixed = LatticeState::single(&hllset_core::HLLSet::from_tokens(
+            ["fin_a", "fin_b", "med_x"].iter(),
+        ));
+        let commit = repo.commit(&mixed, &[], "mixed").unwrap();
+
+        let codebook: Vec<String> = ["fin_a", "fin_b", "fin_c"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let doc = project_user_json(&repo, "acme-finance", &commit, &codebook).unwrap();
+        assert_eq!(doc["user"], "acme-finance");
+        assert!(doc["gated_pop"].as_u64().unwrap() > 0);
+        // The foreign med_x is outside the gate and never restored.
+        assert_eq!(doc["restored_tokens"], serde_json::json!(["fin_a", "fin_b"]));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}
+

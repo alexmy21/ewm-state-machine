@@ -1,16 +1,26 @@
 //! The `conv(n, dim)` channel model.
 //!
+//! One **slide algorithm**, two applications:
+//!
+//! - **n-gram** — the slide over an ordered token sequence (`dim = 1`) where
+//!   each window *points at* its first component: the pointed-to token is
+//!   registered in the channel LUT, so order is restorable (De Bruijn chain).
+//! - **n-slide** — the slide as a pure window projection (any `dim`, or any
+//!   order side channel): the window atom is set with **no LUT insert** (the
+//!   NO-LUT flag). Used for convolution windows and for the order side
+//!   channels (`S4_1d`, `S4_2d`) that only serve joint edge checks.
+//!
 //! n-grams are 1D convolutions over a token sequence; grids generalize the
 //! same morphisms to 2D convolutions over a token matrix:
 //!
 //! ```text
 //! conv(1, 1)   1×1   seed 0   G1     (shared: 1-gram = 1-conv)
-//! conv(2, 1)   2×1   seed 1   G2_1d
-//! conv(3, 1)   3×1   seed 2   G3_1d
-//! conv(4, 1)   4×1   seed 3   G4_1d  (1D order side channel)
-//! conv(2, 2)   2×2   seed 4   G2_2d
-//! conv(3, 2)   3×3   seed 5   G3_2d
-//! conv(4, 2)   4×4   seed 6   G4_2d  (2D order side channel)
+//! conv(2, 1)   2×1   seed 1   G2_1d  (n-gram, LUT)
+//! conv(3, 1)   3×1   seed 2   G3_1d  (n-gram, LUT)
+//! conv(4, 1)   4×1   seed 3   S4_1d  (n-slide, NO LUT — 1D order side channel)
+//! conv(2, 2)   2×2   seed 4   G2_2d  (n-slide, LUT: window anchor)
+//! conv(3, 2)   3×3   seed 5   G3_2d  (n-slide, LUT: window anchor)
+//! conv(4, 2)   4×4   seed 6   S4_2d  (n-slide, NO LUT — 2D order side channel)
 //! ```
 //!
 //! Seed rule: `seed(1, ·) = 0` — the 1×1 channel is dimension-independent,
@@ -47,12 +57,16 @@ pub const fn seed(spec: ConvSpec) -> u64 {
 }
 
 /// The hllsetLUT name of a channel: `G1` for the shared 1×1 channel,
-/// `G{n}_{dim}d` otherwise (e.g. `G2_1d`, `G3_2d`).
+/// `G{n}_{dim}d` for content channels (`n ≤ 3`), and `S{n}_{dim}d` for the
+/// slide side channels (`n ≥ 4`, projection-only, NO LUT). The `S` prefix
+/// keeps the side channels apart from the global G1/G2/G3 channels.
 pub fn channel_name(n: u8, dim: u8) -> String {
     if n <= 1 {
         "G1".to_string()
-    } else {
+    } else if n <= 3 {
         format!("G{n}_{dim}d")
+    } else {
+        format!("S{n}_{dim}d")
     }
 }
 
@@ -81,6 +95,7 @@ mod tests {
         assert_eq!(channel_name(1, 2), "G1");
         assert_eq!(channel_name(2, 1), "G2_1d");
         assert_eq!(channel_name(3, 2), "G3_2d");
-        assert_eq!(channel_name(4, 2), "G4_2d");
+        assert_eq!(channel_name(4, 1), "S4_1d");
+        assert_eq!(channel_name(4, 2), "S4_2d");
     }
 }

@@ -23,6 +23,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use hllset_core::HLLSet;
+use hllset_morphisms::Ingest;
 use crate::ingest::{IngestSink, Ingestor};
 
 use crate::hllset_lut::{BitTf, HllsetLut};
@@ -140,6 +141,54 @@ impl<S: ObjectStore> Repository<S> {
     /// The `<SHA1, TH>` touch-count registry of original HLLSets.
     pub fn hllset_lut(&self) -> &HllsetLut {
         &self.hllset_lut
+    }
+
+    /// Put a per-user codebook gate into the gates section.
+    ///
+    /// The codebook is ingested with the n-seed `Ingest` (unordered catalog),
+    /// so the catalog key is `c:<sha1>`; the persisted file is the gate
+    /// degraded to the list of tokens (hashes ↔ tokens are isomorphic):
+    /// first line the catalog key, then one token per line.
+    pub fn put_gate(&mut self, user: &str, codebook: &[String]) -> Result<ObjectId> {
+        let mut ing = Ingest::new();
+        ing.ingest_tokens(codebook.iter().map(|t| t.as_bytes()));
+        let catalog_key = ing.key();
+        let mut text = String::new();
+        text.push_str(&catalog_key);
+        text.push('\n');
+        for token in codebook {
+            text.push_str(token);
+            text.push('\n');
+        }
+        self.store.put_gate(user, &text)?;
+        Ok(ObjectId::of_bytes(text.as_bytes()))
+    }
+
+    /// Read a gate catalog: `(catalog_key, tokens)`.
+    pub fn gate(&self, user: &str) -> Result<(String, Vec<String>)> {
+        let text = self.store.get_gate(user)?;
+        let mut lines = text.lines();
+        let key = lines
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if !key.starts_with("c:") {
+            return Err(StoreError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("gate {user}: missing catalog key line"),
+            )));
+        }
+        let tokens: Vec<String> = lines
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| l.to_string())
+            .collect();
+        Ok((key, tokens))
+    }
+
+    /// The names of all stored gate catalogs.
+    pub fn gate_names(&self) -> Vec<String> {
+        self.store.list_gates()
     }
 
     /// Create a commit from a lattice state (three channels + bit-TF).
@@ -567,6 +616,46 @@ mod tests {
 
     fn hll(tokens: &[&str]) -> HLLSet {
         HLLSet::from_tokens(tokens.iter())
+    }
+
+    #[test]
+    fn gate_catalog_roundtrip_with_catalog_key() {
+        let mut repo = Repository::new(MemoryStore::default());
+        let codebook: Vec<String> = ["fin_a", "fin_b", "fin_c"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        let id = repo.put_gate("acme-finance", &codebook).unwrap();
+        assert!(id.as_str().len() == 40);
+
+        assert_eq!(repo.gate_names(), vec!["acme-finance"]);
+        let (key, tokens) = repo.gate("acme-finance").unwrap();
+        assert!(key.starts_with("c:"), "catalog key = {key}");
+        let mut ig = Ingest::new();
+        ig.ingest_tokens(codebook.iter().map(|t| t.as_bytes()));
+        assert_eq!(key, ig.key());
+        assert_eq!(tokens, codebook);
+    }
+
+    #[test]
+    fn gate_catalog_persists_in_loose_store() {
+        let root = std::env::temp_dir().join(format!(
+            "ewm-gate-section-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let mut repo = Repository::new(crate::store::LooseStore::new(&root));
+        let codebook: Vec<String> = ["fin_a", "fin_b"].iter().map(|s| s.to_string()).collect();
+        repo.put_gate("acme-finance", &codebook).unwrap();
+
+        let reopened = Repository::open(crate::store::LooseStore::new(&root));
+        let (key, tokens) = reopened.gate("acme-finance").unwrap();
+        assert!(key.starts_with("c:"));
+        assert_eq!(tokens, codebook);
+        assert_eq!(reopened.gate_names(), vec!["acme-finance"]);
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
