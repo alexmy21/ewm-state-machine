@@ -22,7 +22,7 @@ pub mod view;
 pub use hllset_lut::{BitTf, HllsetLut};
 pub use ingest::{IngestOutput, IngestSink, IngestStats, Ingestor};
 pub use object::{Commit, Gx, Object, ObjectId};
-pub use repo::{ContextWarning, GcReport, LatticeState, Repository};
+pub use repo::{ContextWarning, GcReport, InteractionRecord, LatticeState, Repository};
 pub use store::{LooseStore, MemoryStore, ObjectStore, StoreError};
 pub use view::{view, view_channel, views, CommitView};
 

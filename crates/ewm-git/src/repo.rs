@@ -45,6 +45,41 @@ pub struct LatticeState {
     pub tf: BitTf,
 }
 
+/// One intercepted interaction, flattened to typed key-value pairs — the
+/// encodings-native form of a tool request / decision / context assembly.
+///
+/// The interception rule: **any interaction becomes an HLLSet**. The typed
+/// record is flattened into an ordered list of field strings, ingested as an
+/// n-seed catalog (so it carries a `c:<sha1>` key) and committed as a
+/// first-class lattice event. Nothing about the interaction is text-shaped:
+/// fields are encodings and their values.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InteractionRecord {
+    /// `"decision"` | `"tool_request"` | `"context"` | …
+    pub kind: String,
+    /// The turn index the interaction belongs to (or 0 when irrelevant).
+    pub step: u64,
+    /// Ordered typed fields (`probability.llm_b=0.77`, `query=q_acme_0`, …).
+    pub fields: Vec<(String, String)>,
+}
+
+impl InteractionRecord {
+    /// The catalog values the interaction ingests as: every field becomes
+    /// one `key=value` token of the n-seed catalog.
+    pub fn catalog_values(&self) -> Vec<String> {
+        let mut out = vec![format!("kind={}", self.kind), format!("step={}", self.step)];
+        for (k, v) in &self.fields {
+            out.push(format!("{k}={v}"));
+        }
+        out
+    }
+
+    /// The canonical single-line form, used as the commit message.
+    pub fn canonical_message(&self) -> String {
+        self.catalog_values().join(",")
+    }
+}
+
 impl LatticeState {
     /// A single HLLSet replicated into all three channels (single-seed
     /// convenience); the TF vector is touched once by that HLLSet.
@@ -189,6 +224,37 @@ impl<S: ObjectStore> Repository<S> {
     /// The names of all stored gate catalogs.
     pub fn gate_names(&self) -> Vec<String> {
         self.store.list_gates()
+    }
+
+    /// Intercept an interaction: flatten the typed record to a catalog,
+    /// ingest it n-seed, and commit it as a first-class lattice event.
+    ///
+    /// Parent is the current `HEAD` (empty for the first event), the commit
+    /// message is the canonical field string, and the state channels are the
+    /// catalog's `G1/G2/G3` HLLSets — the interaction now lives in the DAG
+    /// and is reachable/replayable like every other state.
+    pub fn commit_interaction(
+        &mut self,
+        rec: &InteractionRecord,
+        message: &str,
+    ) -> Result<ObjectId> {
+        let values = rec.catalog_values();
+        let mut ing = Ingest::new();
+        ing.ingest_tokens(values.iter().map(|s| s.as_bytes()));
+
+        let mut tf = BitTf::new();
+        for h in &ing.hllsets {
+            tf.touch(h);
+        }
+        let state = LatticeState {
+            g1: ing.hllsets[0].clone(),
+            g2: ing.hllsets[1].clone(),
+            g3: ing.hllsets[2].clone(),
+            tf,
+        };
+
+        let parents: Vec<ObjectId> = self.head.clone().into_iter().collect();
+        self.commit(&state, &parents, message)
     }
 
     /// Create a commit from a lattice state (three channels + bit-TF).
@@ -636,6 +702,57 @@ mod tests {
         ig.ingest_tokens(codebook.iter().map(|t| t.as_bytes()));
         assert_eq!(key, ig.key());
         assert_eq!(tokens, codebook);
+    }
+
+    #[test]
+    fn interaction_commit_lands_in_the_dag() {
+        let mut repo = Repository::new(MemoryStore::default());
+
+        let rec = InteractionRecord {
+            kind: "decision".to_string(),
+            step: 3,
+            fields: vec![
+                ("decision".to_string(), "llm_b".to_string()),
+                ("confidence".to_string(), "0.77".to_string()),
+                ("probability.llm_b".to_string(), "0.77".to_string()),
+                ("query".to_string(), "q_acme_0".to_string()),
+            ],
+        };
+
+        let id = repo
+            .commit_interaction(&rec, &rec.canonical_message())
+            .unwrap();
+        assert_eq!(repo.head(), Some(&id), "the interaction advanced HEAD");
+
+        let log = repo.log().unwrap();
+        assert!(log.iter().any(|c| c == &id), "the interaction is in the log");
+
+        let g1 = repo.state(&id).unwrap();
+        let mut ig = Ingest::new();
+        ig.ingest_tokens(rec.catalog_values().iter().map(|s| s.as_bytes()));
+        assert_eq!(g1.content_key(), ig.hllsets[0].content_key(),
+                   "the interaction state is the catalog's HLLSet");
+
+        assert!(!repo.hllset_lut().is_empty(), "the interaction touched the HLLSet-LUT");
+    }
+
+    #[test]
+    fn identical_interactions_are_content_addressed() {
+        let mut repo = Repository::new(MemoryStore::default());
+        let rec = InteractionRecord {
+            kind: "tool_request".to_string(),
+            step: 1,
+            fields: vec![("tool".to_string(), "bases".to_string()),
+                         ("query".to_string(), "q_acme_0".to_string())],
+        };
+
+        let first = repo.commit_interaction(&rec, "tool_request").unwrap();
+        let second = repo.commit_interaction(&rec, "tool_request").unwrap();
+
+        let s1 = repo.state(&first).unwrap();
+        let s2 = repo.state(&second).unwrap();
+        assert_eq!(s1.content_key(), s2.content_key(),
+                   "the same interaction maps to the same lattice state");
     }
 
     #[test]
