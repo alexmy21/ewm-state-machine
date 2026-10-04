@@ -356,6 +356,68 @@ gives those nodes their meaning. The threshold is what makes the collection a
 \emph{world} rather than a bare sublattice; the interpretation is what makes it
 this world rather than another.
 
+Everything in the model---tokens, token hashes, and HLLSets---is \emph{IICA}:
+Idempotent, Immutable, and Content-Addressed. All checking therefore happens
+\emph{at the creation of a new element}, never later. Ingest performs its whole
+pass at once: it registers every ingested token in the token LUT, computes each
+token's $(\mathrm{reg},\mathrm{tz})$ position, rehashes each token under the
+other hash functions, and at the end of the batch returns the SHA-1 identifier
+of the HLLSet it submitted to the \texttt{hllsetLUT}. An HLLSet produced by a
+set operation likewise receives its identifier when it is registered. The rule
+is therefore simple and absolute:
+
+\begin{principle}[Existence is registration]
+\label{prin:registration}
+An HLLSet exists only after it has been registered in the \texttt{hllsetLUT}.
+An HLLSet outside the \texttt{hllsetLUT} does not exist---even if a program
+holds its bits. To bring it to life, register it first. Every HLLSet algebra
+operation computes and returns a content-addressed ID, and an ID is only ever
+born at registration.
+\end{principle}
+
+\begin{remark}
+This is what makes registration the natural home of every consistency check:
+the collision test against the existing identifiers, and the collision-tolerant
+bookkeeping that follows from it (Section~\ref{sec:multihash}), are executed
+once, at the moment the element comes into being. Nothing is deferred, so no
+later reader has to repair a half-built object---IICA guarantees there is
+nothing to repair.
+\end{remark}
+
+\begin{proposition}[Idempotent registration, eventual consistency]
+\label{prop:registration-idempotent}
+Registration is idempotent: registering the same HLLSet again leaves the
+\texttt{hllsetLUT} unchanged. Consequently concurrency is not an issue---if two
+participants register the same element, or one registers it twice, the result is
+the same LUT---and a set of LUTs written concurrently converges by
+\emph{re-registration} alone. No lock, ordering, or deduplication pass is
+needed for the registrations to agree.
+\end{proposition}
+
+\begin{proof}
+A register operation is keyed by content: it inserts the pair (identifier,
+HLLSet) into the LUT. Registering $(k,H)$ when $(k,H)$ is already present is a
+no-op, and the touch count is monotone (a CRDT join, pointwise max), so
+$R\circ R=R$ on the same element. For two concurrent registrations of the same
+element the two writes produce the same entry, and any later registration of
+that element is absorbed; hence the LUT state after a finite quiescent period is
+independent of the interleaving. This is the same monotonicity as
+Principle~\ref{prin:emergence}, now at the registry rather than the lattice
+level.
+\end{proof}
+
+\begin{remark}[Why re-registration converges the LUTs]
+The guarantee does not need the writes to be ordered or synchronized, only that
+registration is idempotent and keyed by content. A participant that is unsure
+whether an element made it into a LUT can simply register it again: if it is
+present the second registration changes nothing, and if it is absent the second
+registration completes it. So the LUTs are \emph{eventually consistent by
+re-registration}\footnote{This is the registry-level analogue of the lattice's
+union invariant: both are monotone, content-keyed accumulations, so both
+converge without coordination.}---the same content key always names the same
+element, and re-asserting a key is always safe.
+\end{remark}
+
 \begin{proposition}[Same hash type, different seeds]
 \label{prop:isomorphism}
 Let $w=(h,s)$ and $w'=(h,s')$ use the same hash type with different seeds. On
@@ -663,8 +725,10 @@ $n$-gram side, where the same window is indexed under its own key. It is the
 project's existing ``one LUT per channel'' bookkeeping, now applied per hash
 rather than per token channel.
 
-\paragraph{The second and third LUTs grow lazily.} A SHA-1 collision is close
-to impossible at any realistic scale, so the extra LUTs are not populated
+\paragraph{The second and third LUTs grow lazily.} By
+Principle~\ref{prin:registration} the check happens once, when the HLLSet is
+registered, so it is there that collisions are detected. A SHA-1 collision is
+close to impossible at any realistic scale, so the extra LUTs are not populated
 eagerly. An HLLSet $H$ is added to the second LUT \emph{only if its SHA-1
 identifier collides} with an already-registered HLLSet, and to the third LUT
 \emph{only if the second also collides}. In the overwhelmingly common case an
@@ -718,10 +782,12 @@ and, when computed, $\mathrm{H}_1(H)=b$, $\mathrm{H}_2(H)=c$. Then
 \end{proposition}
 
 \begin{proof}
-(1) Registration places $H$ in the second LUT exactly when a SHA-1 collision
+(1) By Principle~\ref{prin:registration}, $H$ exists because it was registered,
+and registration places it in the second LUT exactly when a SHA-1 collision
 makes stage~2 reachable, and in the third exactly when a second-LUT collision
-makes stage~3 reachable; in each case the entry needed for that stage exists.
-(2) Membership in the stage-3 intersection means
+makes stage~3 reachable. Hence at each stage the entry needed for that stage
+exists, and retrieval always returns the target. (2) Membership in the
+stage-3 intersection means
 $\mathrm{SHA1}(H')=\mathrm{SHA1}(H)$ \emph{and}
 $\mathrm{H}_1(H')=\mathrm{H}_1(H)$ \emph{and} $\mathrm{H}_2(H')=\mathrm{H}_2(H)$;
 for independent $b$-bit hashes each coincidence costs a factor $2^{-b}$, giving
@@ -1093,6 +1159,14 @@ programme, exactly as the main paper describes its own status.
     many users can write into the same lattice at once, and the algebra makes
     it \textbf{impossible to build anything wrong} (Principle~\ref{prin:emergence}).
     No lock, no registry, no consensus protocol.
+  \item Tokens, token hashes, and HLLSets are all \textbf{IICA}, so every check
+    happens at creation: \textbf{an HLLSet exists only after it is registered}
+    in the \texttt{hllsetLUT} (Principle~\ref{prin:registration}). Set
+    operations return content-addressed IDs, never anonymous objects.
+  \item Registration is \textbf{idempotent}, so concurrency is not an issue:
+    re-registering an element is always safe, and concurrently written LUTs are
+    \textbf{eventually consistent by re-registration} alone
+    (Proposition~\ref{prop:registration-idempotent}).
   \item The \textbf{hash function (type and seed)} is a parameter of the
     measurement, so the same lattice carries a family of \textbf{worlds}
     $\Omega\ni w=(h,s)$. A world is its \emph{thresholded node set}
