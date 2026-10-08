@@ -43,14 +43,17 @@ pub struct StateSnapshot {
     pub ring: RingSnapshot,
 }
 
-/// The Boolean-ring window projection.
+/// The Boolean-ring projection.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RingSnapshot {
-    /// The window capacity (cache-bounded).
+    /// The visibility capacity (how many recent originals are exposed).
     pub capacity: usize,
-    /// Originals currently in the window.
+    /// Originals currently visible (≤ `capacity`).
     pub window_len: usize,
-    /// GF(2) span dimension of the window — the context width.
+    /// Total originals ever pushed — the monotone generator history.
+    #[serde(default)]
+    pub total: u64,
+    /// GF(2) span dimension of the monotone basis — the context width.
     pub dimension: usize,
 }
 
@@ -120,6 +123,7 @@ impl<S: ObjectStore> StateMachine<S> {
             ring: RingSnapshot {
                 capacity: RING_CAPACITY,
                 window_len: cache.ring.window_len(),
+                total: cache.ring.total(),
                 dimension: cache.ring.dimension(),
             },
             cache: CacheStub {

@@ -55,7 +55,7 @@ pub struct SidecarFrame {
     /// step at its own moment.
     pub basis_generation: u64,
     /// `true` when this step's push changed the ring basis (extension /
-    /// rotation, or an eviction rebuild). A basis change is a **structural
+    /// rotation in the monotone basis). A basis change is a **structural
     /// event** — the context re-indexed itself — and is the second commit
     /// condition next to `new bits > 0`.
     pub basis_change: bool,
@@ -345,12 +345,12 @@ pub fn drn_series(hllsets: &[HLLSet]) -> Vec<DrnRecord> {
 
 /// The side-car trajectory over an HLLSet series — the host-agnostic core.
 ///
-/// Wired exactly like the [UM] cache ring: a [`BoolWindow`] over the original
-/// per-step HLLSets with [`RING_CAPACITY`]. For each step, before it enters
-/// the window, the soft key (BSS weights over the window basis), the hard key
-/// (coordinates when the step is in the span) and the step length are
-/// measured; then the step is pushed (eviction slides the window and
-/// recomputes the basis).
+/// Wired like the [UM] cache ring: a [`BoolWindow`] over the original per-step
+/// HLLSets with a visibility window of [`RING_CAPACITY`] and a **monotone**
+/// generator basis. For each step, before it enters the ring, the soft key
+/// (BSS weights over the current basis), the hard key (coordinates when the
+/// step is in the span) and the step length are measured; then the step is
+/// pushed (the span only grows; the visibility window slides).
 ///
 /// Soft keys are computed on demand against the live basis — a projection is
 /// sub-millisecond (a handful of roaring intersections per basis element), so

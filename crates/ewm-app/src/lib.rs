@@ -41,7 +41,7 @@ pub use token::TokenEncoding;
 // The default application-level interface of the hllset foundation. The DSL
 // remains the escape hatch for custom HLLSet building; when nothing special
 // is needed, an application calls `ingest` / `materialize` directly.
-pub use ewm_boolring::{BoolBasis, BoolWindow, RingStats};
+pub use ewm_boolring::{BoolBasis, BoolWindow, CoverProjection, RingStats};
 pub use encoder::{CodebookEncoder, Encoder};
 pub use state::RING_CAPACITY;
 

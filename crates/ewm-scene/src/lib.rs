@@ -273,23 +273,23 @@ pub struct SidecarOut {
 }
 
 impl FrameSet {
-    /// The side-car trajectory over the Boolean ring, wired exactly like the
-    /// [UM] cache: a [`ewm_boolring::BoolWindow`] over the original turn
-    /// HLLSets with [`ewm_app::RING_CAPACITY`] (64).
+    /// The side-car trajectory over the Boolean ring, wired like the [UM]
+    /// cache: a [`ewm_boolring::BoolWindow`] over the original frame HLLSets
+    /// with a visibility window of [`ewm_app::RING_CAPACITY`] (64) and a
+    /// **monotone** generator basis (every frame is a permanent generator).
     ///
-    /// For each frame, before it enters the window, measure the soft key (BSS
-    /// weights over the window basis), the hard key (coordinates when the
+    /// For each frame, before it enters the ring, measure the soft key (BSS
+    /// weights over the current basis), the hard key (coordinates when the
     /// frame is in the span) and the residual (linear novelty). Then push the
-    /// frame — eviction slides the window and recomputes the basis. Step
-    /// lengths compare consecutive soft keys in the same (current) basis.
+    /// frame — the span only grows; the visibility window slides. Step lengths
+    /// compare consecutive soft keys in the same (current) basis.
     pub fn sidecar(&self) -> SidecarOut {
         self.sidecar_with_cap(ewm_app::RING_CAPACITY)
     }
 
-    /// The side-car trajectory with a configurable window capacity. A capacity
-    /// at least the frame count is a growing basis (context so far); a smaller
-    /// capacity is a sliding scene-bounded window whose residual series is
-    /// comparable across the clip (the basis dimension stays bounded).
+    /// The side-car trajectory with a configurable **visibility** capacity.
+    /// The generator basis is monotone regardless of `cap`: `dimension` grows
+    /// with the clip, while `window_len` stays bounded by `cap`.
     pub fn sidecar_with_cap(&self, cap: usize) -> SidecarOut {
         self.sidecar_with_cap_freeze(cap, None)
     }

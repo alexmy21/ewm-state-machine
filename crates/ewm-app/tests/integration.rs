@@ -345,10 +345,10 @@ fn stub_llm_replays_scripted_turns_deterministically() {
     assert_eq!(llm.next_turn(), None, "script exhausted");
 }
 
-// ── 8. The Boolean ring is a moving window over original turns ──────────────
+// ── 8. The Boolean ring keeps a monotone basis over original turns ──────────
 
 #[test]
-fn boolring_window_tracks_originals_and_survives_restore() {
+fn boolring_basis_is_monotone_and_survives_restore() {
     // Encoding: tid{n} — the harness path.
     let mut app = StateMachine::new(MemoryStore::default());
     let mut cache = StateCache::empty();
@@ -364,7 +364,7 @@ fn boolring_window_tracks_originals_and_survives_restore() {
     assert!(!out2.ring_stats.in_span);
     assert_eq!(out2.ring_stats.dimension, 2);
 
-    // Turn 3 replays turn 1: already expressible from the window.
+    // Turn 3 replays turn 1: already expressible from the monotone span.
     let out3 = app.run_turn(&mut cache, &[1, 2, 3]).expect("turn 3");
     assert!(out3.ring_stats.in_span, "replayed original is in the span");
     assert_eq!(out3.ring_stats.residual, 0);
@@ -373,12 +373,14 @@ fn boolring_window_tracks_originals_and_survives_restore() {
     let snap = app.snapshot(&cache);
     assert_eq!(snap.ring.capacity, ewm_app::RING_CAPACITY);
     assert_eq!(snap.ring.window_len, 3);
+    assert_eq!(snap.ring.total, 3, "all three pushes are generators");
     assert_eq!(snap.ring.dimension, 2);
 
-    // Restore rebuilds the ring from the committed originals in order
-    // (the no-change turn 3 was not committed, so the restored window has
-    // the two committed originals).
+    // Restore rebuilds the monotone ring from the committed originals in
+    // order (the no-change turn 3 was not committed, so the restored generator
+    // history has the two committed originals).
     let restored = StateCache::restore(app.repo());
-    assert_eq!(restored.ring.window_len(), 2, "restore rebuilds the window");
-    assert_eq!(restored.ring.dimension(), 2, "the window basis is deterministic");
+    assert_eq!(restored.ring.window_len(), 2, "restore rebuilds the visibility window");
+    assert_eq!(restored.ring.total(), 2, "the committed generators are replayed");
+    assert_eq!(restored.ring.dimension(), 2, "the monotone basis is deterministic");
 }

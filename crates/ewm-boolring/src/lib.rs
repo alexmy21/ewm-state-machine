@@ -130,6 +130,114 @@ impl BoolBasis {
             rotation_count,
         }
     }
+
+    // ── Ring + lattice tools ────────────────────────────────────────────────
+
+    /// Rebuild the set selected by GF(2) coordinates: the XOR of the marked
+    /// basis elements. Inverse of [`Self::coordinates`] on the span.
+    pub fn reconstruct(&self, coords: &[bool]) -> HLLSet {
+        let mut x = HLLSet::new();
+        for (c, b) in coords.iter().zip(&self.basis) {
+            if *c {
+                x = symmetric_difference(&x, b);
+            }
+        }
+        x
+    }
+
+    /// The **cover** of the basis: the union of every basis element.
+    ///
+    /// `cover(basis) == union(originals)`. Every basis element is an XOR of
+    /// generators, hence a subset of their union (`XOR ⊆ OR`); every generator
+    /// is an XOR of basis elements, hence a subset of the cover. The cover is
+    /// the bit plane the ring can see, so `x \ cover` is bit-level novelty no
+    /// span member can contain.
+    pub fn cover(&self) -> HLLSet {
+        let mut c = HLLSet::new();
+        for b in &self.basis {
+            c = c.union(b);
+        }
+        c
+    }
+
+    /// The BSS soft key of `x` against the basis: `w_i = |x ∩ B_i| / |B_i|`.
+    /// This is the **lattice measurement**: any HLLSet can be measured this
+    /// way, in span or not.
+    pub fn bss_vector(&self, x: &HLLSet) -> Vec<f64> {
+        self.basis
+            .iter()
+            .map(|b| {
+                let denom = b.popcount();
+                if denom == 0 {
+                    1.0
+                } else {
+                    x.intersection(b).popcount() as f64 / denom as f64
+                }
+            })
+            .collect()
+    }
+
+    /// The **lattice projection** of `x` onto the basis cover. See
+    /// [`CoverProjection`].
+    pub fn project(&self, x: &HLLSet) -> CoverProjection {
+        let cover = self.cover();
+        CoverProjection {
+            retained: x.intersection(&cover),
+            novelty: x.difference(&cover),
+            departed: cover.difference(x),
+            cover,
+        }
+    }
+
+    /// The **change of basis** from `from` to `self`: for each basis element of
+    /// `from`, its GF(2) coordinates in `self` (`None` when it is outside this
+    /// span — excluded by monotone growth). Column `i` is the image of
+    /// `from.basis[i]`, so a coordinate vector `a` in `from` transports to
+    /// `a · M` in `self`.
+    pub fn change_of_basis(&self, from: &BoolBasis) -> Vec<Option<Vec<bool>>> {
+        from.basis.iter().map(|b| self.coordinates(b)).collect()
+    }
+
+    /// The minimal **linear cover** of an in-span set: the support of its
+    /// unique coordinates. `None` when the set is outside the span.
+    pub fn linear_cover(&self, x: &HLLSet) -> Option<Vec<usize>> {
+        self.coordinates(x).map(|coords| {
+            coords
+                .iter()
+                .enumerate()
+                .filter_map(|(i, &c)| c.then_some(i))
+                .collect()
+        })
+    }
+
+    /// A greedy **set cover** of `x` by basis elements: repeatedly take the
+    /// basis element adding the most uncovered bits of `x`. Greedy is
+    /// `H(d)`-approximate for the minimum union cover (`d` = dimension); the
+    /// bits `x \ cover` cannot be covered by any basis subset.
+    pub fn minimal_cover(&self, x: &HLLSet) -> Vec<usize> {
+        let mut covered = HLLSet::new();
+        let mut chosen: Vec<usize> = Vec::new();
+        while !x.difference(&covered).is_empty() {
+            let mut best: Option<(usize, u64)> = None;
+            for (i, b) in self.basis.iter().enumerate() {
+                if chosen.contains(&i) {
+                    continue;
+                }
+                let gain = x.difference(&covered).intersection(b).popcount();
+                if gain > 0 && best.map_or(true, |(_, g)| gain > g) {
+                    best = Some((i, gain));
+                }
+            }
+            match best {
+                Some((i, _)) => {
+                    covered = covered.union(&self.basis[i]);
+                    chosen.push(i);
+                }
+                None => break, // only un-coverable bits remain
+            }
+        }
+        chosen
+    }
 }
 
 /// Build a basis from an iterator of sets (insertion order determines the
@@ -140,6 +248,33 @@ pub fn span_basis<'a>(sets: impl IntoIterator<Item = &'a HLLSet>) -> BoolBasis {
         basis.insert(set);
     }
     basis
+}
+
+/// The lattice projection of a set onto a basis **cover** (union of the basis
+/// elements): the bits shared with the context, the bits wholly outside it,
+/// and the context bits the set no longer carries. `retained` and `novelty`
+/// are disjoint and `x = retained ⊔ novelty`.
+#[derive(Clone, Debug)]
+pub struct CoverProjection {
+    /// `x ∩ cover` — the part of `x` the ring can see.
+    pub retained: HLLSet,
+    /// `x \ cover` — bit-level novelty: bits no span member can contain.
+    pub novelty: HLLSet,
+    /// `cover \ x` — context bits this set has departed from.
+    pub departed: HLLSet,
+    /// The cover itself (union of the basis elements).
+    pub cover: HLLSet,
+}
+
+impl CoverProjection {
+    /// The retained / novelty / departed popcounts `(R, N, D)`.
+    pub fn popcounts(&self) -> (u64, u64, u64) {
+        (
+            self.retained.popcount(),
+            self.novelty.popcount(),
+            self.departed.popcount(),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -322,38 +457,82 @@ pub struct RingStats {
     pub rotation_mass: u64,
 }
 
-/// The Boolean ring as a moving window over **original** HLLSets.
+/// The Boolean ring over **original** HLLSets.
 ///
-/// Originals enter in ingestion order (a queue); the basis is the RREF
-/// span of the current window. Insertion is one Gaussian step; eviction
-/// recomputes the basis from the remaining originals (cheap at cache
-/// sizes). Because the sequence is fixed by ingestion, the basis is
-/// **deterministic for the window** — the canonical-basis problem is
-/// resolved by never comparing across different windows.
+/// Two roles are deliberately decoupled:
+///
+/// - the **generator basis** is *monotone* — every original ever pushed is a
+///   permanent basis element, so the span only grows and a set that is
+///   representable stays representable (`span(t) ⊆ span(t+1)`);
+/// - the **visibility window** (`max_len`) is the most recent originals — the
+///   *context* the window exposes. Eviction moves this window; it does not
+///   remove a generator.
+///
+/// Insertion is one Gaussian step. Because the ingestion order is fixed, the
+/// basis is deterministic for a sequence: coordinates are comparable inside a
+/// run and across commits (the canonical-basis problem is resolved by fixing
+/// the generators and their order, not by bounding them).
+///
+/// [`BoolWindow::windowed`] restores the legacy scene-bounded mode, where the
+/// window *is* the generator set and eviction rebuilds the basis.
 #[derive(Clone, Debug)]
 pub struct BoolWindow {
+    /// Visibility capacity: how many recent originals the window keeps.
     max_len: usize,
+    /// The visible originals (most recent `max_len`), in ingestion order.
     originals: std::collections::VecDeque<HLLSet>,
+    /// The generator basis. Monotone by default; rebuilt from the visible
+    /// window on eviction only in [`BoolWindow::windowed`] mode.
     basis: BoolBasis,
+    /// Total originals ever pushed — the generator history length.
+    total: u64,
     /// Monotonic stamp of the basis **content**: bumped whenever the basis
-    /// changes (extension/rotation on push, or rebuild on eviction). A soft
-    /// key / coordinate vector measured at an older generation is stale for
-    /// the current basis — the hook for lazy back-propagation.
+    /// changes (extension/rotation on push, or rebuild in windowed mode). A
+    /// soft key / coordinate vector measured at an older generation is stale
+    /// for the current basis.
     generation: u64,
+    /// `true`: eviction drops the oldest generator and rebuilds from the
+    /// visible window (legacy). `false`: the basis is monotone.
+    evict_basis: bool,
 }
 
 impl BoolWindow {
+    /// A monotone ring with a visibility window of `max_len` originals.
     pub fn new(max_len: usize) -> Self {
+        Self::with_mode(max_len, false)
+    }
+
+    /// The legacy windowed ring: generators and visibility are the same set,
+    /// and eviction rebuilds the basis from the remaining window. Kept for
+    /// scene-bounded novelty analysis; the production ring uses [`Self::new`].
+    pub fn windowed(max_len: usize) -> Self {
+        Self::with_mode(max_len, true)
+    }
+
+    fn with_mode(max_len: usize, evict_basis: bool) -> Self {
         Self {
             max_len: max_len.max(1),
             originals: std::collections::VecDeque::new(),
             basis: BoolBasis::new(),
+            total: 0,
             generation: 0,
+            evict_basis,
         }
     }
 
+    /// Number of originals currently visible (bounded by the capacity).
     pub fn window_len(&self) -> usize {
         self.originals.len()
+    }
+
+    /// Total originals ever pushed — the length of the generator history.
+    pub fn total(&self) -> u64 {
+        self.total
+    }
+
+    /// `true` for the monotone (default) mode: generators are never dropped.
+    pub fn is_monotone(&self) -> bool {
+        !self.evict_basis
     }
 
     pub fn dimension(&self) -> usize {
@@ -371,12 +550,15 @@ impl BoolWindow {
         self.generation
     }
 
+    /// The visible originals, oldest first.
     pub fn originals(&self) -> impl Iterator<Item = &HLLSet> {
         self.originals.iter()
     }
 
-    /// Push one original (in ingestion order); evict the oldest when the
-    /// window exceeds `max_len` and recompute the basis.
+    /// Push one original (in ingestion order). The basis grows monotonically;
+    /// the oldest original leaves the *visibility* window when `max_len` is
+    /// exceeded. In windowed mode only, eviction also rebuilds the basis from
+    /// the remaining window.
     pub fn push(&mut self, set: &HLLSet) -> RingStats {
         let result = self.basis.insert(set);
         let (residual, in_span, rotation_count) = match &result {
@@ -391,10 +573,13 @@ impl BoolWindow {
             self.generation += 1;
         }
         self.originals.push_back(set.clone());
+        self.total += 1;
         let mut dimension = self.basis.dimension();
         if self.originals.len() > self.max_len {
             self.originals.pop_front();
-            self.recompute();
+            if self.evict_basis {
+                self.rebuild_from_window();
+            }
             dimension = self.basis.dimension();
         }
         RingStats {
@@ -406,9 +591,10 @@ impl BoolWindow {
         }
     }
 
-    /// Recompute the basis from the current originals (after eviction). The
-    /// basis content changes, so the generation is bumped.
-    pub fn recompute(&mut self) {
+    /// Rebuild the basis from the visible window after eviction (windowed
+    /// mode only; in monotone mode this is never reached because no generator
+    /// is dropped). The basis content changes, so the generation is bumped.
+    fn rebuild_from_window(&mut self) {
         self.basis = BoolBasis::new();
         for set in &self.originals {
             self.basis.insert(set);
@@ -416,12 +602,12 @@ impl BoolWindow {
         self.generation += 1;
     }
 
-    /// The part of `set` outside the window span (linear novelty).
+    /// The part of `set` outside the span (linear novelty).
     pub fn residual(&self, set: &HLLSet) -> HLLSet {
         self.basis.residual(set)
     }
 
-    /// The GF(2) coordinates of a set in the window span.
+    /// The GF(2) coordinates of a set in the span.
     pub fn coordinates(&self, set: &HLLSet) -> Option<Vec<bool>> {
         self.basis.coordinates(set)
     }
@@ -457,22 +643,21 @@ mod window_tests {
     }
 
     #[test]
-    fn eviction_slides_the_window_and_recomputes() {
+    fn monotone_window_bounds_visibility_not_the_span() {
         let a = set(&[1, 2, 3]);
         let b = set(&[2, 3, 4]);
-        let c = set(&[5, 6]); // independent of {a, b}? {5,6} vs span of a,b -> independent
+        let c = set(&[5, 6]);
 
         let mut w = BoolWindow::new(2);
         let s1 = w.push(&a);
         assert!(!s1.in_span && s1.residual == a.popcount());
-        let s2 = w.push(&b);
+        w.push(&b);
         assert_eq!(w.window_len(), 2);
-        let _ = s2;
-        let s3 = w.push(&c); // evicts a; window = {b, c}
+        let s3 = w.push(&c); // moves the visibility window; the basis keeps a
         assert_eq!(w.window_len(), 2);
-        assert_eq!(s3.residual, c.popcount(), "c is outside the {{b}} span of the window");
-        // a is gone: its residual against the window is nonempty.
-        assert!(!w.residual(&a).is_empty(), "evicted original is outside the window span");
+        assert_eq!(w.total(), 3);
+        assert_eq!(s3.residual, c.popcount(), "c is outside the {{a, b}} span");
+        assert!(w.residual(&a).is_empty(), "a stays in the monotone span");
     }
 
     #[test]
@@ -503,20 +688,243 @@ mod window_tests {
         w.push(&b); // Added -> basis changes
         assert_eq!(w.generation(), 2);
 
-        w.recompute(); // rebuild -> generation bumps even for the same span
-        assert_eq!(w.generation(), 3);
+        w.push(&a); // in-span under the monotone basis -> unchanged
+        assert_eq!(w.generation(), 2);
     }
 
     #[test]
-    fn eviction_recompute_bumps_generation() {
+    fn monotone_window_keeps_evicted_generators() {
         let a = set(&[1, 2, 3]);
         let b = set(&[2, 3, 4]);
         let c = set(&[5, 6]);
+
+        let mut w = BoolWindow::new(2); // visibility cap 2, monotone basis
+        w.push(&a);
+        w.push(&b);
+        assert_eq!(w.window_len(), 2);
+        w.push(&c); // a leaves the *visibility* window, not the basis
+        assert_eq!(w.window_len(), 2);
+        assert_eq!(w.total(), 3);
+        assert!(w.is_monotone());
+        assert_eq!(w.dimension(), 3, "the span keeps every generator");
+        assert!(w.residual(&a).is_empty(), "a stays representable");
+        assert!(w.coordinates(&a).is_some());
+    }
+
+    #[test]
+    fn monotone_span_is_inclusion() {
+        let sets = [
+            set(&[1, 2, 3]),
+            set(&[2, 3, 4]),
+            set(&[3, 4, 5]),
+            set(&[9, 10]),
+        ];
         let mut w = BoolWindow::new(2);
+        let mut seen: Vec<HLLSet> = Vec::new();
+        for s in &sets {
+            w.push(s);
+            seen.push(s.clone());
+            for prev in &seen {
+                assert!(
+                    w.coordinates(prev).is_some(),
+                    "span(t) subset span(t+1): representable never leaves"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn windowed_mode_evicts_and_rebuilds() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[2, 3, 4]);
+        let c = set(&[5, 6]);
+
+        let mut w = BoolWindow::windowed(2);
+        w.push(&a);
+        w.push(&b);
+        assert_eq!(w.window_len(), 2);
+        w.push(&c); // evicts a and rebuilds the basis from {b, c}
+        assert!(!w.is_monotone());
+        assert_eq!(w.window_len(), 2);
+        assert_eq!(w.total(), 3);
+        assert_eq!(w.dimension(), 2, "basis is the visible window's span");
+        assert!(!w.residual(&a).is_empty(), "evicted generator leaves the span");
+    }
+
+    #[test]
+    fn windowed_eviction_bumps_generation() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[2, 3, 4]);
+        let c = set(&[5, 6]);
+        let mut w = BoolWindow::windowed(2);
         w.push(&a);
         w.push(&b);
         let before = w.generation();
-        w.push(&c); // evicts a and recomputes -> basis changes twice (add + rebuild)
+        w.push(&c); // evicts and rebuilds -> generation bumps
         assert!(w.generation() > before);
+    }
+}
+
+#[cfg(test)]
+mod tool_tests {
+    use super::*;
+
+    fn set(bits: &[u32]) -> HLLSet {
+        let mut h = HLLSet::new();
+        for b in bits {
+            h.add_bit(*b);
+        }
+        h
+    }
+
+    fn same(a: &HLLSet, b: &HLLSet) -> bool {
+        a.difference(b).is_empty() && b.difference(a).is_empty()
+    }
+
+    #[test]
+    fn cover_is_the_union_of_the_generators() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[3, 4]);
+        let c = set(&[5]);
+        let mut basis = BoolBasis::new();
+        for s in [&a, &b, &c] {
+            basis.insert(s);
+        }
+        let cover = basis.cover();
+        let expected = a.union(&b).union(&c);
+        assert!(cover.difference(&expected).is_empty());
+        assert!(expected.difference(&cover).is_empty());
+    }
+
+    #[test]
+    fn cover_identity_holds_regardless_of_insertion_order() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[2, 3, 4]);
+        let c = set(&[4, 5]);
+        let mut b1 = BoolBasis::new();
+        for s in [&a, &b, &c] {
+            b1.insert(s);
+        }
+        let mut b2 = BoolBasis::new();
+        for s in [&c, &a, &b] {
+            b2.insert(s);
+        }
+        let union = a.union(&b).union(&c);
+        for basis in [&b1, &b2] {
+            let cover = basis.cover();
+            assert!(cover.difference(&union).is_empty() && union.difference(&cover).is_empty());
+        }
+    }
+
+    #[test]
+    fn bss_vector_measures_any_set() {
+        // disjoint generators keep the basis elements literal: {1,2}, {3,4}.
+        let a = set(&[1, 2]);
+        let b = set(&[3, 4]);
+        let mut basis = BoolBasis::new();
+        basis.insert(&a);
+        basis.insert(&b);
+        let va = basis.bss_vector(&a);
+        assert!((va[0] - 1.0).abs() < 1e-12);
+        assert!((va[1] - 0.0).abs() < 1e-12);
+        // x = {1,3} is half of each basis element.
+        let vx = basis.bss_vector(&set(&[1, 3]));
+        assert!((vx[0] - 0.5).abs() < 1e-12);
+        assert!((vx[1] - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn projection_splits_into_disjoint_retained_and_novelty() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[3, 4]);
+        let mut basis = BoolBasis::new();
+        basis.insert(&a);
+        basis.insert(&b);
+        // cover = {1,2,3,4}; x = {3,5} -> retained {3}, novelty {5}.
+        let x = set(&[3, 5]);
+        let p = basis.project(&x);
+        assert_eq!(p.retained.popcount(), 1);
+        assert_eq!(p.novelty.popcount(), 1);
+        // retained and novelty are disjoint and reassemble x
+        assert!(p.retained.intersection(&p.novelty).is_empty());
+        let reassembled = p.retained.union(&p.novelty);
+        assert!(reassembled.difference(&x).is_empty() && x.difference(&reassembled).is_empty());
+        // novelty is always inside the linear residual of x
+        let residual = basis.residual(&x);
+        assert!(p.novelty.difference(&residual).is_empty());
+    }
+
+    #[test]
+    fn change_of_basis_transports_coordinates() {
+        // basis_old from {a,b}; basis_new adds an independent direction c.
+        let a = set(&[1, 2, 3]);
+        let b = set(&[2, 3, 4]);
+        let c = set(&[9, 10]);
+        let mut old = BoolBasis::new();
+        old.insert(&a);
+        old.insert(&b);
+        let mut new = BoolBasis::new();
+        for s in [&a, &b, &c] {
+            new.insert(s);
+        }
+        let m = new.change_of_basis(&old);
+        assert_eq!(m.len(), old.dimension());
+        assert!(m.iter().all(|c| c.is_some()), "monotone growth keeps the old basis");
+
+        // transport a coordinate vector and check the same set comes back
+        let x = a.intersection(&b).union(&set(&[1])); // some set in the old span
+        let old_coords = old.coordinates(&x).expect("x is in the old span");
+        let mut new_coords = vec![false; new.dimension()];
+        for (j, col) in m.iter().enumerate() {
+            if old_coords[j] {
+                let col = col.as_ref().unwrap();
+                for (i, &bit) in col.iter().enumerate() {
+                    new_coords[i] ^= bit;
+                }
+            }
+        }
+        assert!(same(&new.reconstruct(&new_coords), &x), "a·M transports x exactly");
+        assert_eq!(new.coordinates(&x).unwrap(), new_coords);
+    }
+
+    #[test]
+    fn linear_and_minimal_cover() {
+        let a = set(&[1, 2, 3]);
+        let b = set(&[2, 3, 4]);
+        let c = set(&[9, 10]);
+        let mut basis = BoolBasis::new();
+        for s in [&a, &b, &c] {
+            basis.insert(s);
+        }
+
+        // `a` is in span: the linear cover is the coordinate support and it
+        // reconstructs `a` exactly.
+        let lin = basis.linear_cover(&a).expect("a is in span");
+        assert_eq!(lin.len(), 2, "a = B0 Δ B1 in this basis");
+        let mut coords = vec![false; basis.dimension()];
+        for &i in &lin {
+            coords[i] = true;
+        }
+        assert!(same(&basis.reconstruct(&coords), &a));
+
+        // The greedy union cover of `a` needs the same two elements.
+        let cov = basis.minimal_cover(&a);
+        assert_eq!(cov.len(), 2);
+        let mut covered = HLLSet::new();
+        for &i in &cov {
+            covered = covered.union(&basis.basis[i]);
+        }
+        assert!(a.difference(&covered).is_empty());
+
+        // A set with a bit outside the cover: greedy covers what it can, and
+        // the linear cover does not exist.
+        let outside = set(&[1, 99]);
+        let cov = basis.minimal_cover(&outside);
+        let mut covered = HLLSet::new();
+        for &i in &cov {
+            covered = covered.union(&basis.basis[i]);
+        }
+        assert_eq!(outside.difference(&covered).popcount(), 1, "bit 99 is uncoverable");
+        assert!(basis.linear_cover(&outside).is_none());
     }
 }

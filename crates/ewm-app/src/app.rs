@@ -269,7 +269,6 @@ impl<S: ObjectStore> StateMachine<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::RING_CAPACITY;
     use ewm_git::MemoryStore;
 
     #[test]
@@ -323,16 +322,20 @@ mod tests {
         let mut um = StateMachine::new(MemoryStore::default());
         let mut cache = StateCache::empty();
 
-        // Fill the ring window (64 originals) with distinct turns.
-        for i in 0..RING_CAPACITY as u32 {
-            let out = um.run_turn(&mut cache, &[i]).unwrap();
-            assert!(out.commit.is_some(), "turn {i} brings new bits");
-        }
+        // Two overlapping turns: g1 = {a,b} then {b,c}. Both commit.
+        assert!(um.run_turn(&mut cache, &[1, 2]).unwrap().commit.is_some());
+        assert!(um.run_turn(&mut cache, &[2, 3]).unwrap().commit.is_some());
 
-        // Turn 64 repeats tid0. No new bits (the cumulative working set
-        // already contains tid0), but the window has evicted turn 0, so the
-        // basis is recomputed → structural commit.
-        let out = um.run_turn(&mut cache, &[0]).unwrap();
+        // Turn [1] repeats a seen token: no new bits (the cumulative working
+        // set already covers it), but g1 = {a} is not an XOR of the monotone
+        // generators {a,b} and {b,c}, so the basis changes -> structural
+        // commit. Under a monotone basis this is the genuine structural
+        // event; eviction no longer manufactures one.
+        let out = um.run_turn(&mut cache, &[1]).unwrap();
+        assert!(
+            out.ring_stats.residual > 0,
+            "the repeated turn is still a new ring direction"
+        );
         let commit = out
             .commit
             .as_ref()
@@ -344,7 +347,7 @@ mod tests {
         );
         assert_eq!(
             msg.split(';').next().unwrap(),
-            "ids=0",
+            "ids=1",
             "ids stay parseable for recovery"
         );
     }
