@@ -559,8 +559,8 @@ change-of-basis matrix.
 \end{proposition}
 \begin{proof}[Proof sketch]
 Monotonicity gives $\spanof{B(t{-}1)}\subseteq\spanof{B(t)}$; coordinates are
-unique because the basis has distinct leading bits; the transport is the
-coordinate expansion of each old basis element in the new basis.
+unique because the basis is distinct for each commit; the transport is the
+coordinate expansion of each affected old basis element in the new basis.
 \end{proof}
 
 \subsection{What the ring cannot do}
@@ -608,12 +608,11 @@ ordered list of SHA-1 content identifiers of the HLLSets it is built from. A
 view is not stored as a copy of its bits.
 
 The reason is exactly that coordinates are basis-relative and the basis moves
-(\S\ref{sec:rotating}): a compound frozen as a coordinate vector, or as a bit
-copy taken in one generation, is silently wrong when read in another. The
+(\S\ref{sec:rotating}): a compound frozen as a coordinate vector in one base, is different in another. The
 correct rule is the transport of Proposition~\ref{prop:transport}---a reading is
 valid only relative to the \emph{generation} of the basis it was taken in. So
 the store keeps the recipe and its provenance, and the reader \emph{recreates}
-the compound against the basis current at read time.
+the compound against the basis current at read time. Cache is the only place where compound HLLSets stay binary vectors.
 
 Recreation is safe because the source nodes are IICA: the same recipe on the
 same sources yields the same bits, so a view is deterministic and idempotent
