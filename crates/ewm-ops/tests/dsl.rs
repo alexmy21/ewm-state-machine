@@ -108,6 +108,34 @@ fn vocabulary_is_content_addressed_and_deterministic() {
 }
 
 #[test]
+fn existing_boot_cids_are_byte_for_byte_stable() {
+    // Backward-compatibility pins: the counted-fragment change (new words +
+    // universe directive) must not move any CID an existing script already
+    // produced. Same script bytes → same v:/p:/h: CIDs as before the change.
+    let program = compile_boot(FANOUT_BOOT).unwrap();
+    assert_eq!(
+        program.vocab.cid(),
+        "v:b7c593e3f5474a5acbe29bfd2772df71e17e6b9a"
+    );
+    assert_eq!(
+        program.vocab.ops["union2"],
+        "p:49120ae424d7c3d846184b9a66e790c9dccdf5fe"
+    );
+    assert_eq!(
+        program.vocab.ops["dup2"],
+        "p:c0d45099fc0a6c5f5b09a6eec9bf6682135e2b16"
+    );
+    assert_eq!(
+        program.vocab.values["a"],
+        "h:c70ee3f486cf73293a70bd873c678ae9b8effede"
+    );
+    assert_eq!(
+        program.vocab.values["b"],
+        "h:cb3bb01b3d7ccd59fc2860d776c3e9895cdf0187"
+    );
+}
+
+#[test]
 fn boot_log_is_append_only_and_rollback_moves_latest() {
     use ewm_ops::{boot_cid, BootRecord};
 

@@ -47,6 +47,6 @@ pub use boot::{boot_cid, BootRecord, BootStore};
 pub use commit::commit_fire_log;
 pub use dispatch::{CommitPoint, CommitReason, Dispatcher, FireLog, FireRecord, Token};
 pub use dsl::{compile_boot, BootProgram};
-pub use expr::{op_cid, Expression, EvalError, Word};
+pub use expr::{op_cid, Coord, EvalError, Expression, Word};
 pub use graph::{Edge, OpGraph, OpSpec, OpTable, Port, Target, ValueCid, ValueStore};
 pub use vocab::Vocabulary;

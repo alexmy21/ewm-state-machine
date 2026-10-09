@@ -6,7 +6,7 @@
 //! with its input values and must leave exactly `outputs` values.
 
 use hllset_contracts::sha1_hex;
-use hllset_core::HLLSet;
+use hllset_core::{HLLSet, M};
 use serde::{Deserialize, Serialize};
 
 use crate::graph::{OpCid, OpTable, ValueCid, ValueStore};
@@ -19,6 +19,17 @@ pub const MAX_CALL_DEPTH: usize = 128;
 /// The content-addressed id of a program: `p:<sha1 of source bytes>`.
 pub fn op_cid(source: &str) -> OpCid {
     format!("p:{}", sha1_hex(source.as_bytes()))
+}
+
+/// A plane coordinate for the counted quantifiers `exists_c` / `forall_c`
+/// (`docs/FOL_HLLSET.md` §5): the soldered plane is `[0,M) × [0,b)`, with
+/// `reg(p) = p div b` and `tz(p) = p mod b`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Coord {
+    /// `tz(p) = p mod 32` — the trailing-zero count axis (32 fibres of 1024).
+    Tz,
+    /// `reg(p) = p div 32` — the register axis (1024 fibres of 32).
+    Reg,
 }
 
 /// One word of the postfix DSL.
@@ -40,6 +51,12 @@ pub enum Word {
     Difference,
     /// `( a b -- a Δ b )`
     SymmetricDifference,
+    /// `( x universe -- ∃_c^universe x )` — monadic exists over the fibre of
+    /// `c` (`exists_c:tz` / `exists_c:reg`), restricted to the universe.
+    ExistsC(Coord),
+    /// `( x universe -- ∀_c^universe x )` — monadic forall over the fibre of
+    /// `c` (`forall_c:tz` / `forall_c:reg`), restricted to the universe.
+    ForallC(Coord),
     /// Inline another program's words on the current stack (Forth-style
     /// composition, bounded by [`MAX_CALL_DEPTH`]).
     Call(OpCid),
@@ -132,9 +149,23 @@ fn parse_word(token: &str) -> Result<Word, EvalError> {
         "inter" => Ok(Word::Intersection),
         "diff" => Ok(Word::Difference),
         "symdiff" => Ok(Word::SymmetricDifference),
+        _ if token.starts_with("exists_c:") => {
+            Ok(Word::ExistsC(parse_coord(&token["exists_c:".len()..])?))
+        }
+        _ if token.starts_with("forall_c:") => {
+            Ok(Word::ForallC(parse_coord(&token["forall_c:".len()..])?))
+        }
         _ if token.starts_with('@') => Ok(Word::Value(token[1..].to_string())),
         _ if token.starts_with("call:") => Ok(Word::Call(token[5..].to_string())),
         _ => Err(EvalError::UnknownWord(token.to_string())),
+    }
+}
+
+fn parse_coord(name: &str) -> Result<Coord, EvalError> {
+    match name {
+        "tz" => Ok(Coord::Tz),
+        "reg" => Ok(Coord::Reg),
+        other => Err(EvalError::Parse(format!("unknown coordinate: {other}"))),
     }
 }
 
@@ -173,7 +204,19 @@ fn exec_words(
             Word::Union => binary(stack, |a, b| a.union(&b))?,
             Word::Intersection => binary(stack, |a, b| a.intersection(&b))?,
             Word::Difference => binary(stack, |a, b| a.difference(&b))?,
-            Word::SymmetricDifference => binary(stack, |a, b| a.difference(&b).union(&b.difference(&a)))?,
+            Word::SymmetricDifference => {
+                binary(stack, |a, b| a.difference(&b).union(&b.difference(&a)))?
+            }
+            Word::ExistsC(coord) => {
+                let universe = stack.pop().ok_or(EvalError::StackUnderflow)?;
+                let x = stack.pop().ok_or(EvalError::StackUnderflow)?;
+                stack.push(exists_c(&x, *coord, &universe));
+            }
+            Word::ForallC(coord) => {
+                let universe = stack.pop().ok_or(EvalError::StackUnderflow)?;
+                let x = stack.pop().ok_or(EvalError::StackUnderflow)?;
+                stack.push(forall_c(&x, *coord, &universe));
+            }
             Word::Call(callee) => {
                 let spec = ops
                     .get(callee)
@@ -196,6 +239,66 @@ where
     Ok(())
 }
 
+/// `∃_c^U X` — the union of the full-plane fibres of `c` that meet `X`,
+/// restricted to the universe `U` (`docs/FOL_HLLSET.md` §5). Computed on the
+/// dense `[u32; M]` registers in `O(M)`: for `tz`, include every universe
+/// column whose `tz` value occurs in `X ∩ U`; for `reg`, include every
+/// universe register that `X ∩ U` touches.
+fn exists_c(x: &HLLSet, coord: Coord, universe: &HLLSet) -> HLLSet {
+    let xd = x.intersection(universe).to_dense();
+    let ud = universe.to_dense();
+    let mut out = vec![0u32; M];
+    match coord {
+        Coord::Tz => {
+            // tz values present anywhere in X ∩ U.
+            let tz_present = xd.iter().fold(0u32, |acc, &v| acc | v);
+            for (r, &ur) in ud.iter().enumerate() {
+                out[r] = ur & tz_present;
+            }
+        }
+        Coord::Reg => {
+            for (r, &ur) in ud.iter().enumerate() {
+                if xd[r] != 0 {
+                    out[r] = ur;
+                }
+            }
+        }
+    }
+    HLLSet::from_dense(&out)
+}
+
+/// `∀_c^U X` — the union of the full-plane fibres of `c` wholly contained in
+/// `X`, restricted to the universe `U` (`docs/FOL_HLLSET.md` §5). Computed on
+/// the dense `[u32; M]` registers in `O(M)`: a `tz` column qualifies when
+/// every register that has it in `U` also has it in `X`; a `reg` register
+/// qualifies when all its `U` bits are in `X`.
+fn forall_c(x: &HLLSet, coord: Coord, universe: &HLLSet) -> HLLSet {
+    let xd = x.to_dense();
+    let ud = universe.to_dense();
+    let mut out = vec![0u32; M];
+    match coord {
+        Coord::Tz => {
+            // Column tz qualifies iff (ud[r] has tz) implies (xd[r] has tz)
+            // for every register r: the AND over r of (xd[r] | !ud[r]).
+            let ok = ud
+                .iter()
+                .zip(&xd)
+                .fold(u32::MAX, |acc, (&ur, &xr)| acc & (xr | !ur));
+            for (r, &ur) in ud.iter().enumerate() {
+                out[r] = ur & ok;
+            }
+        }
+        Coord::Reg => {
+            for (r, &ur) in ud.iter().enumerate() {
+                if ur != 0 && (ur & !xd[r]) == 0 {
+                    out[r] = ur;
+                }
+            }
+        }
+    }
+    HLLSet::from_dense(&out)
+}
+
 /// Evaluation / compilation errors.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum EvalError {
@@ -203,6 +306,8 @@ pub enum EvalError {
     Parse(String),
     #[error("unknown word: {0}")]
     UnknownWord(String),
+    #[error("unknown universe: {0}")]
+    UnknownUniverse(String),
     #[error("stack underflow")]
     StackUnderflow,
     #[error("arity mismatch for {op}: expected {expected}, got {got}")]

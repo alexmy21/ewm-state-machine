@@ -3,6 +3,7 @@
 //! ```text
 //! # comment
 //! value <name> <token>...            define a value HLLSet from tokens
+//! universe <name> <ref>...           define a universe as the union of values
 //! def <name> ( <in> -- <out> ) <word>...   define a program (op)
 //! link <from> -> <to>                add a directed edge
 //! stack <ref>...                     boot stack (bottom → top; top = state)
@@ -10,7 +11,12 @@
 //! ```
 //!
 //! Refs resolve in this order: `@<value-name>`, `p:<op-cid>`, `h:<value-cid>`.
-//! Words may be `dup swap drop union inter diff symdiff @<ref> call:<op-name>`.
+//! Words may be `dup swap drop union inter diff symdiff @<ref> call:<op-name>`
+//! plus the counted quantifiers `exists_c:<coord>` / `forall_c:<coord>` with
+//! `coord` one of `tz` or `reg`. A universe is a first-class value (the union
+//! of held collections) named by a `universe` directive and pushed onto the
+//! stack with `@universe:<name>` (or bare `@universe` when exactly one is
+//! declared); the quantifiers consume `( x universe -- result )`.
 //! `call:<name>` and port refs are resolved at compile time, so the program
 //! identity is the SHA1 of the **resolved canonical source** — the DSL text
 //! is a surface, the CID is the ground truth.
@@ -41,6 +47,7 @@ pub fn compile_boot(script: &str) -> Result<BootProgram, EvalError> {
     let mut graph = OpGraph::new();
     let mut op_names: BTreeMap<String, OpCid> = BTreeMap::new();
     let mut value_names: BTreeMap<String, ValueCid> = BTreeMap::new();
+    let mut universe_names: BTreeMap<String, ValueCid> = BTreeMap::new();
     let mut stack = Vec::new();
     let mut fires = 0usize;
 
@@ -71,6 +78,26 @@ pub fn compile_boot(script: &str) -> Result<BootProgram, EvalError> {
                 let cid = graph.add_value(set);
                 value_names.insert(name.to_string(), cid);
             }
+            "universe" => {
+                // universe <name> <ref>... — the union of the referenced
+                // values, stored as a first-class value node and registered
+                // as a named universe (docs/FOL_HLLSET.md §4).
+                let name = *rest
+                    .first()
+                    .ok_or_else(|| EvalError::Parse(format!("line {}: universe needs a name", lineno + 1)))?;
+                let mut union = HLLSet::new();
+                for r in &rest[1..] {
+                    let cid = resolve_ref(r, &value_names)?;
+                    let set = graph
+                        .values
+                        .get(&cid)
+                        .ok_or_else(|| EvalError::MissingValue(cid.clone()))?;
+                    union = union.union(set);
+                }
+                let cid = graph.add_value(union);
+                value_names.insert(name.to_string(), cid.clone());
+                universe_names.insert(name.to_string(), cid);
+            }
             "def" => {
                 // def name ( in -- out ) words...
                 let name = *rest
@@ -95,7 +122,7 @@ pub fn compile_boot(script: &str) -> Result<BootProgram, EvalError> {
                     .map_err(|_| EvalError::Parse(format!("line {}: def {} outputs is not an integer", lineno + 1, name)))?;
                 let words: Vec<String> = body[close + 1..]
                     .iter()
-                    .map(|w| resolve_word(w, &value_names, &op_names))
+                    .map(|w| resolve_word(w, &value_names, &op_names, &universe_names))
                     .collect::<Result<_, _>>()?;
                 let source = format!("{} {} {}", arity, outputs, words.join(" "));
                 let cid = graph.add_op(&source)?;
@@ -144,13 +171,40 @@ pub fn compile_boot(script: &str) -> Result<BootProgram, EvalError> {
     })
 }
 
-/// Resolve `@name` → `@h:<cid>`; `call:name` → `call:p:<cid>`; otherwise
-/// leave the token as-is (built-in word or already a CID reference).
+/// Resolve `@name` → `@h:<cid>`; `@universe:<name>` / `@universe` → the
+/// named (or sole) universe's value CID; `call:name` → `call:p:<cid>`;
+/// otherwise leave the token as-is (built-in word or already a CID reference).
 fn resolve_word(
     word: &str,
     value_names: &BTreeMap<String, ValueCid>,
     op_names: &BTreeMap<String, OpCid>,
+    universe_names: &BTreeMap<String, ValueCid>,
 ) -> Result<String, EvalError> {
+    if let Some(name) = word.strip_prefix("@universe:") {
+        // `@universe:<name>` names a declared universe. A plain value may
+        // also be used as a universe, so fall back to the value namespace.
+        return universe_names
+            .get(name)
+            .or_else(|| value_names.get(name))
+            .map(|cid| format!("@{cid}"))
+            .ok_or_else(|| EvalError::UnknownUniverse(name.to_string()));
+    }
+    if word == "@universe" {
+        // Bare `@universe` — the universe registry discipline: exactly one
+        // universe may be implicit; otherwise the name must be explicit.
+        let mut it = universe_names.values();
+        return match (it.next(), it.next()) {
+            (Some(only), None) => Ok(format!("@{only}")),
+            (None, _) => Err(EvalError::Parse(
+                "@universe: no universe declared; declare one with `universe <name> <ref>...`"
+                    .into(),
+            )),
+            (Some(_), Some(_)) => Err(EvalError::Parse(
+                "@universe: ambiguous, more than one universe declared; use @universe:<name>"
+                    .into(),
+            )),
+        };
+    }
     if let Some(name) = word.strip_prefix('@') {
         return value_names
             .get(name)

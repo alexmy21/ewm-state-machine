@@ -144,6 +144,8 @@ ewm-state-machine/
 │   ├── SEPARATION.md          # separation of concerns — the bit is the fiber
 │   ├── BOOLRING.md            # GF(2) Boolean-ring context index (spike, positive)
 │   ├── EWM_STABILIZER_ANALOGY.md # ring ↔ stabilizer/Clifford formalism (bounded analogy)
+│   ├── FOL_HLLSET.md          # first-order logic vs HLLSet Algebra (propositional + monadic)
+│   ├── EWM_RULES.md           # Datalog-shaped rule layer for ewm-sm (design)
 │   ├── BASIS_FRAMES.md        # basis frames: HLLSet interpretation, time travel, commit conditions
 │   ├── TRAINER.md             # trainer layer: separation map, protocol interfaces, DSL roadmap
 │   ├── BONSAI_COLLAB.md       # Bonsai + ewm-sm collaborative model architecture + CLI
@@ -255,9 +257,13 @@ operational graph** whose two sides are the value lattice (`h:<sha1>` HLLSets)
 and the program lattice (`p:<sha1>` expressions — any DSL expression is a
 [UM], persistence optional), tied by directed edges and traversed by a
 stack-pop dispatcher (fan-out by reference, deterministic fire sequence,
-feedback cycles under a fire budget). The boot file compiles into the graph
-plus a **content-addressed vocabulary** (`v:<sha1>`), and the CLI boots it
-like an OS:
+feedback cycles under a fire budget). The DSL carries the Boolean connectives
+(`union inter diff symdiff`), the counted quantifiers over the soldered
+coordinates (`exists_c:tz|reg`, `forall_c:tz|reg`, each `( x universe --
+result )`), and a `universe` directive naming the local universe `L` that
+`@universe:<name>` pushes — `docs/FOL_HLLSET.md` §5. The boot file compiles
+into the graph plus a **content-addressed vocabulary** (`v:<sha1>`), and the
+CLI boots it like an OS:
 
 ```bash
 cargo run -p ewm-ops -- --store /tmp/ewm-ops-demo --boot path/to/boot.ops \
@@ -450,6 +456,8 @@ jupyter notebook notebooks/21_structural_llm_router.ipynb
 jupyter notebook notebooks/22_boolring_window_over_originals.ipynb
 jupyter notebook notebooks/23_ring_lattice_tools.ipynb
 jupyter notebook notebooks/24_stabilizer_analogy.ipynb
+jupyter notebook notebooks/25_fol_hllsets.ipynb
+jupyter notebook notebooks/26_ewm_rules.ipynb
 ```
 
 The notebooks set `CUDA_VISIBLE_DEVICES=1` before importing torch; override
