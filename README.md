@@ -458,6 +458,9 @@ jupyter notebook notebooks/23_ring_lattice_tools.ipynb
 jupyter notebook notebooks/24_stabilizer_analogy.ipynb
 jupyter notebook notebooks/25_fol_hllsets.ipynb
 jupyter notebook notebooks/26_ewm_rules.ipynb
+jupyter notebook notebooks/27_basis_strata.ipynb
+jupyter notebook notebooks/28_trajectory_optim.ipynb
+jupyter notebook notebooks/29_wishful_forecast.ipynb
 ```
 
 The notebooks set `CUDA_VISIBLE_DEVICES=1` before importing torch; override

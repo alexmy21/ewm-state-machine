@@ -313,3 +313,12 @@ accident-frame selection example — frames around a residual spike are the ones
 to materialize. Integration tests cover novelty, span membership (monotone and
 legacy windowed), the snapshot projection, and deterministic rebuild on
 restore.
+
+A follow-up stratifies this base by **birth commit**: the residuals of the
+`Added` events form a basis adapted to the flag `0 ⊂ span_1 ⊂ … ⊂ span_t`,
+which gives provenance per direction, generation-stamped context for the host
+LLM, and a membership/signature test for trajectory disambiguation — plus a
+constraint-programming model over the trajectory `H(t) = (S(t), H(t-1), D, R,
+N)` and its **wishful forecast loop** (plan, act, measure, gate, re-anchor).
+See `docs/EWM_BASIS_STRATA.md` and `notebooks/27_basis_strata.ipynb`,
+`28_trajectory_optim.ipynb`, `29_wishful_forecast.ipynb`.

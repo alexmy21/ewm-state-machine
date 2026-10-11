@@ -560,6 +560,18 @@ impl BoolWindow {
     /// exceeded. In windowed mode only, eviction also rebuilds the basis from
     /// the remaining window.
     pub fn push(&mut self, set: &HLLSet) -> RingStats {
+        self.push_with_birth(set).0
+    }
+
+    /// [`Self::push`], plus the **birth** of a new basis direction when one
+    /// was added (`None` for in-span pushes, and always `None` in windowed
+    /// mode — the birth flag is a monotone-mode structure,
+    /// `docs/EWM_BASIS_STRATA.md`). The returned [`Birth`] is the
+    /// `Added { residual, pivot, rotation_count }` event the plain `push`
+    /// discards: the residual is the flag basis vector of the new stratum,
+    /// `generation` is its birth order, `push_index` the original that
+    /// caused it.
+    pub fn push_with_birth(&mut self, set: &HLLSet) -> (RingStats, Option<Birth>) {
         let result = self.basis.insert(set);
         let (residual, in_span, rotation_count) = match &result {
             InsertResult::InSpan { .. } => (0u64, true, 0u64),
@@ -568,6 +580,20 @@ impl BoolWindow {
                 rotation_count,
                 ..
             } => (residual.popcount(), false, *rotation_count as u64),
+        };
+        let birth = match &result {
+            InsertResult::Added {
+                residual,
+                pivot,
+                rotation_count,
+            } if !self.evict_basis => Some(Birth {
+                generation: self.generation,
+                residual: residual.clone(),
+                pivot: *pivot,
+                rotation_count: *rotation_count,
+                push_index: self.total,
+            }),
+            _ => None,
         };
         if matches!(result, InsertResult::Added { .. }) {
             self.generation += 1;
@@ -582,13 +608,16 @@ impl BoolWindow {
             }
             dimension = self.basis.dimension();
         }
-        RingStats {
-            residual,
-            in_span,
-            dimension,
-            rotation_count,
-            rotation_mass: rotation_count * residual,
-        }
+        (
+            RingStats {
+                residual,
+                in_span,
+                dimension,
+                rotation_count,
+                rotation_mass: rotation_count * residual,
+            },
+            birth,
+        )
     }
 
     /// Rebuild the basis from the visible window after eviction (windowed
@@ -611,6 +640,198 @@ impl BoolWindow {
     pub fn coordinates(&self, set: &HLLSet) -> Option<Vec<bool>> {
         self.basis.coordinates(set)
     }
+}
+
+/// The birth of one basis direction: the `Added` event of a monotone push
+/// (`docs/EWM_BASIS_STRATA.md` §2). The residual is the **flag basis vector**
+/// of the new stratum — stable, unlike the RREF slot it also becomes.
+#[derive(Clone, Debug)]
+pub struct Birth {
+    /// Birth order: the 0-based stratum index of the new direction.
+    pub generation: u64,
+    /// The residual that became the new basis element (`R_g`).
+    pub residual: HLLSet,
+    /// The new leading (lowest) bit.
+    pub pivot: u32,
+    /// How many existing basis elements were re-pivoted.
+    pub rotation_count: usize,
+    /// The original-push index (0-based) at which the direction was born.
+    pub push_index: u64,
+}
+
+/// One row of the [`BirthTable`]: a [`Birth`] plus the provenance the caller
+/// supplies (the commit that materialized the event and the original that
+/// caused it).
+#[derive(Clone, Debug)]
+pub struct BirthRecord {
+    /// Birth order (stratum index).
+    pub generation: u64,
+    /// The head commit at the moment of birth (`t:<sha1>`), when known.
+    pub commit: Option<String>,
+    /// The content key (`h:<sha1>`) of the original whose push caused the birth.
+    pub original: String,
+    /// The flag basis vector `R_g`.
+    pub residual: HLLSet,
+    /// The new leading bit.
+    pub pivot: u32,
+    /// How many older slots re-pivoted.
+    pub rotation_count: usize,
+    /// The original-push index at birth.
+    pub push_index: u64,
+}
+
+/// The **birth table**: the flag basis `R_0..R_{t-1}`, one row per `Added`
+/// event, stratified by the commit in which each direction first occurred
+/// (`docs/EWM_BASIS_STRATA.md`).
+///
+/// The table is a two-way index (`commit → stratum`, `stratum → commit`) and
+/// carries the flag query API: `membership` (lineage up to `k`),
+/// `flag_coordinates` / `signature` (hard, exact in-span), and
+/// `soft_signature` (always defined).
+#[derive(Clone, Debug, Default)]
+pub struct BirthTable {
+    records: Vec<BirthRecord>,
+}
+
+impl BirthTable {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn len(&self) -> usize {
+        self.records.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.records.is_empty()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &BirthRecord> {
+        self.records.iter()
+    }
+
+    /// Record one birth. `commit` and `original` are provenance; the rest
+    /// comes from [`BoolWindow::push_with_birth`].
+    pub fn record(&mut self, birth: Birth, commit: Option<String>, original: String) {
+        self.records.push(BirthRecord {
+            generation: birth.generation,
+            commit,
+            original,
+            residual: birth.residual,
+            pivot: birth.pivot,
+            rotation_count: birth.rotation_count,
+            push_index: birth.push_index,
+        });
+    }
+
+    /// The stratum born at generation `g`.
+    pub fn stratum(&self, g: usize) -> Option<&BirthRecord> {
+        self.records.get(g)
+    }
+
+    /// The generation (stratum index) first born at `commit`, if any.
+    pub fn generation_of(&self, commit: &str) -> Option<usize> {
+        self.records
+            .iter()
+            .find(|r| r.commit.as_deref() == Some(commit))
+            .map(|r| r.generation as usize)
+    }
+
+    /// The union of every birth residual — `cover(R) = union(originals)`.
+    pub fn cover(&self) -> HLLSet {
+        let mut c = HLLSet::new();
+        for r in &self.records {
+            c = c.union(&r.residual);
+        }
+        c
+    }
+
+    /// Reduce `x` against the flag prefix `R_0..R_{k-1}` (`k = None`: all).
+    /// Returns the residual and the strata used during elimination.
+    fn flag_reduce(&self, x: &HLLSet, k: Option<usize>) -> (HLLSet, Vec<usize>) {
+        let k = k.unwrap_or(self.records.len());
+        let mut cur = x.clone();
+        let mut used = Vec::new();
+        while !cur.is_empty() {
+            let Some(p) = lowest_bit(&cur) else { break };
+            let mut j = None;
+            for (jj, rec) in self.records.iter().take(k).enumerate() {
+                if rec.pivot == p {
+                    j = Some(jj);
+                    break;
+                }
+            }
+            match j {
+                Some(j) => {
+                    cur = symmetric_difference(&cur, &self.records[j].residual);
+                    used.push(j);
+                }
+                None => return (cur, used),
+            }
+        }
+        (cur, used)
+    }
+
+    /// Lineage membership: `x` is consistent with the strata born up to `k`
+    /// iff it reduces to empty against the first `k` residuals.
+    pub fn membership(&self, x: &HLLSet, k: usize) -> bool {
+        self.flag_reduce(x, Some(k)).0.is_empty()
+    }
+
+    /// The unique GF(2) coordinates of `x` in the **flag basis** `R_0..`,
+    /// or `None` when `x` is outside the span.
+    pub fn flag_coordinates(&self, x: &HLLSet) -> Option<Vec<bool>> {
+        let (residual, used) = self.flag_reduce(x, None);
+        if !residual.is_empty() {
+            return None;
+        }
+        let mut coords = vec![false; self.records.len()];
+        for j in used {
+            coords[j] = !coords[j];
+        }
+        Some(coords)
+    }
+
+    /// The hard generation signature: the strata needed to reconstruct `x`
+    /// (support of [`flag_coordinates`](Self::flag_coordinates)); `None` when
+    /// `x` is outside the span.
+    pub fn signature(&self, x: &HLLSet) -> Option<Vec<usize>> {
+        self.flag_coordinates(x)
+            .map(|c| c.iter().enumerate().filter(|(_, b)| **b).map(|(i, _)| i).collect())
+    }
+
+    /// The soft signature: `|x ∩ R_g| / |R_g|` per generation — always
+    /// defined, in `[0, 1]`.
+    pub fn soft_signature(&self, x: &HLLSet) -> Vec<f64> {
+        self.records
+            .iter()
+            .map(|r| {
+                let denom = r.residual.popcount();
+                if denom == 0 {
+                    1.0
+                } else {
+                    x.intersection(&r.residual).popcount() as f64 / denom as f64
+                }
+            })
+            .collect()
+    }
+}
+
+/// The recording wrapper of `docs/EWM_BASIS_STRATA.md` §6: push an original
+/// into a window and record its birth (when any) in the table, with the
+/// commit that materialized the event and the original's content key as
+/// provenance.
+pub fn push_recorded(
+    window: &mut BoolWindow,
+    births: &mut BirthTable,
+    set: &HLLSet,
+    commit: Option<&str>,
+) -> RingStats {
+    let (stats, birth) = window.push_with_birth(set);
+    if let Some(b) = birth {
+        births.record(b, commit.map(str::to_string), set.content_key());
+    }
+    stats
 }
 
 #[cfg(test)]

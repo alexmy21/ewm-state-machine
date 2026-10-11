@@ -193,9 +193,11 @@ impl<S: ObjectStore> StateMachine<S> {
         }
 
         // 3. Push the ring first: a basis change is a structural event and
-        //    commits even when the pass brings no new bits.
+        //    commits even when the pass brings no new bits. `push_with_birth`
+        //    also returns the birth of a new basis direction, recorded in the
+        //    cache's birth table once the commit exists (step 4).
         let gen_before = cache.ring.generation();
-        let ring_stats = cache.ring.push(&turn_g1);
+        let (ring_stats, birth) = cache.ring.push_with_birth(&turn_g1);
         let basis_changed = cache.ring.generation() != gen_before;
 
         // 4. Commit — one per turn. Skipped only when the pass brings no
@@ -220,6 +222,18 @@ impl<S: ObjectStore> StateMachine<S> {
         } else {
             Some(self.repo.commit(&state, &parents, &message)?)
         };
+
+        // 4b. Record the birth of a new basis direction in the cache's birth
+        // table. A birth is a structural event, so a basis change always has
+        // a commit; the link `stratum -> commit` is the provenance the birth
+        // table exists to keep (docs/EWM_BASIS_STRATA.md §2).
+        if let Some(b) = birth {
+            cache.births.record(
+                b,
+                commit.as_ref().map(|c| c.as_str().to_string()),
+                turn_g1.content_key(),
+            );
+        }
 
         // 5. Advance the shared state: record the turn, insert the leaf,
         //    derive tree D/R/N, move the tip.
@@ -362,5 +376,47 @@ mod tests {
             "recovery ignores the ;basis-change suffix"
         );
         assert_eq!(crate::state::parse_ids_message(&ids_message(&ids)), Some(ids));
+    }
+
+    #[test]
+    fn birth_table_records_every_structural_commit() {
+        let mut um = StateMachine::new(MemoryStore::default());
+        let mut cache = StateCache::empty();
+
+        // Two overlapping turns commit with new bits; the third is a pure
+        // basis-change (structural) commit — all three add a direction.
+        um.run_turn(&mut cache, &[1, 2]).unwrap();
+        um.run_turn(&mut cache, &[2, 3]).unwrap();
+        let out = um.run_turn(&mut cache, &[1]).unwrap();
+        assert!(out.ring_stats.residual > 0, "the third turn is a new direction");
+
+        assert_eq!(cache.births.len(), cache.ring.dimension());
+        for rec in cache.births.iter() {
+            assert!(rec.commit.is_some(), "a birth is a structural event and commits");
+            assert!(!rec.residual.is_empty());
+        }
+
+        // The two-way index resolves against the real commit ids.
+        let first = cache.births.stratum(0).unwrap().commit.clone().unwrap();
+        assert_eq!(cache.births.generation_of(&first), Some(0));
+    }
+
+    #[test]
+    fn restore_rebuilds_the_birth_table() {
+        let mut um = StateMachine::new(MemoryStore::default());
+        let mut cache = StateCache::empty();
+        for ids in [&[1u32, 2][..], &[2, 3][..], &[1][..]] {
+            um.run_turn(&mut cache, ids).unwrap();
+        }
+
+        let restored = StateCache::restore(&um.repo);
+        assert_eq!(restored.births.len(), cache.births.len());
+        let pivots: Vec<u32> = cache.births.iter().map(|r| r.pivot).collect();
+        let restored_pivots: Vec<u32> = restored.births.iter().map(|r| r.pivot).collect();
+        assert_eq!(restored_pivots, pivots, "restore replays the same births");
+        for (a, b) in cache.births.iter().zip(restored.births.iter()) {
+            assert_eq!(a.residual.content_key(), b.residual.content_key());
+            assert_eq!(a.commit, b.commit);
+        }
     }
 }

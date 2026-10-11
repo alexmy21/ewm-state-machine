@@ -16,7 +16,7 @@
 //! (idempotent by IICA).
 
 use context_tree::{ContextTree, Leaf};
-use ewm_boolring::BoolWindow;
+use ewm_boolring::{push_recorded, BirthTable, BoolWindow};
 use ewm_git::{BitTf, Ingestor, ObjectId, ObjectStore, Repository};
 use hllset_contracts::token::{token_in_bytes, TokenId};
 use hllset_core::{HLLSet, TFVec};
@@ -66,6 +66,11 @@ pub struct StateCache {
     /// recent [`RING_CAPACITY`] originals. Eviction moves the visibility
     /// window only; the span never loses a direction.
     pub ring: BoolWindow,
+    /// The **birth table** (`docs/EWM_BASIS_STRATA.md`): one row per basis
+    /// direction, linked to the commit that first materialized it. Rebuilt
+    /// alongside `ring` on restore; the lattice side of the flag
+    /// `0 ⊂ span_1 ⊂ … ⊂ span_t`.
+    pub births: BirthTable,
 }
 
 impl StateCache {
@@ -80,6 +85,7 @@ impl StateCache {
             tip: None,
             turn: 0,
             ring: BoolWindow::new(RING_CAPACITY),
+            births: BirthTable::new(),
         }
     }
 
@@ -125,11 +131,19 @@ impl StateCache {
         let turn = turns.len() as u64;
         let tip = repo.head().cloned();
 
-        // Rebuild the monotone Boolean ring from all restored originals in
-        // commit order — every committed original is a permanent generator.
+        // Rebuild the monotone Boolean ring and its birth table from all
+        // restored originals in commit order — every committed original is a
+        // permanent generator, and every basis-change event is a birth linked
+        // to the commit that materialized it.
         let mut ring = BoolWindow::new(RING_CAPACITY);
+        let mut births = BirthTable::new();
         for record in &turns {
-            ring.push(&record.g1);
+            push_recorded(
+                &mut ring,
+                &mut births,
+                &record.g1,
+                record.commit.as_ref().map(|c| c.as_str()),
+            );
         }
 
         Self {
@@ -141,6 +155,7 @@ impl StateCache {
             tip,
             turn,
             ring,
+            births,
         }
     }
 
