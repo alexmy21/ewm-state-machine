@@ -608,6 +608,122 @@ Machine}, EWM PUB series, 2026.
 \bibitem{maclane1971} S.~Mac Lane,
 \textit{Categories for the Working Mathematician}, Springer, 1971.
 
+\bibitem{borbotko2007} V.~G.~Borbotko,
+\textit{Sinergetika konteksta i kommunikativnogo metabazisa} (Synergetics of
+Context and Communicative Metabasis), Izvestiya Yuzhnogo federal'nogo
+universiteta, Filologicheskie nauki, 1--2:162--171, 2007.
+
 \end{thebibliography}
+
+\appendix
+\section{Reading Borbotko's synergetics of context in the lattice}
+\label{app:borbotko}
+
+As an example of the interpretation developed above, we re-read
+V.~G.~Borbotko's \emph{Synergetics of context and communicative metabasis}
+\cite{borbotko2007}. Borbotko distinguishes the linguistic \emph{context} of a
+unit from the \emph{communicative metabasis}---the situational environment of
+an utterance---and describes language as a system whose \emph{base state}
+(socialized values) is catalysed by the metabasis into \emph{phase states}
+manifested in discourse. Since the article is in Russian, we summarise its
+argument here before giving the lattice reading.
+
+\paragraph{The article in brief.}
+Borbotko opens with a terminological correction. The word \emph{context} is
+often stretched to cover everything that accompanies communication---the
+situation, the social roles, the speakers' intentions (he cites Kolshansky and
+Makarov). He reserves \emph{context} for the linguistic surroundings of a unit
+within a text, and calls the full situational environment the
+\emph{communicative metabasis}. The two act together: the systemic language
+basis (Saussure's socialized values) and the communicative metabasis jointly
+determine the meaning of an utterance and its elements; context proper is the
+verbalized part of the metabasis.
+
+\paragraph{Base state and phase states.}
+The language system has a \emph{base state}: the system of socialized values,
+including the conceptual image of the world. When discourse is produced, the
+base state is transformed into \emph{phase states}, each manifested in an
+utterance; a phase state that a social group takes up becomes a sublanguage,
+and in the long run stable phase states become dialects, then separate
+languages. Diachronically the system follows a phase trajectory: successive
+base states replace one another, which is why texts become archaic and finally
+unintelligible. Synergetically, the phase states are a series of
+``catastrophes'' in the sense of Thom: the base state is catalysed---split and
+restructured---under an \emph{external attractor}, and that attractor is the
+communicative metabasis.
+
+\paragraph{The word and its context.}
+Mathematically, context is the \emph{complement} of the unit to the whole
+text, so the unit and its context stand in \emph{symptosymmetry}: mutual
+complementarity, like a key and a lock, a bolt and a nut. In a
+\emph{homogeneous} context the unit sits naturally, unmarked, and no
+adjustment is needed; in a \emph{heterogeneous} context a contradiction arises
+that must be resolved. Resolution takes two forms. Usually the unit is
+\emph{semantically calibrated} to the context---its meaning is fitted and an
+\emph{allovariant} of the unit is born; if the unit cannot be fitted, the
+context adapts to the unit, and the unit occupies a \emph{strong position},
+acting as a catalyst of the whole (poetry, irony, paradox, pun). A new or
+coined word has no dictionary meaning at all; it is \emph{semanticized by its
+context}---the word self-determines in context, and passing through many
+contexts gradually refines its meaning until it can become a symbol that folds
+in the meaning of a whole discourse.
+
+\paragraph{Values and their measure.}
+Borbotko then turns to the dynamics that Saussure left static: values
+(valeurs) are defined negatively---a value is what the others are not---but the
+system of values is plainly dynamic. To measure a value one needs an
+\emph{axiometer}: object, operator (measure), result (evaluation)---and the
+\emph{circumstances of measurement}, which are the metabasis itself. What fits
+is accepted, what does not fit is rejected, and the decisive measure is
+\emph{action}: a subject establishes the fitness of an object by acting on it.
+Metabasis-based valuation is the oldest layer of language; it is the germ of
+reflection (Humboldt: language begins with the first act of reflection).
+Following Thom's \emph{morphology of capture} and \emph{morphology of
+alienation}, Borbotko locates their traces in \emph{phonokinemes}---primary
+articulatory micromodels such as the ``capture'' roots with a final labial
+($m, b, p, v$) and the ``alienation'' roots with a final apical ($n, d, t$)---
+which form the archetypal core of the lexicon. Their combinatorics in phase
+states generates discourse models of higher orders: real, quasi-real
+(stories), irreal (myths, fairy tales), allegorical, and categorical. The same
+utterance can be transposed from one model to another by changing the
+metabasis, and an utterance in a strong position can regulate the communicative
+situation itself (message, warning, hint, intimidation, subtext).
+
+\paragraph{The lattice reading.}
+Borbotko's central relation is \emph{symptosymmetry}: the unit and its context
+are mutual complements within the whole text, like a key and its lock. In the
+lattice this is the Boolean complement, and the door is the key-and-lock made
+exact: ingestion compresses a context, materialization restores it, and the
+round-trip law of Section~\ref{sec:sign} is the formal condition of
+symptosymmetry---the unit and its context fit together exactly when coverage
+is $1$.
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{6.0cm}
+                    >{\raggedright\arraybackslash}p{9.4cm}@{}}
+\toprule
+Borbotko (2007) & This paper \\
+\midrule
+context as the complement of the unit within the whole & Boolean complement; the round-trip law (coverage $=1$) \\
+homogeneous vs heterogeneous context & inside the frame cover/span (spill $=0$) vs spill and residual \\
+context catalysis; semantic calibration of the unit & guard/coverage check; fallback and recalibration on spill \\
+contextual semantization: the word self-determines in context, refined through many contexts & value as position in the lattice; $H(t)$ and $D/R/N$ refine it step by step \\
+base state of the system (socialized Saussurean values) & langue: the Boolean lattice of differences \\
+phase states under the external attractor & per-step nodes $S(t)$; the commit DAG and basis generations \\
+communicative metabasis (situational context) & the dispatch context: host choice, top HLLSet, who speaks \\
+dynamics of the creation of language values & D/R/N and the hard key $c$; Noether redistribution \\
+diachronic phase trajectory; texts become archaic & basis generations; time travel through old frames \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Two points deserve emphasis. First, symptosymmetry is not a metaphor here: it
+is the coverage invariant. The lattice measures the fit between a unit and its
+context, and it knows the size of the misfit (spill, residual) when the fit
+fails. Second, Borbotko's metabasis is the missing variable that the
+dispatcher makes explicit: the situational choice of \emph{who speaks} is the
+external attractor, and the dispatcher $\Disp$ is the learned mechanism by
+which the metabasis catalyses the base state into one phase state rather than
+another.
 
 \end{document}
