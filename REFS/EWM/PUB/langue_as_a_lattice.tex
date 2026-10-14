@@ -1,0 +1,617 @@
+% ============================================================================
+%  Langue as a Lattice
+%  Closing the Circle from Statistical to Structural Linguistics
+%  through Content-Addressed Algebras
+% ----------------------------------------------------------------------------
+%  Build:  pdflatex langue_as_a_lattice.tex   (run twice)
+%  notation follows main.tex / companion.tex / tecs_state_machine_trajectory.tex
+%  / attention_lattice_traversal.tex
+% ============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{amscd}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\definecolor{hlblue}{RGB}{0,80,160}
+\hypersetup{colorlinks=true,linkcolor=hlblue,urlcolor=hlblue,citecolor=hlblue}
+
+% ---- theorems (aligned with the PUB series) --------------------------------
+\newtheorem{principle}{Principle}[section]
+\newtheorem{theorem}[principle]{Theorem}
+\newtheorem{definition}[principle]{Definition}
+\newtheorem{proposition}[principle]{Proposition}
+\newtheorem{corollary}[principle]{Corollary}
+\newtheorem{remark}[principle]{Remark}
+\theoremstyle{remark}
+\newtheorem{observation}[principle]{Observation}
+
+% ---- shorthands (aligned with the PUB series) ------------------------------
+\newcommand{\Plane}{\ensuremath{\mathbb{B}}}            % bit plane
+\newcommand{\Lat}{\ensuremath{\mathcal{B}}}              % HLLSet (Boolean) lattice
+\newcommand{\Tok}{\ensuremath{\mathcal{T}}}              % token space
+\newcommand{\HLL}{\ensuremath{H}}                        % an HLLSet
+\newcommand{\xor}{\ensuremath{\Delta}}                   % ring addition
+\newcommand{\BSS}{\ensuremath{\mathsf{BSS}}}             % BSS measure
+\newcommand{\res}{\ensuremath{\mathrm{res}}}             % residual
+\newcommand{\spanof}[1]{\ensuremath{\langle #1\rangle}}  % GF(2) span
+\newcommand{\supp}{\ensuremath{\mathrm{supp}}}           % support
+\newcommand{\Attn}{\ensuremath{\mathrm{Attn}}}           % attention operator
+\newcommand{\Ctx}{\ensuremath{\mathcal{C}}}              % token context
+\newcommand{\Ing}{\ensuremath{\mu}}                      % ingestion morphism
+\newcommand{\Mat}{\ensuremath{\rho}}                     % materialization morphism
+\newcommand{\Lang}{\ensuremath{\mathcal{L}}}             % langue (the lattice system)
+\newcommand{\Par}{\ensuremath{\mathcal{P}}}              % parole (usage)
+\newcommand{\Sign}{\ensuremath{\mathcal{S}}}             % the sign relation
+\newcommand{\Cov}{\ensuremath{\mathrm{cov}}}             % coverage
+\newcommand{\Disp}{\ensuremath{\mathcal{D}}}             % the dispatcher
+
+% ---- title -----------------------------------------------------------------
+\title{\textbf{Langue as a Lattice}\\[4pt]
+\large Closing the Circle from Statistical to Structural Linguistics\\
+through Content-Addressed Algebras\\[6pt]
+\normalsize Fifth paper in the \textit{Emerging World Models} series}
+
+\author{Alex Mylnikov \and Alexandr Mylnikov Jr. \and Deependra Kumar}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Modern language models practise \emph{statistical} linguistics: attention
+matrices and distributional semantics describe language as usage---what
+Saussure called \emph{parole}. Structural linguistics, from Saussure onward,
+claims that behind usage stands a system of pure differences---\emph{langue}---
+but that system has resisted direct computation: it has been a philosophical
+object, not an executable one. This paper shows that a content-addressed
+\emph{morphism}---the IICA map from tokens to algebraic structure---closes the
+gap; in the reference implementation this morphism is a hash, chosen only
+because it distributes its values evenly over the plane. The map
+$\Ing : \Tok \to \Plane$ compiles any token language
+into a fixed bit plane, where the HLLSet Boolean algebra and its GF(2) ring
+form an \emph{executable system of differences}: novelty and retention are the
+syntagmatic step, and the directed soft key $\BSS_w(X)=|X\cap B_w|/|B_w|$
+reads succession against a reference state---the compositional tool of the
+lattice; the ring basis is the set of distinctive oppositions; ingestion and
+materialization are the
+two faces of the sign, governed by the coverage invariant; and idempotence,
+immutability, and content addressability (IICA) are the social contract that
+fixes the otherwise arbitrary sign. The resulting construction---the EWM
+lattice plus a learned dispatcher that selects which host language actualizes
+the shared langue---closes a circle: from statistical linguistics through a
+content-addressed morphism into algebraic structures, and back to a
+computational form of fundamental structural linguistics. Along the way the
+classical hierarchy of linguistic description---phonology, morphology, syntax,
+semantics, pragmatics, discourse---is re-founded level by level in the
+lattice and the ring, not as an analogy but as a computation. The dispatcher
+is the executive side of language made trainable: langue does not speak,
+parole does, and the Emerging LLM learns \emph{who speaks}.
+\end{abstract}
+
+\noindent\textbf{Keywords:} structural linguistics; Saussure; langue; parole;
+HLLSet; Boolean lattice; GF(2) ring; content addressing; IICA; attention;
+dispatcher; materialization; sign.
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+% ============================================================================
+
+Two descriptions of language have never quite met. The statistical description
+says that meaning is distribution: a word is known by the company it keeps
+\cite{harris1954,firth1957}, and a modern attention matrix is the strongest
+realization of that slogan---at every layer, a token's context is a weighted
+sum of the tokens that co-occur with it \cite{vaswani2017}. The structural
+description says the opposite: a unit's value is not its use but its
+\emph{position in a system of differences}; in language ``there are only
+differences without positive terms'' \cite{saussure1916}. The first view is
+computable but shallow---it gives usage, not system. The second view is deep
+but has seemed non-computable---it gives system, not a machine that runs it.
+
+This paper proposes a bridge, and the bridge is an \emph{IICA morphism}: a
+deterministic, immutable, content-addressed map from tokens into algebraic
+structure. A hash function is only one possible implementation of that
+morphism---the one the reference system uses, for the single reason that it
+spreads its values evenly over the plane.
+
+The Emerging World Models (EWM) programme \cite{ewm2026,companion2026,state2026}
+already contains the necessary pieces, built for other reasons. Its state is a
+content-addressed set---an \textbf{HLLSet}, a bit-vector sketch of a token
+collection over a fixed plane $\Plane$ of $32{,}768$ bits---and its morphisms
+are the Boolean operations $\cup, \cap, \xor$ and the GF(2) ring they generate.
+Tokens are mapped to bits by a morphism $\Ing$ (a hash in the reference
+implementation); bits are mapped back to tokens by
+\textbf{materialization} $\Mat$ \cite{attention2026}. The three properties that
+make this mapping well-defined---idempotence, immutability, content
+addressability (IICA) \cite{ewm2026}---are exactly the properties a sign
+system needs in order to be \emph{arbitrary yet fixed}. And the newest piece of
+the programme, the Emerging LLM dispatcher, is precisely the executive side of
+language: a learned policy that reads the lattice (langue) and chooses which
+host language (parole) should actualize it.
+
+The paper's thesis is one sentence: \textbf{the HLLSet lattice is a computable
+langue}. We develop the claim in five steps. Section~\ref{sec:parole} states
+the Saussurean distinction in the language of modern models and identifies
+attention as parole-level statistics. Section~\ref{sec:morphism} shows that
+the morphism step $\Ing$ is the computable reduction from usage to structure.
+Section~\ref{sec:langue} exhibits the lattice as a system of differences:
+D/R/N are syntagmatic, the directed soft key BSS reads succession (and, as a
+profile over a frame, the paradigmatic axis), and the ring basis is the set of
+distinctive oppositions. Section~\ref{sec:sign} identifies
+ingestion/materialization with the sign relation and IICA with the social
+contract that fixes the arbitrary sign. Section~\ref{sec:dispatch} interprets
+the dispatcher as actualization---the selection of parole---and closes the
+circle. Section~\ref{sec:relations} situates the result against Saussure,
+Hjelmslev, distributionalism, and the categorical reading of the bridge.
+Section~\ref{sec:conclusion} summarizes.
+
+% ============================================================================
+\section{Parole: attention as statistical linguistics}
+\label{sec:parole}
+% ============================================================================
+
+Saussure's distinction is between \emph{langue}, the social system of a
+language---its units, rules, and oppositions, existing independently of any
+speaker---and \emph{parole}, the individual acts of speech that actualize the
+system. Parole is heterogeneous, statistical, and executive; langue is
+homogeneous, structural, and social. A speaker never \emph{sees} langue; they
+see parole, and from parole they acquire langue.
+
+Modern language models are the strongest parole-machines ever built. A
+transformer's attention matrix
+\[
+  \Attn(X) \;=\; \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d}}\right)V
+\]
+is a differentiable co-occurrence table: for each query token it records how
+much of every other token's value is \emph{in use} at this step. The weights
+are frequencies, the context is a mixture, and the entire enterprise---masked
+language modeling, next-token prediction, retrieval, embeddings---is the
+distributional programme of \cite{harris1954,firth1957} carried to its limit.
+Attention describes usage with unprecedented fidelity, but it remains a
+description of \emph{parole}: a model knows that two tokens co-occur; it does
+not know, as a matter of structure, \emph{what their difference consists in}.
+
+The missing object is langue. What would it mean to compute it? Three
+requirements follow from Saussure's text. (i) \emph{Differences, not positives:}
+a unit is defined by its relations to other units, never by its own content.
+(ii) \emph{Arbitrary but fixed:} the link between a signifier and what it
+signifies is unmotivated, yet the system fixes it by convention.
+(iii) \emph{Social and shared:} the system is the same for all speakers; it is
+what makes their divergent utterances commensurable. The next three sections
+show that the EWM stack satisfies (i) by construction, (ii) by IICA, and
+(iii) by the bit plane being host-agnostic.
+
+% ============================================================================
+\section{The morphism step: from usage to structure}
+\label{sec:morphism}
+% ============================================================================
+
+The first move is the least glamorous and the most decisive. Let $\Tok$ be the
+universe of tokens---across \emph{all} host languages, so that the same token
+string may be emitted by different systems with different vocabularies. Define
+the plane
+\[
+  \Plane \;=\; \{0,\dots,32767\},
+\]
+and the ingestion morphism
+\[
+  \Ing : \mathcal{P}_{\mathrm{fin}}(\Tok) \;\longrightarrow\; \mathcal{P}(\Plane),
+  \qquad
+  \Ing(X) \;=\; \bigcup_{t \in X} \Ing(\{t\})
+\]
+where each token maps to a fixed subset of $\Plane$ under a deterministic
+morphism $\Ing$. The morphism is what matters; the hash is only its reference
+implementation, chosen for a single reason---it distributes the function values
+evenly over the plane.
+
+\begin{definition}[IICA morphism]
+A map $\Ing : \Tok \to \mathcal{P}(\Plane)$ is an \textbf{IICA morphism} if it
+is
+(i) \emph{idempotent}, read as \emph{determinism}: the same token always maps
+to the same subset, $\Ing(t) = \Ing(t)$;
+(ii) \emph{immutable}: once fixed, the image is never rewritten; and
+(iii) \emph{content-addressed}: the image is named by its content alone.
+Any deterministic map satisfies (i). Among all such maps, a hash is preferred
+in practice only because it spreads the images evenly across the plane, which
+keeps the resulting bit-vector compact and unbiased.
+\end{definition}
+
+The image of a token collection under $\Ing$ is an \textbf{HLLSet}: a compact
+bit-vector in which repetition has already collapsed (a token present twice
+contributes once), and union is the only accumulation.
+
+\begin{proposition}[Ingestion is join-preserving]
+For finite token sets $X, Y \subseteq \Tok$,
+\[
+  \Ing(X \cup Y) \;=\; \Ing(X) \cup \Ing(Y).
+\]
+Consequently the bag-of-tokens statistics of parole---co-occurrence, overlap,
+containment---all reduce to the single operation of union on the plane, and the
+order in which tokens arrive is forgotten.
+\end{proposition}
+
+The proposition is the entire content of the ``morphism step''. It is what
+statistical linguistics lacks: a canonical quotient that throws away frequency
+and sequence, and keeps exactly what is left when one asks \emph{which things
+occur together as a set}. Idempotence is the first IICA property and it is
+already at work here: because the morphism is deterministic, ingesting the same
+content twice is a no-op, so the system's memory is a lattice of \emph{types},
+not a pile of \emph{tokens}.
+
+\begin{remark}[Why a morphism, not an embedding]
+An embedding maps a token to a dense vector; similarity then lives in a metric
+space and must be learned. A morphism into $\mathcal{P}(\Plane)$ maps a token
+to a \emph{subset of a shared finite set}; similarity then lives in the Boolean
+algebra of that set and is \emph{exact}. The first keeps language in the
+statistical world; the second moves it into the structural world. \emph{Which}
+deterministic morphism is used is secondary: any IICA morphism works, and the
+reference system chooses a hash purely for its even distribution of values.
+This is the crossing point of the circle.
+\end{remark}
+
+% ============================================================================
+\section{Langue as a lattice of differences}
+\label{sec:langue}
+% ============================================================================
+
+On the plane, structure is no longer metaphorical. The set $\Lat =
+\mathcal{P}(\Plane)$ is a Boolean lattice under $\cup$ and $\cap$, and a
+Boolean ring under $\xor$ and $\cap$ \cite{birkhoff1940}. Every token
+collection has become a node of $\Lat$; every relation between collections has
+become a relation between nodes. We now read Saussure's system of differences
+off the lattice.
+
+\subsection{Syntagmatic relations: D/R/N}
+The syntagmatic axis is the axis of combination---what is present together, in
+sequence. In the lattice it is read as the stepwise decomposition of a context
+$\Ctx$ against a document $D$:
+\[
+  N \;=\; |D \setminus \Ctx|, \qquad
+  R \;=\; |D \cap \Ctx|, \qquad
+  \Cov \;=\; R / |D| .
+\]
+Novelty $N$ is what the context cannot account for; retention $R$ is what it
+confirms; coverage is their ratio. These are pure differences: no token is
+valued positively, only as it stands in relation to the context.
+
+\subsection{Directed containment: the soft key BSS}
+The second reading is deliberately asymmetric. Against a reference state $B_w$
+(a basis vector, a host codebook, or a previous context), a state $X$ is read
+as
+\[
+  \BSS_w(X) \;=\; \frac{|X \cap B_w|}{|B_w|},
+\]
+the fraction of the reference that $X$ covers. The direction matters: it
+measures evolution from one state to another---how much of the earlier state
+the later state retains, covers, and composes. The EWM programme chose this
+asymmetric form as its primary measurement because the object of study is
+succession; the symmetric cosine is retained for the cases that need it.
+
+Linguistics is likewise about sequences: a text is one state after another.
+The directed BSS is therefore the compositional/generative tool of the
+lattice---it reads a new state against an old one and says how much of the old
+is carried forward, which is exactly the syntagmatic succession Saussure
+placed on the axis of combination. Read as a profile over a whole frame, the
+same soft key is also the paradigmatic reading: each coordinate measures the
+query against one opposition.
+
+\begin{remark}[Symmetric readings when needed]
+The directed BSS is not the only measurement on the plane. When the question
+is static resemblance rather than succession---two hosts, two contexts, two
+readings of one window, with no direction between them---the symmetric
+cosine over the same supports,
+\[
+  \mathrm{cos}(X, Y) \;=\; \frac{|X \cap Y|}{\sqrt{|X|\,|Y|}},
+\]
+is available and exact for the same reason: both measurements live in the
+Boolean algebra. They are not rivals. BSS answers \emph{how much of the
+reference does the new state carry forward}---composition and generation; the
+cosine answers \emph{how alike are these two states}---comparison and
+classification. The grammar uses the first; the lexicon, and any comparison of
+hosts or contexts on an equal footing, uses the second.
+\end{remark}
+
+\subsection{Distinctive oppositions: the ring basis}
+The deepest structural object is the basis. Over any window of originals, the
+EWM apparatus maintains an Reduced Row Echelon Form (RREF) GF(2) basis $F = (B_1,\dots,B_k)$ whose span is
+exactly the set of originals \cite{state2026}. A frame is a system of
+distinctive oppositions in the phonological sense: each basis vector is a
+minimal unit that cannot be assembled from the others, and a node's hard key
+$c \in \mathrm{GF}(2)^k$ is its unique decomposition
+\[
+  X \;=\; \bigoplus_{i : c_i = 1} B_i,
+\]
+defined exactly when $X$ lies in the span. The soft key
+$w_i = |X \cap B_i| / |B_i|$---the directed BSS of Section~4.2, one coordinate
+per opposition---is the relaxed reading of any node against the frame, and the
+spill
+$s = |X \setminus \mathrm{cover}(F)|$ is the part the system cannot yet see.
+This is Saussure's ``differences without positive terms'' as an executable
+datatype: every unit is an address in the span of the basis, and nothing else.
+
+\begin{observation}[The meta-language]
+The HLLSet algebra is not another token language; it is a \emph{meta-language}.
+It describes descriptions. Any host language---any vocabulary, any tokenizer,
+any attention geometry---compiles into the same plane, and all comparisons
+happen there. Host-agnosticism is therefore not an engineering preference but
+the structuralist condition (iii) of Section~\ref{sec:parole}: the system is
+shared because it is the only level where different paroles are commensurable.
+\end{observation}
+
+\subsection{The classical taxonomy, recomputed}
+Classical linguistics organises language into seven levels. Two of them do not
+survive the move from acoustic speech to text---phonetics and phonology are
+absent from LLMs except in special cases (speech and audio models). The other
+five survive, but only when they are \emph{recomputed}: the lattice and the
+ring do not mimic the classical levels, they re-found them. The dictionary is
+as follows.
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.0cm}
+                    >{\raggedright\arraybackslash}p{2.4cm}
+                    >{\raggedright\arraybackslash}p{10.4cm}@{}}
+\toprule
+Level & In LLMs & In the HLLSet lattice / GF(2) ring \\
+\midrule
+Phonetics & N/A (except speech) & the raw token event---the substance \\
+Phonology & N/A (except special cases) & basis frames: distinctive oppositions, hard key \\
+Morphology & subword tokens & union/join: composition and derivation; idempotence collapses reduplication \\
+Syntax & attention over positions & joins and meets; the ring sum; the span as the set of well-formed constructions \\
+Semantics & embeddings & directed BSS (coverage of a reference), containment, the hard key as structural address \\
+Pragmatics & instruction tuning & the dispatcher: who speaks, fallback, confidence---actualization \\
+Discourse & the context window & the commit DAG, $H(t)$, windows, and $D/R/N$ over time \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\emph{Phonetics} is the physical layer, and in a text-bound system its only
+trace is the raw token event itself---the substance that Hjelmslev would place
+on the expression plane. \emph{Phonology} is where the re-foundation begins:
+the basis frame is a distinctive-feature system. Each basis vector is a minimal
+opposition; the hard key is the phonemic address of a node; the soft key is its
+allophonic variation against every opposition; and the spill is the part of an
+utterance that falls outside the system's inventory. \emph{Morphology} becomes
+set composition: derivation is join, compounding is union, and reduplication is
+erased by idempotence---repeating a morpheme contributes nothing twice, exactly
+as it should in a system of types. \emph{Syntax} becomes the algebra of
+combination without linear order: constituents are joins and meets, the ring
+sum is phrase-level difference, and the span of the basis is the set of
+well-formed constructions over a window. Linear order is the one thing the
+lattice forgets, and it is recovered not by the algebra but by materialization,
+which restores order at the door. \emph{Semantics} is the system of values
+itself: the directed BSS says how much of a reference meaning a new state
+covers, containment and coverage say how much of a meaning a context
+determines, and the hard key is the structural address
+of a meaning---Saussure's value made literal. \emph{Pragmatics} is the
+dispatcher: context-dependent selection of who speaks, confidence as the
+speaker's commitment, fallback as repair. \emph{Discourse analysis} is the
+trajectory: cohesion is retention $R$, progression is novelty $N$, and the
+commit DAG with its windows and crossings is the memory of a conversation.
+
+The mapping is deliberately not exact, and that is the point. The classical
+hierarchy was built for spoken language and inherited by text; the lattice and
+ring re-found it for computational structural linguistics, where every level is
+a computation over one shared plane rather than a separate descriptive
+practice.
+
+% ============================================================================
+\section{The sign and its contract: ingest, materialize, IICA}
+\label{sec:sign}
+% ============================================================================
+
+Saussure's sign unites a signifier and a signified; the link is arbitrary, and
+the system fixes it by convention. The EWM bridge is the same object, made
+precise. The sign relation is the pair
+\[
+  \Sign \;=\; (\Ing, \Mat),
+  \qquad
+  \Ing : \Ctx \to \Lat, \qquad \Mat : \Lat \to \Ctx,
+\]
+where materialization restores, from a lattice node, an ordered token context
+through the door \cite{attention2026}. The round-trip is not automatic; it is
+guarded:
+
+\begin{proposition}[The round-trip law]
+For a context $\Ctx$ and its node $\HLL = \Ing(\Ctx)$,
+\[
+  \Mat(\Ing(\Ctx)) \;=\; \Ctx
+  \qquad\text{up to order,}\qquad
+  \text{iff}\qquad \Cov(\Ctx) = 1 .
+\]
+Coverage $1.0$ is the condition under which the sign relation is faithful:
+what was compressed is exactly what can be restored. Below it, the spill and
+the residual measure the failure, and the system knows the failure's size.
+\end{proposition}
+
+The three IICA properties are then read as the \emph{social contract of the
+sign}. \textbf{Idempotence}: repeating a sign changes nothing---the system's
+value of a content is stable under repetition. \textbf{Immutability}: the
+system never rewrites its own history, so the sign's past values remain
+referable. \textbf{Content addressability}: the same content always bears the
+same name, in every host language, so the arbitrary link between signifier and
+signified is fixed by the system rather than by any speaker. Arbitrary but
+fixed: this is exactly Saussure's formulation of the linguistic sign, stated
+as a property of morphisms.
+
+\begin{remark}[The categorical reading]
+In categorical terms the bridge is an adjunction in embryo: ingestion is a
+free/compressive functor from the category of token contexts to the Boolean
+lattice, materialization is its right adjoint restricted to the image, and
+IICA is the naturality that makes the correspondence independent of the host
+language. We sketch this in Section~\ref{sec:relations}; a full treatment is
+left to a companion note.
+\end{remark}
+
+% ============================================================================
+\section{Actualization: the dispatcher closes the circle}
+\label{sec:dispatch}
+% ============================================================================
+
+Langue never speaks. Parole does. The remaining question is therefore
+Saussure's executive question: given a state of the system, \emph{which}
+parole should actualize it? In the EWM line this question already has a
+computational form---it is the router problem solved, in their own ways, by the
+typed-decision models Jev and Laya, and by the structural router of the
+programme's notebooks \cite{state2026}.
+
+The Emerging LLM is a different answer to the same question. It is a
+\textbf{dispatcher}
+\[
+  \Disp : \Lat \times \mathrm{State} \;\longrightarrow\; \Delta(\mathrm{Hosts}),
+\]
+a learned policy that reads the meta-language state---BSS, D/R/N, ring basis,
+windows---and produces a distribution over host languages. It does not speak
+any host language natively; it speaks the meta-language and selects a native
+speaker.
+
+\begin{remark}[Recognition without production]
+This is a recognizably human ability. A person can identify a language they do
+not speak---French, Italian, Japanese---from its sound and rhythm alone, long
+before they can produce a single grammatical sentence in it. The dispatcher
+exhibits the same asymmetry, structurally: it recognises host languages from
+their traces in the lattice (their codebook projections, their coverage) while
+producing none of them itself. Recognition without production, in both cases,
+is possible because recognition operates on the system of differences, not on
+the ability to actualize it.
+\end{remark}
+
+Two consequences follow.
+
+First, \emph{the circle closes}. Parole (a host's attention and tokens) is
+compiled by $\Ing$ into langue (the lattice); langue is read back through
+$\Mat$ into token context; the dispatcher reads langue and selects the host;
+the host generates, and its output re-enters as new parole. Statistical
+linguistics $\to$ content-addressed morphism $\to$ algebraic structure $\to$
+the executive side of language $\to$ statistical linguistics again, one level
+up.
+
+Second, \emph{competition and cooperation acquire a principled form}. The
+dispatcher competes only with other speakers of the meta-language---the typed
+decision routers, Jev and Laya and their kind. With every host LLM it is in
+win--win cooperation: the host supplies a language and restores tokens; the
+dispatcher supplies selection and makes the lattice host-agnostic. Even with
+Jev and Laya the relation is coexistence, not replacement: they can run behind
+the same decision seam as validation labels or fallback routers. The
+dispatcher is a side-car to the ecosystem, not a replacement of it.
+
+\begin{observation}[Native labels]
+The lattice labels its own decisions. The per-host codebook projections of a
+materialized context---the dense association of token/encoding sets to
+HLLSet bits---form a labeling system independent of any host's own labels,
+emergent with the lattice, and traceable through basis generations. The
+dispatcher is therefore trainable against langue itself, with external router
+decisions serving only as validation.
+\end{observation}
+
+% ============================================================================
+\section{Relations}
+\label{sec:relations}
+% ============================================================================
+
+\paragraph{Saussure.} The mapping is direct: langue is $\Lat$; parole is the
+stream of host outputs; the sign is $(\Ing, \Mat)$; the arbitrariness of the
+sign is the freedom of the morphism (any deterministic IICA map would do), and
+its fixedness is IICA; value through difference is D/R/N, BSS, and the basis
+hard key.
+
+\paragraph{Hjelmslev.} The glossematic distinction between expression and
+content, and the insistence that both sides have their own form and substance,
+is realized by the symmetry of the bridge: token context is the expression
+plane, the HLLSet is the content plane, and the morphisms $\Ing, \Mat$ are the
+two directions of the sign function, each with its own algebra.
+
+\paragraph{Distributionalism.} Harris and Firth saw that meaning is
+distribution, but stopped at statistics because no canonical quotient was
+available. The IICA morphism provides the quotient: co-occurrence sets modulo
+repetition
+and order, with exact set operations. Attention remains the best
+\emph{differentiable} approximation of distributional structure; the lattice
+is its \emph{exact} image under the quotient.
+
+\paragraph{Category theory.} The bridge is an adjunction: $\Ing$ is a
+join-preserving map from the preorder of token contexts (ordered by inclusion)
+to the Boolean lattice, and $\Mat$ is its right adjoint on the image, with the
+unit of the adjunction being the coverage map and the counit the round-trip
+law. IICA is naturality: the diagram commutes independently of the host
+language, which is why many paroles can share one langue.
+
+\paragraph{The fifth paper of the series.} Where the first paper
+\cite{ewm2026} fixed the principles, the second \cite{companion2026} the
+lattice and its worlds, the third \cite{state2026} the trajectory, and the
+fourth \cite{attention2026} the map--door--move reading of attention, this
+fifth paper states what those four had implicitly built: a linguistic
+interpretation in which the lattice is langue, and the whole machine is a
+computable structuralism.
+
+% ============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+% ============================================================================
+
+The paper's claim is that structural linguistics stopped being a philosophical
+programme the moment the IICA morphism entered the picture. Attention gave us
+parole at scale. The morphism---any deterministic, content-addressed map; a
+hash in the reference implementation, chosen for its even distribution---gives
+us the quotient from parole to langue. The HLLSet algebra gives langue an
+executable form---a Boolean lattice with a
+GF(2) ring, whose D/R/N are syntagmatic, whose directed BSS reads succession
+and substitution, and whose basis is a system of distinctive oppositions. The
+coverage-guarded bridge is
+the sign, and IICA is its social contract. The dispatcher is actualization:
+the executive side of language, learned.
+
+The circle---statistical linguistics, a content-addressed morphism, algebraic
+structures, and back to a fundamental, computable linguistics---is therefore
+not an analogy. It is a construction, and it runs.
+
+\begin{thebibliography}{99}
+
+\bibitem{saussure1916} F.~de Saussure,
+\textit{Cours de linguistique g\'en\'erale}, Payot, 1916.
+(Edited posthumously by C.~Bally and A.~Sechehaye.)
+
+\bibitem{hjelmslev1961} L.~Hjelmslev,
+\textit{Prolegomena to a Theory of Language}, University of Wisconsin Press,
+1961.
+
+\bibitem{harris1954} Z.~S.~Harris,
+\textit{Distributional Structure}, Word, 10(2--3):146--162, 1954.
+
+\bibitem{firth1957} J.~R.~Firth,
+\textit{A Synopsis of Linguistic Theory, 1930--1955}, Studies in Linguistic
+Analysis, 1957.
+
+\bibitem{vaswani2017} A.~Vaswani, N.~Shazeer, N.~Parmar, J.~Uszkoreit,
+L.~Jones, A.~N.~Gomez, \L.~Kaiser, and I.~Polosukhin,
+\textit{Attention Is All You Need}, NeurIPS, 2017.
+
+\bibitem{ewm2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Emerging World Models: A Structural Framework for Self-Organizing
+World Representations}, EWM PUB series, 2026.
+
+\bibitem{companion2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{The EWM Lattice and Its Worlds}, EWM PUB series, 2026.
+
+\bibitem{state2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Transformations and Trajectories of a Content-Addressed State
+Machine}, EWM PUB series, 2026.
+
+\bibitem{attention2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Attention on Lattice Traversal Is All You Need}, EWM PUB series, 2026.
+
+\bibitem{birkhoff1940} G.~Birkhoff,
+\textit{Lattice Theory}, American Mathematical Society, 1940.
+
+\bibitem{maclane1971} S.~Mac Lane,
+\textit{Categories for the Working Mathematician}, Springer, 1971.
+
+\end{thebibliography}
+
+\end{document}
