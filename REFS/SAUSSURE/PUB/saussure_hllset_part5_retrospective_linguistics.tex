@@ -107,10 +107,12 @@ forward, the retrospective reading inverts the transport matrices backward.
 The inversion is exact on the old span---the map $c \mapsto c\Change$ is
 injective---and partial elsewhere, where the spill against the earliest frame
 measures the error of reading the present through the past's lens. The search
-for the earliest language and the prototype is re-founded as a coordinate
-fact: the prototype is the projection of the present frame into the first
-recorded basis, and the first basis is itself an arbitrary origin by the
-coordinate-freedom theorem of Part~I. Reconstruction becomes an executable
+for the earliest language and the prototype is re-founded as a fact about
+perishable origins: the lineage is not monotone, its frame transitions
+depart, retain, and add bits, and the first basis is an arbitrary origin
+that can be entirely replaced; the prototype is therefore a backward path
+along the lineage, not a projection into the first basis. Reconstruction
+becomes an executable
 inverse problem: the proto-node of a set of descendants is their meet,
 $\Proto = \bigcap_i X_i$, a view whose provenance points into the past; the
 reconstruction is exact exactly when nothing has departed, and the spill of
@@ -161,7 +163,8 @@ retrospective layer (prospective and retrospective readings, the
 reconstruction operator). Section~\ref{sec:ch1} re-founds the two
 perspectives of diachronic linguistics as the two directions of the DAG.
 Section~\ref{sec:ch2} re-founds the search for the earliest language and the
-prototype as projection into the first basis. Section~\ref{sec:ch3} is the
+prototype as a backward path along a perishable lineage, not a projection
+into the first basis. Section~\ref{sec:ch3} is the
 center: reconstruction as the meet of descendants, with its exactness
 criterion. Section~\ref{sec:ch4} delimits the anthropological evidence.
 Section~\ref{sec:ch5} separates families from types. Section
@@ -217,8 +220,12 @@ Let $X_1,\dots,X_n$ be nodes (descendants) in the current lattice. The
 \]
 read as a \emph{view}: a recipe whose sources are the descendants and whose
 provenance points into the past. The \textbf{reconstruction spill} is
-$s(\Proto) = |\Proto \setminus \cover(F_0)|$ against the earliest recorded
-frame $F_0$ of the lineage.
+\[
+  s(\Proto) \;=\; |\Proto \setminus \cover(F_0 \cap F_t)|
+\]
+against the \emph{surviving} part of the earliest recorded frame $F_0$;
+the departed part $F_0 \setminus F_t$ is accounted as uncertainty
+(Definition~\ref{def:frame-transition}), not as a lens.
 \end{definition}
 
 \begin{proposition}[Backward reading is exact on the old span]
@@ -250,6 +257,19 @@ from (1). (3) A node outside the old span has no old hard key; the spill is
 the part of it that the old frame cannot see, as in Part III
 \cite{part3,state2026}.
 \end{proof}
+
+\begin{remark}[Monotone span versus perishable frames]
+\label{rem:monotone}
+Proposition~\ref{prop:backward} states the retrospective method in the
+monotone-span regime of the EWM ring, where
+$\spanof{F(t{-}1)} \subseteq \spanof{F(t)}$ and no direction is ever lost.
+A real lineage is not monotone at the frame level: each new frame differs
+from its predecessor by a frame transition with departed, retained, and new
+parts, and the departed bits accumulate---at the limit they can replace the
+first frame entirely. In that regime the backward map is exact only on the
+retained part of the old span; the departed part is not inverted but
+reconstructed by hypothesis. This is the subject of Chapters II and III.
+\end{remark}
 
 % ============================================================================
 \section{Chapter I: The two perspectives of diachronic linguistics}
@@ -287,17 +307,38 @@ measured residual---not a symmetrical pair of viewpoints.
 
 Saussure's chapter II deflates the search for the first language: no living
 language is ``older'' than another in any absolute sense, and the prototype
-reconstructed by comparison is a projection, not a reality that was ever
-spoken \cite[Part V, ch.~II]{harris1983}.
+reconstructed by comparison is a hypothesis about relations, not a reality
+that was ever spoken \cite[Part V, ch.~II]{harris1983}.
 
-\begin{reading}[The first basis is an arbitrary origin]
+\begin{definition}[Frame transitions along a lineage]
+\label{def:frame-transition}
+Let $F_0, F_1, \dots, F_t$ be the recorded frames of a lineage. Each step is
+a \textbf{frame transition} with departed, retained, and new parts
+\[
+  \Dep_i = F_{i-1}\setminus F_i, \qquad
+  \Ret_i = F_{i-1}\cap F_i, \qquad
+  \New_i = F_i\setminus F_{i-1},
+\]
+which partition $F_{i-1}\cup F_i$. The \textbf{accumulated departure} from
+$F_0$ to $F_t$ is
+\[
+  \Dep(0,t) \;=\; F_0 \setminus F_t .
+\]
+Nothing prevents $\Dep(0,t)$ from growing until it equals $F_0$: the
+lineage is not monotone, and the first frame can be entirely replaced.
+\end{definition}
+
+\begin{reading}[The first frame is an arbitrary and perishable origin]
 \label{read:origin}
 The earliest frame $F_0$ of a lineage is the first committed generation in
 the DAG. It is an \emph{origin} only because the record starts there, not
 because the plane has an origin: by the coordinate-freedom theorem of Part I
 \cite{part1}, any re-coordination of the plane is an automorphism, and no
-structural property prefers one first basis over another. The prototype is
-the projection of the present into $F_0$, with the spill as the error.
+structural property prefers one first basis over another. And the origin is
+\emph{perishable}: the lineage proceeds by frame transitions
+(Definition~\ref{def:frame-transition}), whose departed parts accumulate.
+The prototype is therefore not a projection of the present into $F_0$---a
+lens that may have vanished---but a backward path along the lineage.
 \end{reading}
 
 \begin{observation}[No language is older than another]
@@ -307,17 +348,28 @@ record begins, and a different beginning would be an isomorphic coordinate
 choice. The question ``which language is oldest'' therefore has no
 algebraic meaning: all lineages are equally old, because age is a property
 of the record, not of the lattice. Saussure's deflation of the question is
-re-founded as the arbitrariness of the origin.
+re-founded as the arbitrariness of the origin---an origin that, in
+addition, does not survive its own lineage.
 \end{observation}
 
-\begin{proposition}[The prototype is a projection]
+\begin{proposition}[The prototype is a backward path, not a projection]
 \label{prop:prototype}
-Let $F_0$ be the first recorded frame of a lineage and $X$ a present node.
-The \textbf{prototype reading} of $X$ is its hard key in $F_0$ when
-$X \in \spanof{F_0}$, and its soft profile plus spill
-$|X \setminus \cover(F_0)|$ otherwise. The prototype of a language is the
-collection of such readings: a view of the present through the first frame,
-never an original that was stored then.
+Let $F_0,\dots,F_t$ be the frames of a lineage and $X$ a present node.
+\begin{enumerate}[leftmargin=*,nosep]
+  \item A single projection of $X$ into $F_0$ is not the prototype: it
+    reads the present through an origin that may have departed in part or
+    in whole. When $\Dep(0,t) = F_0$, the lens $F_0$ is foreign to the
+    present frame ($F_0 \cap F_t = \varnothing$), and the projection
+    measures similarity to a vanished system, not descent from it.
+  \item The correct prototype reading of $X$ is the backward path along
+    the lineage: transport $X$'s coordinates backward through each
+    \emph{retained} part $\Ret_i$, and supply the \emph{departed} parts
+    $\Dep_i$ only by the comparative hypothesis of Section~\ref{sec:ch3},
+    applied now to oppositions rather than to nodes.
+  \item The accumulated departure $\Dep(0,t)$ is the exact uncertainty of
+    the prototype: the part of the origin that the present can no longer
+    witness, and that only hypothesis---never the record---can supply.
+\end{enumerate}
 \end{proposition}
 
 % ============================================================================
@@ -357,9 +409,10 @@ for all $i$. Then:
     departed, i.e.\ $A \setminus \Proto = \varnothing$.
 \end{enumerate}
 The reconstruction spill of Definition~\ref{def:recon} measures the part of
-$\Proto$ that the earliest frame cannot see, and the difference
-$\Proto \setminus A$ and $A \setminus \Proto$ are the two directions of the
-reconstruction's uncertainty.
+$\Proto$ that the \emph{surviving} part of the earliest frame cannot see;
+the departed part of the earliest frame is itself uncertainty. The
+differences $\Proto \setminus A$ and $A \setminus \Proto$ are the two
+directions of the reconstruction's uncertainty.
 \end{proposition}
 
 \begin{proof}
@@ -548,8 +601,9 @@ the old span, projection with spill elsewhere:
 Proposition~\ref{prop:backward} \\
 earliest language & no language is older than another & the first commit is
 an arbitrary origin: Observation~\ref{obs:no-oldest} \\
-prototype & a projection, not a reality & the present read against the first
-basis $F_0$: Proposition~\ref{prop:prototype} \\
+prototype & a hypothesis, not a reality & a backward path along the lineage;
+the first basis is arbitrary and perishable, and $\Dep(0,t)$ is the
+uncertainty: Proposition~\ref{prop:prototype} \\
 reconstruction & comparative; the starred form & the meet
 $\Proto = \bigcap_i X_i$, a view with past provenance:
 Definition~\ref{def:recon}, Proposition~\ref{prop:recon} \\
@@ -588,8 +642,11 @@ HLLSet Algebra.}
     uncertainty in both directions ($\Proto \setminus A$ and
     $A \setminus \Proto$).
   \item \textbf{The prototype is demystified.} The first basis is an
-    arbitrary origin by Part I's coordinate freedom; the prototype is a
-    projection, exactly as Saussure insisted.
+    arbitrary origin by Part I's coordinate freedom, and it is perishable:
+    the lineage proceeds by frame transitions whose departed parts
+    accumulate. The prototype is therefore a backward path along the
+    lineage, with the accumulated departure as its uncertainty---not a
+    projection into a vanished origin.
   \item \textbf{Family and type are separated as datatypes.}
     Definition~\ref{def:family-type} and Proposition~\ref{prop:family-type}
     make the genealogical/structural distinction a difference of data, not
