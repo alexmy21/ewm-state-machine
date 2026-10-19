@@ -1,0 +1,1032 @@
+% ============================================================================
+%  Saussure in HLLSet Algebra --- Part II: Synchronic Linguistics
+%  A computational exegesis of Ferdinand de Saussure's
+%  Course in General Linguistics, Part Two, in the Boolean lattice
+%  and GF(2) ring of HLLSet Algebra
+% ----------------------------------------------------------------------------
+%  Series:  Saussure in HLLSet Algebra (reverse direction of influence)
+%  Build:   pdflatex saussure_hllset_part2_synchronic_linguistics.tex
+%           (run twice)
+%  Notation follows Part I:
+%    saussure_hllset_part1_general_principles.tex
+%  and the EWM PUB series.
+% ============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{amscd}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\definecolor{hlblue}{RGB}{0,80,160}
+\hypersetup{colorlinks=true,linkcolor=hlblue,urlcolor=hlblue,citecolor=hlblue}
+
+% ---- theorems (aligned with the PUB series and Part I) ----------------------
+\newtheorem{principle}{Principle}[section]
+\newtheorem{theorem}[principle]{Theorem}
+\newtheorem{definition}[principle]{Definition}
+\newtheorem{proposition}[principle]{Proposition}
+\newtheorem{corollary}[principle]{Corollary}
+\newtheorem{remark}[principle]{Remark}
+\theoremstyle{remark}
+\newtheorem{observation}[principle]{Observation}
+\newtheorem{reading}[principle]{Reading}
+
+% ---- shorthands (aligned with Part I and the PUB series) --------------------
+\newcommand{\Plane}{\ensuremath{\mathbb{B}}}            % bit plane
+\newcommand{\Lat}{\ensuremath{\mathcal{B}}}              % HLLSet (Boolean) lattice
+\newcommand{\Tok}{\ensuremath{\mathcal{T}}}              % token space
+\newcommand{\HLL}{\ensuremath{H}}                        % an HLLSet
+\newcommand{\xor}{\ensuremath{\Delta}}                   % ring addition
+\newcommand{\BSS}{\ensuremath{\mathsf{BSS}}}             % BSS measure
+\newcommand{\res}{\ensuremath{\mathrm{res}}}             % residual
+\newcommand{\spanof}[1]{\ensuremath{\langle #1\rangle}}  % GF(2) span
+\newcommand{\supp}{\ensuremath{\mathrm{supp}}}           % support
+\newcommand{\Ctx}{\ensuremath{\mathcal{C}}}              % token context
+\newcommand{\Ing}{\ensuremath{\mu}}                      % ingestion morphism
+\newcommand{\Mat}{\ensuremath{\rho}}                     % materialization morphism
+\newcommand{\Lang}{\ensuremath{\mathcal{L}}}             % langue (the lattice system)
+\newcommand{\Par}{\ensuremath{\mathcal{P}}}              % parole (usage)
+\newcommand{\Sign}{\ensuremath{\mathcal{S}}}             % the sign relation
+\newcommand{\Cov}{\ensuremath{\mathrm{cov}}}             % coverage
+\newcommand{\Disp}{\ensuremath{\mathcal{D}}}             % the dispatcher
+\newcommand{\Sync}{\ensuremath{\mathsf{Syn}}}            % synchronic fiber
+\newcommand{\Dia}{\ensuremath{\mathsf{Dia}}}             % diachronic trajectory
+\newcommand{\Gen}{\ensuremath{\gamma}}                   % basis generation
+\newcommand{\cover}{\ensuremath{\mathrm{cover}}}         % frame cover
+\newcommand{\Val}{\ensuremath{\mathcal{V}}}              % value (differential)
+\newcommand{\Synt}{\ensuremath{\mathsf{Synt}}}           % syntagmatic reading
+\newcommand{\Ass}{\ensuremath{\mathsf{Ass}}}             % associative reading
+
+% ---- title -----------------------------------------------------------------
+\title{\textbf{Saussure in HLLSet Algebra}\\[4pt]
+\large Part II: Synchronic Linguistics\\[4pt]
+\large A Computational Exegesis of the \textit{Course in General Linguistics},\\
+Part Two, in the Boolean Lattice and GF(2) Ring of HLLSet Algebra\\[6pt]
+\normalsize Second paper in the series \textit{Saussure in HLLSet Algebra}}
+
+\author{Alex Mylnikov \and Alexandr Mylnikov Jr. \and Deependra Kumar}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Part II of the series reads Saussure's Part Two, \emph{Synchronic
+Linguistics}, out of HLLSet Algebra. The center of that part of the
+\textit{Course} is the differential theory of value, and the center of the
+exegesis is the hard key: value lives in the relations between nodes, and
+relative to a basis frame
+$F=(B_1,\dots,B_k)$ the relational position of every node of the span has a
+unique coordinate vector
+$c\in\mathrm{GF}(2)^k$---the exact compression of its \emph{value}. We prove
+that
+value is a complete invariant on the span---within one synchronic fiber,
+identity and value coincide, and the difference of any two signs is itself a
+sign,
+$X \xor Y = \bigoplus_{i:c_i \neq d_i} B_i$---so Saussure's ``in the language
+itself there are only differences, without positive terms'' holds literally:
+the only positive terms in the description are the basis vectors, and these
+themselves are arbitrary by the coordinate-freedom theorem of Part~I.
+The earlier chapters of Part Two are re-founded in order: concrete entities
+are sign pairs $(\Ing,\Mat)$ delimited by the coverage round-trip; identity is
+content addressability (the $8{:}45$ Geneva--Paris express is one node under
+many material compositions); reality is position in the frame. The two kinds
+of relation are then separated: syntagmatic relations (in praesentia) are the
+D/R/N decomposition along the materialized chain, and associative relations
+(in absentia) are the BSS profile against the frame. The mechanism of language
+becomes the dispatcher composing the two readings; the subdivisions of grammar
+(morphology, syntax, lexicology) become one algebra over one plane, which is
+Saussure's claim that they interpenetrate, proved structurally. The paper
+closes with the complete dictionary of Part Two and the residual that Part~III
+will take up: diachronic change.
+\end{abstract}
+
+\noindent\textbf{Keywords:} Saussure; synchronic linguistics; linguistic
+value; differences without positive terms; concrete entity; identity;
+reality; syntagmatic relations; associative relations; hard key; soft key;
+BSS; basis frame; GF(2) ring; Boolean lattice; HLLSet; computational
+exegesis.
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+% ============================================================================
+
+\subsection{Where Part II stands in the series}
+
+Part I of this series \cite{part1} interpreted Part One of the
+\textit{Course}---the sign, arbitrariness, linearity, immutability and
+mutability, and the static/evolutionary distinction---as theorems and
+invariants of HLLSet Algebra. It deliberately stopped at the door of
+value: the signified was assigned to the \emph{differential value} of a node,
+but value itself was left undefined. Part Two of the \textit{Course},
+\emph{Synchronic Linguistics}, is where Saussure defines it, and Part II of
+this series is where the algebra executes it.
+
+The thesis of this paper is one sentence: \textbf{linguistic value lives in
+the relations between nodes, and its exact compression is the hard key}.
+Relative to a basis frame $F$, a node $X \in \spanof{F}$ is a unique GF(2)
+sum of basis vectors, and its coordinate vector $c$ is the compressed form of
+what Saussure calls its value. Everything else in Part Two---concrete
+entities, identities, realities, syntagmatic and associative relations, the
+mechanism of language, the subdivisions of grammar---is re-founded around
+this single definition.
+
+\subsection{Method, unchanged}
+
+The method is that of Part I \cite{part1}: no metaphor, principles as theorems
+or invariants, and ambiguity recorded as data. The translation note of Part I
+applies unchanged: we cite Roy Harris's translation \cite{harris1983}, keep
+the standard pair \emph{signifier}/\emph{signified} (Harris:
+\emph{signal}/\emph{signification}), and retain the Russian edition
+\cite{saussure1977} for verification. References to the \textit{Course} are by
+part, chapter, and section.
+
+\subsection{Roadmap}
+
+Section~\ref{sec:prelim} fixes the standing definitions inherited from Part I.
+Section~\ref{sec:entities} treats chapters I--III of Part Two (concrete
+entities, identities, realities). Section~\ref{sec:value} is the center:
+chapter IV, linguistic value, re-founded as the hard key and the two
+``differences'' theorems. Section~\ref{sec:relations} separates syntagmatic
+and associative relations (chapter V). Section~\ref{sec:mechanism} covers
+chapters VI--VIII (mechanism, grammar, abstract entities). Section
+\ref{sec:dictionary} collects the dictionary; Section~\ref{sec:adds} states
+what Part II adds to Part I; Section~\ref{sec:conclusion} concludes and hands
+the diachronic residual to Part III.
+
+% ============================================================================
+\section{Preliminaries: standing definitions from Part I}
+\label{sec:prelim}
+% ============================================================================
+
+We restate, with their labels, the definitions Part I established; proofs and
+motivation are in \cite{part1}.
+
+\begin{definition}[Plane, lattice, ring]
+\label{def:plane}
+The \textbf{plane} is $\Plane = \{0,\dots,32767\}$; the \textbf{HLLSet
+lattice} is $\Lat = \mathcal{P}(\Plane)$, a Boolean lattice under
+$\cup,\cap,\subseteq$ and a Boolean ring under $\xor$ (written $\Delta$) and
+$\cap$. Cardinalities are $|X|$; the complement of $X$ in $\Plane$ is
+$\overline{X}$.
+\end{definition}
+
+\begin{definition}[IICA morphism; ingestion; materialization]
+\label{def:iica}
+$\Ing : \Tok \to \Lat$ is an \textbf{IICA morphism} if it is idempotent
+(deterministic), immutable, and content-addressed; it extends to finite token
+sets by $\Ing(X)=\bigcup_{t\in X}\Ing(\{t\})$. \textbf{Materialization}
+$\Mat : \Lat \dashrightarrow \Ctx$ is the partial inverse that restores an
+ordered token context through the door.
+\end{definition}
+
+\begin{definition}[BSS; D/R/N; frames; generations; keys]
+\label{def:frame}
+Against a reference $B_w \subseteq \Plane$, the \textbf{directed soft key} is
+$\BSS_w(X) = |X \cap B_w| / |B_w|$. For a context $X$ read against a document
+$D$, the \textbf{D/R/N decomposition} is
+\[
+  N = |D \setminus X|, \qquad R = |D \cap X|, \qquad \Cov = R/|D|.
+\]
+A \textbf{basis frame} is a reduced (RREF) GF(2) basis $F=(B_1,\dots,B_k)$ of
+a span of observed nodes, stamped with a \textbf{generation} $\Gen$ that
+increments on recomputation. Relative to $F$, each $X \in \spanof{F}$ has a
+unique \textbf{hard key} $c \in \mathrm{GF}(2)^k$ with
+\[
+  X \;=\; \bigoplus_{i : c_i = 1} B_i,
+\]
+the \textbf{soft key} $w_i = \BSS_{B_i}(X)$, and the \textbf{spill}
+$s = |X \setminus \cover(F)|$.
+\end{definition}
+
+\begin{definition}[Synchronic fiber; diachronic trajectory]
+\label{def:syn-dia}
+The \textbf{synchronic fiber} at time $t$ is $\Sync(t) = (\Lat, F(t),
+\Gen(t))$; the \textbf{diachronic structure} is the family $\Dia = \{\Sync(t)
+: t \in T\}$ with the recorded transitions between consecutive fibers.
+\end{definition}
+
+\begin{definition}[The sign]
+\label{def:sign}
+The \textbf{sign} is the pair $\Sign = (\Ing,\Mat)$; for a node $A \in \Lat$,
+the signifier is the bit-set $A$ and the signified is its differential value
+plus the materialized context $\Mat(A)$. The round-trip is guarded:
+$\Mat(\Ing(\Ctx)) = \Ctx$ up to order iff $\Cov(\Ctx)=1$ \cite{langue2026}.
+\end{definition}
+
+Throughout, $F=(B_1,\dots,B_k)$ is a fixed frame of a fixed fiber
+$\Sync(t)$ unless stated otherwise; ``value'' is defined in
+Section~\ref{sec:value} and the earlier sections use it provisionally.
+
+% ============================================================================
+\section{Concrete entities, identities, realities}
+\label{sec:entities}
+% ============================================================================
+
+\subsection{Concrete entities}
+\label{sec:concrete}
+
+Saussure rejects the idea that the units of a language are given in advance,
+either as sounds or as ideas. The linguistic unit is a \emph{concrete entity}:
+a segment of the speech chain that unites a concept and a sound pattern, and
+the hard problem of chapter II is \emph{delimitation}: the chain is
+continuous, and units must be cut out of it \cite[Part II, ch.~II]{harris1983}.
+
+\begin{reading}[Concrete entity]
+\label{read:concrete}
+A concrete entity is a sign pair: a node $A \in \Lat$ together with its
+materialized context $\Ctx_A = \Mat(A)$. The speech chain is the ordered token
+stream; ingestion compiles a segment of it to a node; delimitation is the
+round-trip law---a segment is a well-delimited unit exactly when
+materialization restores it, that is, when coverage is $1$:
+\[
+  \Mat(\Ing(\Ctx)) = \Ctx \quad \text{up to order}
+  \qquad\Longleftrightarrow\qquad
+  \Cov(\Ctx) = 1 .
+\]
+\end{reading}
+
+\begin{remark}[Delimitation as coverage]
+Saussure's delimitation problem becomes a measured decision. A candidate
+segment with coverage $<1$ is not yet a unit of the system: part of it spills
+outside the frame, and the spill $s$ says how much. The algebra does not
+pretend delimitation is easy; it says exactly how hard it is, segment by
+segment.
+\end{remark}
+
+\subsection{Identities}
+\label{sec:identities}
+
+Saussure's example is the $8{:}45$ Geneva--Paris express: the train is ``the
+same'' each day although its engine, carriages, and personnel differ. Identity
+is not material; it is position in a system. The same point applies to a
+street demolished and rebuilt, and to a chess piece lost and replaced by
+another \cite[Part II, ch.~III]{harris1983}.
+
+\begin{reading}[Identity]
+\label{read:identity}
+Identity is content addressability---a property of the morphism, not of any
+particular implementation such as a hash. Two material occurrences are the
+same sign exactly when they ingest to the same node:
+\[
+  \text{occurrence}_1 \sim \text{occurrence}_2
+  \qquad\Longleftrightarrow\qquad
+  \Ing(\text{occurrence}_1) = \Ing(\text{occurrence}_2).
+\]
+The $8{:}45$ express is one node $A$ under many material compositions: the
+tokens (engine, carriages, personnel) differ, the node does not. The
+express's identity persists because ingestion is deterministic and the plane
+is shared.
+\end{reading}
+
+\begin{proposition}[Identity is content addressability]
+\label{prop:identity}
+For any two token contexts $X, Y \subseteq \Tok$,
+\[
+  \Ing(X) = \Ing(Y)
+  \qquad\Longrightarrow\qquad
+  X \sim Y
+\]
+where $\sim$ is sign identity. The converse is the definition of an IICA
+morphism on its image: within one host and one door, a node names one
+materialized context up to order. Hence identity is stable across hosts,
+tokenizers, and times, while its \emph{value} (Section~\ref{sec:value}) may
+change with the frame.
+\end{proposition}
+
+\begin{remark}[Content addressability is not hashing]
+\label{rem:not-hashing}
+Readers of the EWM papers will associate content addressability with the
+reference hash function. The hash is a convenience, not the concept. Any
+algorithm or set of rules that (i) recovers the address from the content and
+(ii) keeps different contents at different addresses can serve as the IICA
+morphism. Because the HLLSet lattice is a Boolean lattice---a Boolean
+algebra---the most general such rule is a \emph{logical} one: choose a family
+of predicates
+\[
+  P_1,\dots,P_m : \Tok \to \{\top,\bot\},
+\]
+and set
+\[
+  \Ing(t) \;=\; \{\, i : P_i(t) = \top \,\}.
+\]
+The address of a content is then the truth table of the content under the
+chosen rules: the set of bit positions at which the content satisfies the
+corresponding predicate. Distinct contents occupy distinct nodes exactly when
+the predicate family separates them. Any Boolean expression over the plane
+that is associated with a specific content, and that keeps different contents
+at different addresses, is therefore a legitimate ingestion morphism. The
+hash is one convenient such rule set, preferred in the reference
+implementation only for its even distribution of values over the plane---not
+for any linguistic reason.
+\end{remark}
+
+\subsection{Realities}
+\label{sec:realities}
+
+Saussure's chapter III culminates in the claim that the \emph{reality} of a
+linguistic unit is not its substance but its place in the system: what is
+real in a language is what speakers recognize as a value among other values
+\cite[Part II, ch.~III]{harris1983}.
+
+\begin{reading}[Reality]
+\label{read:reality}
+The reality of a node in a fiber is its position in the frame. If
+$X \in \spanof{F}$, its reality is its hard key $c$. If $X \notin \spanof{F}$,
+its reality is partial: the soft key profile $w$ says how much of each
+opposition it covers, and the spill $s$ is the size of the part that has no
+reality in this system yet.
+\end{reading}
+
+\begin{observation}[Substance is not reality]
+A bit position, a token, and a host codebook are substances; none of them is a
+linguistic reality. Reality begins at the first coordinate: the hard key $c$
+is what the system itself can say about the node, and nothing less is a unit
+of langue. This is the algebra's version of Saussure's anti-substantialism.
+\end{observation}
+
+% ============================================================================
+\section{Linguistic value}
+\label{sec:value}
+% ============================================================================
+
+\subsection{Thought and sound coupled}
+\label{sec:thought-sound}
+
+Saussure opens chapter IV with the image of the sheet of paper: thought is the
+front, sound the back; one cannot cut the front without cutting the back
+\cite[Part II, ch.~IV, \S1]{harris1983}. Language is the domain where the two
+orders of difference---conceptual and material---are articulated together.
+
+\begin{reading}[The sheet of paper]
+\label{read:paper}
+The sheet is the plane $\Plane$. The sound side of a sign is its bit-set
+$A \subseteq \Plane$; the thought side is its value in the frame (its hard
+key $c$). The coupling of the two faces rests on an invariant substrate: the
+assignment of bit positions to contents. A bit position assigned to a
+token---more exactly, to the collection of tokens that set it---stays the
+same whatever HLLSet we form; it is \emph{HLLSet-agnostic}. What the lattice
+changes is never a position but a node: a set of positions. A join
+$A \cup B = C$ is a new HLLSet into which the tokens and their bit positions
+pass together---which is to say, they stay exactly where they were. The two
+faces are two readings of one node, not two objects glued together; and the
+sheet itself is never cut.
+\end{reading}
+
+\begin{remark}[Bit positions do not move; nodes do]
+\label{rem:bit-agnostic}
+The distinction deserves emphasis because it is easily lost in the
+set-theoretic notation. When the lattice forms $A \cup B = C$, the new node
+$C$ is a set of the same positions that already belonged to $A$ or to $B$.
+No position migrates, and no token changes its address: the ``moving'' of
+tokens and bit positions into the new HLLSet is a staying-in-place. The
+sound side of the sign is therefore coupled to the thought side at the level
+of the \emph{node}---a node and its value change together---while the
+underlying sheet, the position assignment fixed once by ingestion, is common
+to all nodes and never changes. Saussure's ``one cannot cut the front without
+cutting the back'' is realized as: one cannot form a new node without
+forming, at the same time, a new value; but one never cuts the positions
+themselves.
+\end{remark}
+
+\subsection{Conceptual value}
+\label{sec:conceptual-value}
+
+Saussure's first move is negative: the conceptual side of a sign is not a
+pre-existing concept but a value arising from the presence of other signs in
+the same system. The stock example is French \emph{mouton} covering both
+English \emph{sheep} and \emph{mutton}: the same concept has different values
+because the neighbouring terms differ \cite[Part II, ch.~IV, \S2]{harris1983}.
+The example is relational through and through: \emph{mouton}'s value is not in
+the animal but in the fact that the French system lacks the opposition English
+draws. Value lives in relations between nodes, not in nodes.
+
+\begin{reading}[Conceptual value is relational]
+\label{read:conceptual}
+The conceptual value of a node is not in the node; it is in the relations
+between nodes. The hard key $c \in \mathrm{GF}(2)^k$ is not the value itself
+but its coordinate compression in the current frame: an exact and economical
+projection of the node's relational position against the oppositions
+$B_1,\dots,B_k$. The value proper is the node's full relational neighbourhood
+in the lattice---which nodes it contains and is contained in, which it joins,
+meets, and differs from, and which co-occur with it in materialized contexts.
+The same node has different values in different frames, exactly as the same
+animal has different values in the French and English lexicons; what the
+frames change is the relational reading, not the node.
+\end{reading}
+
+\begin{definition}[Relational structure; co-occurrence profile]
+\label{def:relational}
+A \textbf{relational structure} in the lattice is a pair $G = (N, R)$, where
+$N \subseteq \Lat$ is a finite set of nodes and $R$ is a set of binary
+relations on them---containment, disjointness, xor-adjacency, agreement of
+frame coordinates, and the like. The \textbf{co-occurrence profile} of a node
+$n \in N$ is the vector of co-occurrence counts of $n$ with the other nodes
+of $N$ across materialized contexts (the $R$ values of the D/R/N reading,
+accumulated over windows).
+\end{definition}
+
+\begin{observation}[Similar concepts: two maps, not one]
+\label{obs:similar-concepts}
+Two subgraphs $G_1 = (N_1, R_1)$ and $G_2 = (N_2, R_2)$ of the lattice may
+represent similar concepts only if two bijections exist,
+\[
+  \varphi : N_1 \leftrightarrow N_2,
+  \qquad
+  \psi : R_1 \leftrightarrow R_2,
+\]
+which preserve the relational structure,
+\[
+  (n, n') \in r
+  \quad\Longleftrightarrow\quad
+  (\varphi(n), \varphi(n')) \in \psi(r)
+  \qquad
+  \text{for all } n, n' \in N_1,\; r \in R_1,
+\]
+and under which the co-occurrence profiles match:
+$\mathrm{co}(\varphi(n)) \approx \mathrm{co}(n)$ for every $n \in N_1$. The
+word ``may'' is carried by the second condition: relational shape alone does
+not decide, because two subgraphs can be structurally identical yet co-occur
+differently in their respective contexts. Similarity of concepts is therefore
+similarity of structure \emph{together with} similarity of co-occurrence---a
+graph isomorphism plus a matching of the statistics of usage.
+\end{observation}
+
+\begin{remark}[``Ah, they are conceptually the same!'']
+\label{rem:aha}
+The everyday exclamation that accompanies an analogy is the datum this
+section formalizes. ``Ah, they are conceptually the same!'' says three things
+at once: (i) the concept is not a property of the things involved but of the
+structure of their relations; (ii) the sameness is therefore a structural
+sameness---a matching of relations; and (iii) the matching is not given for
+free: it requires carrying the elements of one event onto the elements of the
+other, element by element and relation by relation, which is exactly the pair
+of bijections of Observation~\ref{obs:similar-concepts}. Conceptual identity
+is not the identity of objects but the existence of a structure-preserving
+mapping between two events, together with a matching of their co-occurrence.
+The concept, in this sense, \emph{is} the mapping: the act of recognition
+that one event can be read as another. Saussure's later treatment of analogy
+belongs to the diachronic half of the \textit{Course}; what Part~III will
+show is that the same pair of bijections, applied across generations, is also
+the engine of change.
+
+\end{remark}
+
+\begin{theorem}[Value is a complete invariant on the span]
+\label{thm:complete}
+Let $F$ be a frame and $X,Y \in \spanof{F}$ with hard keys $c,d$. Then
+\[
+  X = Y \qquad\Longleftrightarrow\qquad c = d,
+\]
+and the difference of any two signs is itself a sign:
+\[
+  X \xor Y \;=\; \bigoplus_{i : c_i \neq d_i} B_i .
+\]
+Within one fiber, identity and value coincide: two signs are distinct exactly
+when their values are distinct.
+\end{theorem}
+
+\begin{proof}
+Both directions of the equivalence are the uniqueness of RREF coordinates over
+GF(2) (Definition~\ref{def:frame}). For the difference, expand both nodes in
+the basis and use $B_i \xor B_i = \varnothing$, so only coordinates that
+differ survive.
+\end{proof}
+
+\begin{corollary}[The value table is the lexicon]
+\label{cor:lexicon}
+The lexicon of a fiber is the value table: the list of nodes of the span with
+their coordinate vectors. No two rows repeat a vector; the vector is the
+word's entire conceptual content \emph{within that frame}---its relational
+position, compressed without loss on the span---and the table is the system
+of values made literal.
+\end{corollary}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}llc@{}}
+\toprule
+Node & Expression in the frame & Hard key (value) \\
+\midrule
+$\varnothing$ & the zero node & $(0,0,0)$ \\
+$X$ & $B_1 \xor B_3$ & $(1,0,1)$ \\
+$Y$ & $B_2$ & $(0,1,0)$ \\
+$Z$ & $B_1 \xor B_2 \xor B_3$ & $(1,1,1)$ \\
+$X \xor Y$ & $= Z$ & $(1,1,1)$ \\
+\bottomrule
+\end{tabular}
+\caption{A miniature lexicon: three oppositions, four nodes, four values.
+Identity is value; difference is ring addition.}
+\label{tab:lexicon}
+\end{table}
+
+\subsection{Material value}
+\label{sec:material-value}
+
+Saussure then applies the same negative move to the signifier: what matters in
+a sound is not its positive quality but the differences that distinguish it
+from all other sounds \cite[Part II, ch.~IV, \S3]{harris1983}. The signifier
+is differential on its own side.
+
+\begin{reading}[Material value]
+\label{read:material}
+The material value of a node is not which bits are set---bits are anonymous
+substance---but the difference pattern between it and the other nodes. The
+exact material difference of two nodes is their symmetric difference
+$X \xor Y$, a node of the same lattice; the relaxed difference is the soft
+key profile. A bit position that distinguishes nothing carries no material
+value, however ``positive'' it looks.
+\end{reading}
+
+\begin{proposition}[The material difference is the ring sum]
+\label{prop:material-difference}
+For all $X,Y \in \Lat$, the exact difference between the two signifiers is
+\[
+  X \xor Y \;=\; (X \setminus Y) \cup (Y \setminus X),
+\]
+and $X \xor Y = \varnothing$ iff $X = Y$. The material difference is thus a
+node of the same lattice, and the lattice is closed under differences: the
+system can \emph{say} the difference between any two signs, in its own
+language.
+\end{proposition}
+
+\begin{remark}[Difference is not absolute: it is difference in a given context]
+\label{rem:difference-relative}
+The ring sum $X \xor Y$ is an absolute node of the lattice, but \emph{what the
+difference consists in} is not absolute. It is read off in a given context,
+exactly as coordinates in a Boolean ring are read off in a given RREF basis.
+In a frame $F$, the difference of two signs is their coordinate difference
+\[
+  c \xor d \;\in\; \mathrm{GF}(2)^k,
+\]
+the set of oppositions on which the two values disagree, and only through it
+does the absolute node acquire a reading:
+\[
+  X \xor Y \;=\; \bigoplus_{i : c_i \neq d_i} B_i .
+\]
+The same pair of nodes, in another frame, differs in other oppositions; and
+outside the span the difference has no exact coordinates at all, only the
+relaxed soft profile. Difference, like value, is a function of
+$(\text{node}, \text{frame})$, never of the node alone. Saussure's differences
+are therefore \emph{contextual} differences, and the algebra makes the context
+explicit: it is the current frame.
+\end{remark}
+
+\subsection{The sign in its totality: only differences}
+\label{sec:totality}
+
+Saussure's conclusion for the whole sign is the most quoted sentence of the
+\textit{Course}: ``in the language itself there are only differences. Even
+more important: a difference generally implies positive terms between which
+the difference is set up; but in language there are only differences
+\emph{without positive terms}'' \cite[Part II, ch.~IV, \S4]{harris1983}.
+
+\begin{theorem}[Differences without positive terms]
+\label{thm:differences}
+Let $F$ be a frame. Every node $X \in \spanof{F}$ is a sum of basis vectors,
+\[
+  X \;=\; \bigoplus_{i : c_i = 1} B_i,
+\]
+and nothing else is said about it: its entire description is the difference
+pattern $c$. The basis vectors themselves are not positive terms either, since
+any basis of the same span describes the same system of values and no
+structural property prefers one (coordinate freedom, Part I
+\cite{part1}). Hence, within the span, there are only differences: each sign
+is a position in a field of oppositions, and the field has no absolute origin.
+\end{theorem}
+
+\begin{remark}[The zero node]
+The node $\varnothing$ is the neutral element of the ring: the absence of all
+oppositions. It is not a positive term---it is what every difference is
+measured from, and it says nothing by itself. Saussure's ``without positive
+terms'' finds its exact counterpart: the zero of the GF(2) vector space is
+not a term of the language but the point from which all values are
+coordinates.
+\end{remark}
+
+\subsection{Value measured: the axiometer}
+\label{sec:axiometer}
+
+Part I left value as a definition; the algebra also provides the instruments
+that \emph{measure} it.
+
+\begin{proposition}[Hard key, soft key, and spill partition the readings]
+\label{prop:measure}
+For a node $X$ and frame $F$:
+\begin{enumerate}[leftmargin=*,nosep]
+  \item if $X \in \spanof{F}$, the \textbf{hard key} $c$ is the exact value;
+  \item in all cases, the \textbf{soft key} $w_i = \BSS_{B_i}(X)$ is the
+    relaxed value profile, one coordinate per opposition;
+  \item the \textbf{spill} $s = |X \setminus \cover(F)|$ is the size of the
+    part of $X$ that has no value yet.
+\end{enumerate}
+The three together are the axiometer of the system: they answer, for every
+node, the question ``what is this sign worth, and how much of it remains
+unvalued?''
+\end{proposition}
+
+\begin{remark}[The residual of measurement]
+The spill is not a defect; it is the boundary of the system of values. When
+the spill accumulates, the frame pivots (generation $\Gen+1$) and values are
+recomputed---which is the diachronic event whose systematic study belongs to
+Part III. Saussure's synchronic Part Two stops exactly where the spill is
+zero; the algebra can say where that boundary lies.
+\end{remark}
+
+% ============================================================================
+\section{Syntagmatic and associative relations}
+\label{sec:relations}
+% ============================================================================
+
+\subsection{The two relations}
+\label{sec:two-relations}
+
+Chapter V of Part Two distinguishes the two kinds of relation that organize a
+language. \emph{Syntagmatic} relations hold \emph{in praesentia}: between
+terms that are combined in the chain. \emph{Associative} relations hold
+\emph{in absentia}: between a term and the others that could replace it, in
+memory \cite[Part II, ch.~V, \S1]{harris1983}.
+
+\begin{reading}[The two relations]
+\label{read:relations}
+The syntagmatic reading of a state is along the materialized chain; the
+associative reading is against the frame.
+\end{reading}
+
+\begin{definition}[Syntagmatic and associative readings]
+\label{def:readings}
+Fix a fiber $\Sync(t)$ with frame $F$. For a context $X$ read against a
+document $D$, the \textbf{syntagmatic reading} is
+\[
+  \Synt(X; D) \;=\; (N, R, \Cov)
+  \;=\;
+  \bigl(|D \setminus X|,\; |D \cap X|,\; |D \cap X|/|D|\bigr).
+\]
+For the same $X$ against the frame, the \textbf{associative reading} is the
+profile
+\[
+  \Ass(X; F) \;=\; \bigl(\BSS_{B_1}(X), \dots, \BSS_{B_k}(X)\bigr),
+\]
+replaced by the hard key $c$ when $X \in \spanof{F}$.
+\end{definition}
+
+\subsection{Syntagmatic relations}
+\label{sec:syntagmatic}
+
+\begin{proposition}[The syntagmatic axis is the chain, restored]
+\label{prop:syntagmatic}
+The syntagmatic axis is the axis of combination. In the algebra it has three
+layers: (i) the \emph{chain} is the ordered token context restored by
+materialization $\Mat$; (ii) \emph{composition} is the join: the syntagm
+$X \cup Y$ is the union of the constituent nodes; (iii) \emph{contrast in
+the chain} is the ring sum $X \xor Y$, the exact phrase-level difference
+between two syntagms. The D/R/N numbers are the syntagmatic measurement:
+novelty is what the chain adds, retention is what it confirms, coverage is
+how much of the document the syntagm accounts for.
+\end{proposition}
+
+\begin{observation}[Solidarities are coverage guards]
+Saussure's syntagmatic solidarities---the mutual determination of elements in
+a combination---are the coverage guard of the round-trip law. A syntagm holds
+together exactly when its parts delimit one another, that is, when
+materialization of the joined node restores the chain. Below coverage $1$,
+the syntagm has spill: it is not yet a unit of the system.
+\end{observation}
+
+\subsection{Associative relations}
+\label{sec:associative}
+
+\begin{proposition}[The associative axis is the frame profile]
+\label{prop:associative}
+The associative axis is the axis of substitution. In the algebra it is the
+profile $\Ass(X; F)$: each coordinate measures $X$ against one opposition
+$B_i$. The associative series of $X$ is the set of nodes that share a
+coordinate with it,
+\[
+  \{ Y : c_i(Y) = c_i(X) \text{ for some fixed } i \},
+\]
+grouped by each opposition in turn. The frame $F$ is the memory in which these
+groups live; the soft key profile is the relaxed form of membership, valid
+also for nodes outside the span.
+\end{proposition}
+
+\begin{remark}[In praesentia / in absentia, exactly]
+The two readings use disjoint data. The syntagmatic reading uses only what is
+present together in the window (the document and the context); the associative
+reading uses the frame, whose basis vectors need not be present in the
+current window at all. Saussure's distinction is therefore not a nuance of
+emphasis but a type distinction between two functions with different domains.
+\end{remark}
+
+% ============================================================================
+\section{Mechanism, grammar, abstract entities}
+\label{sec:mechanism}
+% ============================================================================
+
+\subsection{The mechanism of language}
+\label{sec:mechanism-lang}
+
+Chapter VI describes the functioning of the system: forms are generated and
+interpreted by the interplay of the two kinds of relation
+\cite[Part II, ch.~VI]{harris1983}.
+
+\begin{reading}[The mechanism]
+\label{read:mechanism}
+The mechanism is the composition of the two readings. The dispatcher
+\[
+  \Disp : \Lat \times \mathrm{State} \;\longrightarrow\; \Delta(\mathrm{Hosts})
+\]
+reads the lattice state, which contains both axes: the trajectory numbers
+$N,R,\Cov$ (syntagmatic) and the frame profile or hard key (associative). It
+then selects which host actualizes the shared langue.
+
+The hosts, however, are not abstract labels. In the multi-LLM scenario from
+which the EWM architecture arose, a user works simultaneously with several
+LLMs; in the lattice each host appears as a \emph{participant}: a context,
+presented not as a separate sub-lattice but as the subset of HLLSets in the
+current lattice that the participant's context has produced and refers to.
+Two participants understand each other within their \emph{common
+context}---the intersection of their context subsets---and may disagree
+outside it. The mechanism of language, so read, is the mechanism of a
+conversation: each participant speaks from a context, the shared langue is
+the common part, and the dispatcher's selection is the turn-taking of
+dialogue.
+\end{reading}
+
+\begin{definition}[Participants and common context]
+\label{def:participants}
+Let $H_1, H_2 \subseteq \Lat$ be the context subsets of two participants in
+the current fiber. Their \textbf{common context} is the intersection
+\[
+  H_1 \cap H_2,
+\]
+the nodes both participants hold together, and their \textbf{disagreement} is
+the symmetric difference
+\[
+  H_1 \xor H_2 \;=\; (H_1 \setminus H_2) \cup (H_2 \setminus H_1).
+\]
+Mutual understanding is exact on $H_1 \cap H_2$, and only there; outside the
+common context the participants may speak past one another.
+\end{definition}
+
+\begin{observation}[Understanding is graded]
+\label{obs:graded-understanding}
+On the common context $H_1 \cap H_2$, the two participants' readings agree
+exactly: same nodes, same frame coordinates. Outside it their readings agree
+only partially, and the soft key and the spill measure how far apart their
+contexts are. Disagreement, like spill, is not noise: it is the boundary of
+the shared langue, and the dispatcher's task is to choose the participant
+whose context covers the current state best.
+\end{observation}
+
+\subsection{Grammar and its subdivisions}
+\label{sec:grammar}
+
+Chapter VII draws the consequence that morphology, syntax, and lexicology are
+not autonomous domains: they interpenetrate, because all of them are
+organizations of the same system of values \cite[Part II, ch.~VII]{harris1983}.
+
+\begin{proposition}[The subdivisions of grammar are one algebra]
+\label{prop:grammar}
+On one plane $\Plane$, morphology (composition of units), syntax
+(combinations of units), and lexicology (values of units) are the same
+operations read at different granularities: joins and meets are both word
+formation and phrase formation; the ring sum is both morpheme contrast and
+phrase contrast; the hard key is both the value of a morpheme and the value
+of a construction. The classical boundaries are granularities of the
+materialized chain, not types of algebra.
+\end{proposition}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.2cm}
+                    >{\raggedright\arraybackslash}p{4.4cm}
+                    >{\raggedright\arraybackslash}p{7.4cm}@{}}
+\toprule
+Subdivision & In the \textit{Course} & In HLLSet Algebra \\
+\midrule
+Morphology & composition and derivation of units & join $\cup$; idempotence
+collapses reduplication; ring sum $\xor$ as morpheme contrast \\
+Syntax & combinations in the chain & span of the frame as the set of
+well-formed constructions; order restored by materialization \\
+Lexicology & the system of values & the hard key $c$ as the value; the value
+table of Corollary~\ref{cor:lexicon} as the lexicon \\
+Boundaries & subdivisions interpenetrate & one Boolean lattice and one GF(2)
+ring over one plane: there is no boundary to draw \\
+\bottomrule
+\end{tabular}
+\caption{Grammar re-founded: three subdivisions, one algebra.}
+\label{tab:grammar}
+\end{table}
+
+\subsection{Abstract entities}
+\label{sec:abstract}
+
+Chapter VIII defends the abstract entities of grammar (a genitive, a plural,
+a zero ending): they are real because they are positions in the system, not
+because they have a sound \cite[Part II, ch.~VIII]{harris1983}.
+
+\begin{reading}[Abstract entities]
+\label{read:abstract}
+The abstract entities of the algebra are the coordinates themselves: the
+basis vectors $B_i$, the hard keys $c$, the generation stamps $\Gen$, and the
+frame $F$. They have no tokens and no sound, yet they are the most real
+objects of the system, because every concrete sign is a value only through
+them. A zero ending is $\varnothing$ as a value: real as a coordinate,
+inaudible as a sound.
+\end{reading}
+
+\begin{observation}[The frame is an abstract entity]
+The frame $F$ never appears as a token in any host's parole; it is recomputed
+from observations and exists only as the coordinate system of the fiber.
+Saussure's chapter VIII is the recognition, seventy years before the
+datatype, that a linguistic system contains objects that have reality but no
+substance. The generation-stamped frame is exactly such an object.
+\end{observation}
+
+% ============================================================================
+\section{The dictionary of Part Two}
+\label{sec:dictionary}
+% ============================================================================
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.6cm}
+                    >{\raggedright\arraybackslash}p{4.4cm}
+                    >{\raggedright\arraybackslash}p{6.8cm}@{}}
+\toprule
+Saussure (Part Two) & In the \textit{Course} & In HLLSet Algebra \\
+\midrule
+concrete entity & segment uniting concept and sound pattern & the sign pair
+$(\Ing,\Mat)$; delimitation by the coverage round-trip \\
+delimitation of units & cutting the continuous chain & coverage
+$\Cov(\Ctx)=1$; spill measures the failure \\
+identity & the $8{:}45$ express & content addressability:
+Proposition~\ref{prop:identity} \\
+reality & position in the system & position in the relational structure of the
+frame; hard key as its compressed form; soft key plus spill outside the span \\
+value (conceptual) & opposition within a system & relational position among
+nodes: Reading~\ref{read:conceptual}; hard key $c\in\mathrm{GF}(2)^k$ as its
+frame compression: Theorem~\ref{thm:complete}; similar concepts need two
+bijections plus matching co-occurrence: Observation~\ref{obs:similar-concepts} \\
+value (material) & phonic differences & symmetric difference $\xor$:
+Proposition~\ref{prop:material-difference} \\
+value (whole sign) & only differences, no positive terms &
+Theorem~\ref{thm:differences} \\
+syntagmatic relation & in praesentia, in the chain & $\Synt(X;D)=(N,R,\Cov)$
+along the materialized chain \\
+associative relation & in absentia, in memory & $\Ass(X;F)=(\BSS_{B_i}(X))$;
+hard key on the span \\
+mechanism of language & interplay of the two relations & dispatcher composing
+both readings: Reading~\ref{read:mechanism}; participants as context subsets,
+understanding on their intersection: Definition~\ref{def:participants} \\
+grammar's subdivisions & morphology, syntax, lexicology & one algebra, three
+granularities: Proposition~\ref{prop:grammar} \\
+abstract entities & genitive, plural, zero ending & basis vectors, hard keys,
+generation stamps, the frame itself \\
+\bottomrule
+\end{tabular}
+\caption{The complete dictionary of Part Two of the \textit{Course} into
+HLLSet Algebra.}
+\label{tab:dictionary}
+\end{table}
+
+% ============================================================================
+\section{What Part II adds to Part I}
+\label{sec:adds}
+% ============================================================================
+
+Part I promised value and did not deliver it; Part II delivers it and thereby
+closes the synchronic half of the exegesis. Four additions matter.
+
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{Value is now a datatype, not a promise.} Value proper is a
+    relational structure $(N,R)$ with co-occurrence profiles
+    (Definition~\ref{def:relational}); its exact compression on the span is
+    the hard key, a vector over GF(2); the relaxed form is the soft key, a
+    vector over $[0,1]$; the spill is a cardinal. All of these can be stored,
+    compared, and generation-stamped.
+  \item \textbf{Identity and value are proven to coincide.} Within a fiber,
+    Theorem~\ref{thm:complete} turns Saussure's chapter III claim (identity is
+    position in the system) into an equivalence, not an aphorism.
+  \item \textbf{``Differences without positive terms'' is a theorem.}
+    Theorem~\ref{thm:differences} is the sentence of the \textit{Course} made
+    literal: a node is its difference pattern, and the only positive terms
+    (the basis vectors) are arbitrary by Part I's coordinate freedom.
+  \item \textbf{The two axes of Part One and the two relations of Part Two
+    are separated.} The AB/CD axes of Part One are temporal (fiber vs
+    trajectory); the syntagmatic/associative relations of Part Two are both
+    \emph{inside} one fiber (chain vs frame). Confusing the two distinctions
+    is a known hazard of Saussure commentary; the algebra makes the confusion
+    impossible because the two pairs have different types.
+\end{enumerate}
+
+% ============================================================================
+\section{Conclusion and outlook to Part III}
+\label{sec:conclusion}
+% ============================================================================
+
+Part Two of the \textit{Course} has been re-founded as the theory of
+relational value, compressed without loss on the span by the hard key.
+Concrete entities are sign pairs delimited by coverage; identity is
+content addressability; reality and value are position in the frame; the two
+relations are the two readings, syntagmatic and associative; the mechanism is
+the dispatcher; grammar is one algebra over one plane; and the abstract
+entities are the coordinates themselves. Saussure's synchronic linguistics,
+read in this direction, is no longer a philosophical description of a system
+of values: it is the specification of a computable one, and the reference
+implementation satisfies it.
+
+What Part Two deliberately excludes is time. The frame was held fixed; the
+spill was treated as a boundary, not as a cause. Part III will release that
+exclusion: diachronic linguistics, in which phonetic change and analogy become
+basis pivots and generation drift, the diachronic law (imperative but not
+general) becomes the recorded transition, and Saussure's distinction between
+the two perspectives is tested against a system in which the frame actually
+moves. The residual handed to Part III is the one Part II named but did not
+study: the pivot itself.
+
+\section*{Acknowledgments}
+This paper was created in collaboration with, and with the assistance of, an
+AI system---DeepSeek (deepseek-v4-pro). The hard-key reading of value, the
+completeness theorem, and several of the formulations emerged in dialogue
+with the assistant, whose drafts the authors revised and take full
+responsibility for in their final form.
+
+\begin{thebibliography}{99}
+
+\bibitem{saussure1916} F.~de Saussure,
+\textit{Cours de linguistique g\'en\'erale}, Payot, Paris, 1916.
+(Edited posthumously by C.~Bally and A.~Sechehaye, with A.~Riedlinger.)
+
+\bibitem{harris1983} F.~de Saussure,
+\textit{Course in General Linguistics}, translated and annotated by
+Roy Harris, Duckworth, London, 1983.
+
+\bibitem{baskin1959} F.~de Saussure,
+\textit{Course in General Linguistics}, translated by Wade Baskin,
+Philosophical Library, New York, 1959.
+
+\bibitem{saussure1977} F.~de Sossyur,
+\textit{Trudy po yazykoznaniyu} [Works in Linguistics], edited by
+A.~A.~Kholodovich, translation of the \textit{Cours} by A.~M.~Sukhotin,
+Progress, Moscow, 1977.
+(Authors' working copy; used for verification of the readings.)
+
+\bibitem{part1} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part I: General Principles},
+SAUSSURE PUB series, 2026.
+
+\bibitem{ewm2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Emerging World Models: A Structural Framework for Self-Organizing
+World Representations}, EWM PUB series, 2026.
+
+\bibitem{companion2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{The EWM Lattice and Its Worlds}, EWM PUB series, 2026.
+
+\bibitem{state2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Transformations and Trajectories of a Content-Addressed State
+Machine}, EWM PUB series, 2026.
+
+\bibitem{attention2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Attention on Lattice Traversal Is All You Need}, EWM PUB series, 2026.
+
+\bibitem{langue2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Langue as a Lattice: Closing the Circle from Statistical to
+Structural Linguistics through Content-Addressed Algebras}, EWM PUB series,
+2026.
+
+\bibitem{birkhoff1940} G.~Birkhoff,
+\textit{Lattice Theory}, American Mathematical Society, 1940.
+
+\bibitem{maclane1971} S.~Mac Lane,
+\textit{Categories for the Working Mathematician}, Springer, 1971.
+
+\bibitem{hjelmslev1961} L.~Hjelmslev,
+\textit{Prolegomena to a Theory of Language}, University of Wisconsin Press,
+1961.
+
+\bibitem{harris1954} Z.~S.~Harris,
+\textit{Distributional Structure}, Word, 10(2--3):146--162, 1954.
+
+\bibitem{firth1957} J.~R.~Firth,
+\textit{A Synopsis of Linguistic Theory, 1930--1955}, Studies in Linguistic
+Analysis, 1957.
+
+\bibitem{vaswani2017} A.~Vaswani, N.~Shazeer, N.~Parmar, J.~Uszkoreit,
+L.~Jones, A.~N.~Gomez, \L.~Kaiser, and I.~Polosukhin,
+\textit{Attention Is All You Need}, NeurIPS, 2017.
+
+\end{thebibliography}
+
+\end{document}
