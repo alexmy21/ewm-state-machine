@@ -248,19 +248,24 @@ For finite token sets $X,Y \subseteq \Tok$,
 Consequently the statistics of usage (co-occurrence, overlap, containment)
 reduce to one operation, union, on one shared plane; frequency and linear order
 are forgotten at the door and restored, when needed, by materialization.
+(Throughout this paper $\Ing$ is the flat, join-preserving IICA morphism;
+the windowed $n$-gram morphism of \cite{state2026} satisfies the inclusion
+form $X \subseteq Y \Rightarrow \Ing(X) \subseteq \Ing(Y)$, and the
+linguistic readings below hold in the image of whichever IICA morphism is
+chosen.)
 \end{proposition}
 
-\begin{definition}[BSS, D/R/N, basis frames, generations]
+\begin{definition}[BSS, document coverage, basis frames, generations]
 \label{def:frame}
 Against a reference node $B_w \subseteq \Plane$, the \textbf{directed soft key}
 is
 \[
   \BSS_w(X) \;=\; \frac{|X \cap B_w|}{|B_w|}.
 \]
-For a context $X$ read against a document $D$, the \textbf{D/R/N decomposition}
-is
+For a context $X$ read against a document $D$, the \textbf{document coverage
+reading} is
 \[
-  N = |D \setminus X|, \qquad R = |D \cap X|, \qquad \Cov = R/|D|.
+  N_D = |D \setminus X|, \qquad R_D = |D \cap X|, \qquad \Cov = R_D/|D|.
 \]
 A \textbf{basis frame} is a reduced (RREF) GF(2) basis $F = (B_1,\dots,B_k)$ of
 a span of observed nodes; the frame is stamped with a \textbf{generation}
@@ -277,8 +282,9 @@ yet see \cite{state2026}.
 
 \begin{remark}[Permutation invariance]
 \label{rem:perm}
-Every invariant used in this paper---cardinalities, BSS, D/R/N, coverage,
-rank, spill---depends only on cardinalities of intersections and unions.
+Every invariant used in this paper---cardinalities, BSS, the document
+coverage numbers, rank, spill---depends only on cardinalities of
+intersections and unions.
 Hence it is unchanged by any permutation of the plane. This single observation
 will carry the formal reading of arbitrariness in Section~\ref{sec:ch1}.
 \end{remark}
@@ -331,8 +337,9 @@ together with the two faces of any node:
     $\Ctx_A$ that materializes from it.
   \item The \textbf{bond} between the two faces is the pair of morphisms
     $(\Ing,\Mat)$, with the round-trip guarded by coverage:
-    $\Mat(\Ing(\Ctx)) = \Ctx$ up to order iff $\Cov(\Ctx) = 1$
-    \cite{langue2026}.
+    $\Mat(\Ing(\Ctx)) = \Ctx$ up to order iff $\Cov(\Ctx; D) = 1$,
+    where the coverage is read against the document $D$ from which the
+    context $\Ctx$ was drawn \cite{langue2026}.
 \end{itemize}
 \end{reading}
 
@@ -390,18 +397,21 @@ Let $\pi : \Plane \to \Plane$ be any permutation of the plane, and let
 \]
 Then $\pi_*$ is simultaneously an automorphism of the Boolean lattice
 $(\Lat,\cup,\cap)$ and of the Boolean ring $(\Lat,\xor,\cap)$. Consequently no
-structural property of the algebra---BSS, D/R/N, coverage, rank, spill, hard
-key cardinality---can distinguish the ingestion morphism $\Ing$ from the
-re-coordinated morphism $\pi \circ \Ing$: every such invariant is unchanged
-up to the relabeling of the plane.
+structural property of the algebra---BSS, the coverage readings, rank, spill,
+hard key cardinality---can distinguish the ingestion morphism $\Ing$ from the
+re-coordinated morphism $\pi_* \circ \Ing$: every such invariant is
+unchanged, provided the reference objects (the basis, the document, the
+reference nodes) are re-coordinated along with the nodes, i.e.\ read through
+the same relabeling of the plane.
 \end{theorem}
 
 \begin{proof}
 A permutation preserves cardinality and commutes with union, intersection, and
 complement: $\pi_*(A \cup B) = \pi_*(A) \cup \pi_*(B)$, and likewise for
-$\cap$ and $\setminus$. Hence all cardinality-defined invariants are preserved.
-The lattice and ring identities are preserved because $\pi_*$ is a bijective
-homomorphism. Thus the two systems, $\Ing$ and $\pi \circ \Ing$, are
+$\cap$ and $\setminus$. Hence all cardinality-defined invariants are
+preserved when their reference objects are re-coordinated too. The lattice
+and ring identities are preserved because $\pi_*$ is a bijective
+homomorphism. Thus the two systems, $\Ing$ and $\pi_* \circ \Ing$, are
 isomorphic; the theory cannot prefer one.
 \end{proof}
 
@@ -567,7 +577,9 @@ stored node and as a content-addressable bond, does not.
 \begin{proposition}[Mutability as generation change]
 \label{prop:mutability}
 Let $F$ be a basis frame with generation $\Gen$, and let a new observation
-$Y$ arrive with spill $s = |Y \setminus \cover(F)| > 0$. Recomputing the RREF
+$Y$ arrive whose residual against $F$ is non-empty, $\res_F(Y) \neq
+\varnothing$ (in particular, this holds when the spill
+$s = |Y \setminus \cover(F)|$ is positive). Recomputing the RREF
 basis produces a new frame $F'$ with generation $\Gen+1$. For an unchanged
 node $X \in \spanof{F}$, the hard key generally changes, $c \mapsto c'$,
 although $X$ itself is untouched (IICA) and its content is untouched
@@ -640,8 +652,8 @@ nodes. The \textbf{diachronic structure} is the indexed family
 \[
   \Dia \;=\; \{\Sync(t) : t \in T\}
 \]
-together with the recorded transitions---commits, D/R/N, generation
-increments---between consecutive fibers.
+together with the recorded transitions---commits, departed/retained/new
+sets, generation increments---between consecutive fibers.
 \end{definition}
 
 \begin{figure}[htbp]
@@ -694,10 +706,12 @@ together with the uniqueness of the hard key in the frame. These hold for
 \emph{every} node of the fiber---general---but they force no particular state
 to occur---not imperative.
 (ii) \emph{Diachronic laws} are the recorded transitions: the commit
-$S(t) \to S(t+1)$ with its numbers $(N,R)$, the pivot $F \to F'$, the
-generation increment $\Gen \to \Gen+1$. Each is \emph{imperative}---it
-happened, and the commit DAG records it---but \emph{not general}---no identity
-forces it, and it holds of that transition alone.
+$S(t) \to S(t+1)$ with its new and retained sets
+$N = S(t{+}1) \setminus S(t)$ and $R = S(t{+}1) \cap S(t)$, the pivot
+$F \to F'$, the generation increment $\Gen \to \Gen+1$. Each is
+\emph{imperative}---it happened, and the commit DAG records it---but
+\emph{not general}---no identity forces it, and it holds of that transition
+alone.
 \end{theorem}
 
 \subsection{Panchronicity, and Saussure's warning}
@@ -715,10 +729,12 @@ The Boolean ring axioms are as follows: commutativity and associativity of
 both operations, distributivity of $\cap$ over $\xor$, idempotence
 \[
   A \cap A = A,
-  \qquad
-  A \xor A = \varnothing,
 \]
-and nilpotence. They hold in every fiber, in every generation, for every host
+and characteristic two
+\[
+  A \xor A = \varnothing.
+\]
+They hold in every fiber, in every generation, for every host
 language. They are the panchronic layer of the system. Saussure's warning
 translates exactly: these axioms are \emph{true of everything} and therefore
 say nothing about any particular linguistic fact. The moment one asks a

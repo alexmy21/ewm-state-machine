@@ -1,0 +1,686 @@
+% ============================================================================
+%  Saussure in HLLSet Algebra --- Part IV: Geographical Linguistics
+%  A computational exegesis of Ferdinand de Saussure's
+%  Course in General Linguistics, Part Four, in the Boolean lattice
+%  and GF(2) ring of HLLSet Algebra
+% ----------------------------------------------------------------------------
+%  Series:  Saussure in HLLSet Algebra (reverse direction of influence)
+%  Build:   pdflatex saussure_hllset_part4_geographical_linguistics.tex
+%           (run twice)
+%  Notation follows Part I:
+%    saussure_hllset_part1_general_principles.tex
+%  Part II:
+%    saussure_hllset_part2_synchronic_linguistics.tex
+%  Part III:
+%    saussure_hllset_part3_diachronic_linguistics.tex
+%  and the EWM PUB series.
+% ============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{amscd}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\definecolor{hlblue}{RGB}{0,80,160}
+\hypersetup{colorlinks=true,linkcolor=hlblue,urlcolor=hlblue,citecolor=hlblue}
+
+% ---- theorems (aligned with the PUB series and Parts I--III) ----------------
+\newtheorem{principle}{Principle}[section]
+\newtheorem{theorem}[principle]{Theorem}
+\newtheorem{definition}[principle]{Definition}
+\newtheorem{proposition}[principle]{Proposition}
+\newtheorem{corollary}[principle]{Corollary}
+\newtheorem{remark}[principle]{Remark}
+\theoremstyle{remark}
+\newtheorem{observation}[principle]{Observation}
+\newtheorem{reading}[principle]{Reading}
+
+% ---- shorthands (aligned with Parts I--III and the PUB series) --------------
+\newcommand{\Plane}{\ensuremath{\mathbb{B}}}            % bit plane
+\newcommand{\Lat}{\ensuremath{\mathcal{B}}}              % HLLSet (Boolean) lattice
+\newcommand{\Tok}{\ensuremath{\mathcal{T}}}              % token space
+\newcommand{\HLL}{\ensuremath{H}}                        % an HLLSet
+\newcommand{\xor}{\ensuremath{\Delta}}                   % ring addition
+\newcommand{\BSS}{\ensuremath{\mathsf{BSS}}}             % BSS measure
+\newcommand{\res}{\ensuremath{\mathrm{res}}}             % residual
+\newcommand{\spanof}[1]{\ensuremath{\langle #1\rangle}}  % GF(2) span
+\newcommand{\supp}{\ensuremath{\mathrm{supp}}}           % support
+\newcommand{\Ctx}{\ensuremath{\mathcal{C}}}              % token context
+\newcommand{\Ing}{\ensuremath{\mu}}                      % ingestion morphism
+\newcommand{\Mat}{\ensuremath{\rho}}                     % materialization morphism
+\newcommand{\Lang}{\ensuremath{\mathcal{L}}}             % langue (the lattice system)
+\newcommand{\Par}{\ensuremath{\mathcal{P}}}              % parole (usage)
+\newcommand{\Sign}{\ensuremath{\mathcal{S}}}             % the sign relation
+\newcommand{\Cov}{\ensuremath{\mathrm{cov}}}             % coverage
+\newcommand{\Disp}{\ensuremath{\mathcal{D}}}             % the dispatcher
+\newcommand{\Sync}{\ensuremath{\mathsf{Syn}}}            % synchronic fiber
+\newcommand{\Dia}{\ensuremath{\mathsf{Dia}}}             % diachronic trajectory
+\newcommand{\Gen}{\ensuremath{\gamma}}                   % basis generation
+\newcommand{\cover}{\ensuremath{\mathrm{cover}}}         % frame cover
+\newcommand{\Val}{\ensuremath{\mathcal{V}}}              % value (differential)
+\newcommand{\Synt}{\ensuremath{\mathsf{Synt}}}           % syntagmatic reading
+\newcommand{\Ass}{\ensuremath{\mathsf{Ass}}}             % associative reading
+\newcommand{\Dep}{\ensuremath{\mathsf{Dep}}}             % departed
+\newcommand{\Ret}{\ensuremath{\mathsf{Ret}}}             % retained
+\newcommand{\New}{\ensuremath{\mathsf{New}}}             % new
+\newcommand{\Trans}{\ensuremath{\mathsf{Tr}}}            % recorded transition
+\newcommand{\Piv}{\ensuremath{\mathsf{Piv}}}             % pivot
+\newcommand{\Ana}{\ensuremath{\mathsf{Ana}}}             % analogical fourth
+\newcommand{\Change}{\ensuremath{\mathbf{M}}}            % change-of-basis matrix
+% ---- new shorthands for Part IV --------------------------------------------
+\newcommand{\World}{\ensuremath{\mathsf{W}}}             % a world
+\newcommand{\Iota}{\ensuremath{\iota}}                   % interpretation map
+\newcommand{\Bridge}{\ensuremath{\Phi}}                  % bridge between worlds
+\newcommand{\Wset}{\ensuremath{\Omega}}                  % family of worlds
+\newcommand{\Iso}{\ensuremath{\mathsf{Iso}}}             % isogloss
+
+% ---- title -----------------------------------------------------------------
+\title{\textbf{Saussure in HLLSet Algebra}\\[4pt]
+\large Part IV: Geographical Linguistics\\[4pt]
+\large A Computational Exegesis of the \textit{Course in General Linguistics},\\
+Part Four, in the Boolean Lattice and GF(2) Ring of HLLSet Algebra\\[6pt]
+\normalsize Fourth paper in the series \textit{Saussure in HLLSet Algebra}}
+
+\author{Alex Mylnikov \and Alexandr Mylnikov Jr. \and Deependra Kumar}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Part IV of the series re-founds Part Four of the \textit{Course},
+\emph{Geographical Linguistics}, as the multi-world theory of one lattice.
+Parts I--III kept one question out of sight: \emph{where} the changes happen.
+Saussure's Part Four is that question, and the algebra answers it with the
+world layer of the EWM programme. The diversity of languages is the family of
+\textbf{worlds} over the one shared plane: hash configurations and codebooks
+are dialects, the BSS threshold and the LUT are the boundary of a community,
+and one lattice carries all of them at the cost of one LUT per world, not one
+lattice per world. The complexity of geographical diversity---dialect
+continua, overlapping isoglosses---is the graded geometry of the soft key:
+worlds share nodes exactly but read them differently, and an isogloss is a
+threshold on a coordinate profile, not a cut. The causes of diversity are
+re-founded as Saussure re-founded them: \emph{time} is the primary cause, and
+the algebra makes time exact---two communities with a common ancestor frame
+diverge by the product of their transport matrices once their pivots stop
+being shared; substrata are older generations still readable in the commit
+DAG. The propagation of linguistic waves is the \textbf{bridge}
+$\Bridge_{w_1\to w_2} = \text{ingest} \circ \text{transcribe} \circ
+\text{materialize}$: deterministic, idempotent on builders, monotone, carrying
+encodings, not content; a loan is a node whose provenance crosses two worlds,
+an inheritance is a node whose provenance stays on one DAG path. The
+dispatcher closes the geography: it is the speaker who chooses which world
+actualizes the shared langue. The paper ends with the complete dictionary of
+Part Four and the residual handed to Part V: reconstruction as time travel
+through old frames.
+\end{abstract}
+
+\noindent\textbf{Keywords:} Saussure; geographical linguistics; diversity of
+languages; dialect; isogloss; substratum; linguistic wave; bridge; world;
+hash configuration; codebook; dispatcher; HLLSet; Boolean lattice; GF(2)
+ring; computational exegesis.
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+% ============================================================================
+
+\subsection{Where Part IV stands in the series}
+
+Part I \cite{part1} re-founded the general principles; Part II \cite{part2}
+re-founded synchronic linguistics as the differential theory of value; Part
+III \cite{part3} released time and re-founded diachronic linguistics as the
+theory of the pivot---sound change as extension and rotation, analogy as the
+fourth proportional of GF(2), agglutination as the promotion of a view to an
+original. All three parts assumed, without saying so, that there is \emph{one}
+frame, \emph{one} community, \emph{one} language. Part Four of the
+\textit{Course} removes that assumption.
+
+Saussure's Part Four has four chapters: (I) on the diversity of languages;
+(II) the complexity of geographical diversity; (III) the causes of
+geographical diversity; (IV) the propagation of linguistic waves
+\cite[Part IV]{harris1983}. Part IV of this series follows the same order,
+after a preliminary section that fixes the world layer.
+
+\subsection{Method, unchanged}
+
+The method is that of Parts I--III \cite{part1,part2,part3}: no metaphor,
+principles as theorems or invariants, ambiguity recorded as data. The
+translation note of Part I applies unchanged; references to the
+\textit{Course} are by part, chapter, and section.
+
+\subsection{Roadmap}
+
+Section~\ref{sec:prelim} fixes the standing definitions and adds the world
+layer (worlds, interpretations, bridges). Section~\ref{sec:ch1} re-founds the
+diversity of languages as a family of worlds over one plane. Section
+\ref{sec:ch2} re-founds the complexity of geographical diversity as graded
+overlap and thresholds. Section~\ref{sec:ch3} re-founds the causes of
+diversity: time as pivots, separation as unsynchronized generations,
+substrata as old frames. Section~\ref{sec:ch4} re-founds the propagation of
+linguistic waves as bridges, with loans separated from inheritances by
+provenance. Section~\ref{sec:dictionary} collects the dictionary; Section
+\ref{sec:adds} states what Part IV adds; Section~\ref{sec:conclusion} hands
+the retrospective residual to Part V.
+
+% ============================================================================
+\section{Preliminaries: the synchronic and diachronic inheritance, and the world layer}
+\label{sec:prelim}
+% ============================================================================
+
+We restate the standing definitions with their labels; proofs and motivation
+are in \cite{part1,part2,part3}.
+
+\begin{definition}[Plane, lattice, ring, IICA, frames, fibers, pivots]
+\label{def:standing}
+The \textbf{plane} is $\Plane=\{0,\dots,32767\}$; the \textbf{lattice} is
+$\Lat=\mathcal{P}(\Plane)$ under $\cup,\cap,\subseteq$ and the Boolean ring
+$\xor=\Delta$, $\cap$. $\Ing:\Tok\to\Lat$ is an \textbf{IICA morphism}
+(idempotent, immutable, content-addressed); $\Mat:\Lat\dashrightarrow\Ctx$
+materializes through the door. A \textbf{basis frame} $F=(B_1,\dots,B_k)$ is
+a row-echelon GF(2) basis of observed nodes with distinct leading bits,
+stamped with a generation $\Gen$; the hard key of $X\in\spanof{F}$ is
+$c\in\mathrm{GF}(2)^k$ with $X=\bigoplus_{i:c_i=1}B_i$, the soft key is
+$w_i=\BSS_{B_i}(X)$, and the spill is $s=|X\setminus\cover(F)|$. The
+\textbf{synchronic fiber} is $\Sync(t)=(\Lat,F(t),\Gen(t))$; a
+\textbf{pivot} is the extension/rotation of Definition~1 of \cite{part3};
+the \textbf{transport} of a hard key across a pivot is $c' = c\Change$.
+\end{definition}
+
+\subsection{The world layer}
+
+Part IV adds the objects that the EWM programme built for multi-user
+representation \cite{companion2026,langue2026}, now read as Saussure's
+geography.
+
+\begin{definition}[World; codebook; community]
+\label{def:world}
+A \textbf{world} is a triple $\World = (h, s, \tau)$: a hash configuration
+$(h,s)$ inducing the measurement morphism $\Ing_\World : 2^\Tok \to 2^\Plane$;
+a BSS threshold $\tau$ selecting the thresholded node set
+$\mathcal{N}_\tau(\World)$; and an \textbf{interpretation}
+$\Iota_\World : 2^\Plane \to 2^\Tok$ that reads a node's active bits back as
+tokens through the world's LUT \cite{companion2026}. A \textbf{codebook} is
+the vocabulary-aware encoder that quantizes a host's encodings to tokens
+before $\Ing_\World$ \cite{state2026}. A \textbf{community} is a set of hosts
+sharing one world and one generation stamp $\Gen$ of a frame: they speak the
+same dialect when their LUTs agree and their frames are synchronized.
+\end{definition}
+
+\begin{proposition}[Shared representation, separate interpretation]
+\label{prop:sharing}
+Two worlds may share the very same node $X \in \Lat$ and yet be distinct:
+they are distinct exactly when their interpretations differ on some shared
+node,
+\[
+  \World \neq \World'
+  \quad\Longleftrightarrow\quad
+  \exists\, X \in \mathcal{N}_\tau(\World)\cap\mathcal{N}_{\tau'}(\World'):
+  \Iota_\World(X) \neq \Iota_{\World'}(X) .
+\]
+All worlds live on the one lattice $\Lat$; what separates them is the LUT,
+never the bits.
+\end{proposition}
+
+\begin{proof}
+This is the representation/interpretation separation of \cite{companion2026}:
+the bit vector is semantically inert, and all meaning lives in the LUT, which
+is a different object for every hash configuration.
+\end{proof}
+
+\begin{proposition}[Holographic multi-worlds]
+\label{prop:holographic}
+Let $\Wset$ be a family of worlds. Then (i) \emph{common representation:}
+every world is read through the same lattice $\Lat$, and the representation
+is not duplicated per world; (ii) \emph{separate interpretation:} each world
+adds only its LUT and threshold; (iii) \emph{joint closure:} every Boolean
+expression over nodes drawn from one world stays in that world's subalgebra.
+The cost of hosting $|\Wset|$ worlds is $|\Wset|$ LUTs, not $|\Wset|$
+lattices.
+\end{proposition}
+
+\begin{proof}
+Parts (i)--(iii) are Theorem 2 and the holographic principle of
+\cite{companion2026}.
+\end{proof}
+
+\begin{definition}[Bridge]
+\label{def:bridge}
+The \textbf{bridge} from world $\World_1$ to world $\World_2$ is
+\[
+  \Bridge_{\World_1 \to \World_2}
+  \;=\;
+  \text{ingest}_{\World_2} \circ \text{transcribe} \circ
+  \text{materialize}_{\World_1},
+\]
+materializing in the source world, transcribing the recovered encodings, and
+ingesting under the target world's configuration
+\cite{companion2026}.
+\end{definition}
+
+\begin{proposition}[Bridge laws]
+\label{prop:bridge-laws}
+$\Bridge_{\World_1\to\World_2}$ is deterministic (IICA); idempotent on
+builders; monotone: $A \subseteq A'$ implies
+$\Bridge(A) \subseteq \Bridge(A')$; and in general a strict coarsening:
+collisions at materialization can only add atoms to the target. The bridge
+carries encodings, not content.
+\end{proposition}
+
+\begin{proof}
+See \cite{companion2026}: materialize, transcribe, and ingest are
+deterministic; composition preserves IICA; materialization is exact on
+builders and monotone in the inclusion order.
+\end{proof}
+
+% ============================================================================
+\section{Chapter I: On the diversity of languages}
+\label{sec:ch1}
+% ============================================================================
+
+Saussure opens Part Four with the plain fact of diversity: languages differ
+from one another in space, as they differ in time \cite[Part IV,
+ch.~I]{harris1983}. The diversity is the datum to be explained, not a
+deviation from a norm.
+
+\begin{reading}[Diversity is the family of worlds]
+\label{read:diversity}
+One plane $\Plane$ carries a family $\Wset$ of worlds. A language is a world
+together with the frames its community has actually computed: the hash
+configuration and codebook are its phonology in the broadest sense, the LUT
+is its lexicon, and the frame is its grammar. Two languages are two worlds
+over the same plane---two readings of one lattice, in the sense of
+Proposition~\ref{prop:sharing}.
+\end{reading}
+
+\begin{observation}[Diversity is computed, not given]
+\label{obs:diversity}
+The lattice does not come divided into languages. What divides it is
+\emph{use}: which tokens a community ingests, under which configuration, and
+which generations it shares. Diversity is therefore not a property of the
+plane but of the family of worlds and their histories. This is Saussure's
+point that a language is a social fact: the social fact is the shared LUT and
+the synchronized generation.
+\end{observation}
+
+\begin{proposition}[One lattice suffices for all languages]
+\label{prop:one-lattice}
+For any finite or countable family of worlds $\Wset$, the whole family is a
+subset of the single lattice $\Lat$; the representation budget stays
+$|\Plane|$ bits, shared, and each world adds one LUT and one threshold.
+Consequently the diversity of languages costs nothing at the representation
+level: the plane is the common earth, and the worlds are readings of it.
+\end{proposition}
+
+\begin{proof}
+Proposition~\ref{prop:holographic}: the representation is common, the
+interpretation is per-world, and the cost is a per-world LUT.
+\end{proof}
+
+\begin{remark}[Language and dialect are the same datatype]
+Saussure refuses a principled line between language and dialect: the
+difference is one of degree and of social-political history, not of
+structure. The algebra agrees: a language and a dialect are both worlds; the
+only structural differences are the size of the LUT, the generation of the
+frame, and the threshold $\tau$. There is no type of world that is a
+``language'' and another that is a ``dialect''.
+\end{remark}
+
+% ============================================================================
+\section{Chapter II: Geographical diversity: its complexity}
+\label{sec:ch2}
+% ============================================================================
+
+Saussure's chapter II complicates the picture: languages do not sit in clean
+boxes. Dialects shade into one another, and the lines drawn between them---the
+isoglosses---never coincide over any distance \cite[Part IV,
+ch.~II]{harris1983}.
+
+\begin{reading}[Continua and isoglosses]
+\label{read:complexity}
+The continuity of dialects is the graded overlap of interpretations: two
+worlds whose LUTs agree on many tokens and whose frames are close read the
+same region of the lattice similarly. An isogloss is a threshold on a
+coordinate profile: the boundary where one soft key falls below $\tau$.
+\end{reading}
+
+\begin{definition}[Dialect continuum; isogloss]
+\label{def:isogloss}
+A \textbf{dialect continuum} is a family of worlds
+$\World_1,\dots,\World_n$ such that adjacent worlds' interpretations overlap
+on their shared nodes with BSS above threshold,
+\[
+  \BSS_{\mathcal{N}(\World_i)}\bigl(\mathcal{N}(\World_{i+1})\bigr)
+  \;\ge\; \tau,
+\]
+for each $i$. An \textbf{isogloss} for coordinate $B_i$ of a frame is the
+boundary of the set of communities whose soft key $w_i = \BSS_{B_i}$ exceeds
+$\tau$: it is a level set of a graded quantity, not a cut.
+\end{definition}
+
+\begin{proposition}[Boundaries are thresholds, not cuts]
+\label{prop:threshold}
+For any two adjacent worlds in a continuum, the set of nodes on which they
+agree is graded by the soft key: agreement is exact on the shared nodes
+(Proposition~\ref{prop:sharing}) and partial elsewhere, and the soft key and
+the spill measure how far apart the worlds are. Consequently there is no
+point at which a language ``stops''; there are only thresholds below which
+agreement is deemed insufficient. The complexity of geographical diversity is
+the complexity of a graded boundary, not of a partition.
+\end{proposition}
+
+\begin{remark}[Why isoglosses never coincide]
+Each isogloss is a level set of a different coordinate of a different frame;
+different coordinates change at different rates under pivots, and different
+frames are synchronized with different communities. There is no reason for
+the level sets to coincide, and in the algebra they generically do not. This
+is Saussure's observation that the bundle of isoglosses never forms a single
+line, stated as the generic transversality of level sets.
+\end{remark}
+
+% ============================================================================
+\section{Chapter III: Causes of geographical diversity}
+\label{sec:ch3}
+% ============================================================================
+
+Saussure's chapter III asks why diversity exists and answers: time is the
+primary cause. Geographical separation is not itself a cause; it is what
+\emph{allows} divergence to accumulate without being reabsorbed
+\cite[Part IV, ch.~III]{harris1983}.
+
+\begin{reading}[Time as pivots; separation as unsynchronized generations]
+\label{read:causes}
+In the algebra, time is the sequence of pivots: every pivot increments a
+generation and re-coordinates values. Two communities with a common ancestor
+frame share the same langue exactly as long as they share the same pivots;
+once their pivots stop being shared---once each community computes its own
+extensions and rotations---their generations drift apart and their
+transported coordinates diverge. Separation is not a force; it is the absence
+of the bridge that would re-synchronize them.
+\end{reading}
+
+\begin{proposition}[Divergence is the product of transports]
+\label{prop:divergence}
+Let $\World_1$ and $\World_2$ share an ancestor frame $F(0)$, and suppose
+that after time $0$ they undergo disjoint sequences of pivots with
+change-of-basis matrices $\Change_1(1),\dots,\Change_1(t)$ and
+$\Change_2(1),\dots,\Change_2(t)$. Then the value of a shared node $X$ at
+time $t$ is
+\[
+  c_1 \;=\; c \,\Change_1(1)\cdots \Change_1(t),
+  \qquad
+  c_2 \;=\; c \,\Change_2(1)\cdots \Change_2(t),
+\]
+and the two communities diverge by the coordinate difference
+$c_1 \xor c_2$. The divergence is zero exactly while the two sequences of
+pivots coincide; from the first unsynchronized pivot onward, generically,
+$c_1 \neq c_2$. Time, not space, is doing the work: the matrices are pure
+generation increments.
+\end{proposition}
+
+\begin{proof}
+Iterate the transport law of Part III \cite{part3}. Coordinate difference is
+XOR in $\mathrm{GF}(2)^k$; the two sequences coincide if and only if every
+pivot is shared.
+\end{proof}
+
+\begin{observation}[Substrata are old generations]
+\label{obs:substratum}
+When a wave of new speakers arrives and a community re-coordinates around
+them, the older frame does not disappear: every generation remains readable
+in the commit DAG, and every node keeps its old coordinates under the old
+frame by exact transport. A \emph{substratum} is therefore not a mysterious
+residue; it is the set of old generations still referenced in the DAG. The
+algebra keeps substrata as first-class objects: any node can be read against
+the frame of any earlier generation, with the spill measuring what that old
+lens cannot see \cite{state2026}.
+\end{observation}
+
+\begin{remark}[Saussure's refusal of internal causes]
+Saussure denies that geographical diversity has an internal, linguistic
+cause. The algebra agrees: the pivot is occasioned by residue (Part III), and
+residue arrives from parole---from outside the system. Geography merely
+decides which pivots are shared and which are not. The cause of diversity is
+the same residual that Part III located, allowed to accumulate in separated
+worlds.
+\end{remark}
+
+% ============================================================================
+\section{Chapter IV: Propagation of linguistic waves}
+\label{sec:ch4}
+% ============================================================================
+
+Saussure's chapter IV describes how innovations spread: a linguistic wave
+travels across a territory through communication, and it may be stopped by
+barriers \cite[Part IV, ch.~IV]{harris1983}.
+
+\begin{reading}[The wave is the bridge]
+\label{read:wave}
+A linguistic wave is the bridge of Definition~\ref{def:bridge}. An
+innovation---a node, or a pivot with its new opposition---crosses from one
+world to another by being materialized in the source, transcribed into shared
+encodings, and ingested in the target. Barriers are LUT separation (no shared
+codebook across which to transcribe) and threshold rejection (the imported
+node's soft key falls below $\tau$ in the target frame).
+\end{reading}
+
+\begin{proposition}[Waves propagate without loss on builders]
+\label{prop:wave}
+Let $\Bridge = \Bridge_{\World_1\to\World_2}$ be the bridge. Then
+$\Bridge$ is deterministic, idempotent on the builders of the source nodes,
+and monotone; hence an innovation propagates exactly to the extent that its
+builders survive materialization, and it can only gain collateral atoms from
+collisions, never lose a builder. A wave is therefore a monotone, convergent
+spread: it does not weaken with distance, it is \emph{blocked}---by a missing
+codebook or a threshold---or it arrives whole.
+\end{proposition}
+
+\begin{proof}
+The bridge laws of Proposition~\ref{prop:bridge-laws}, restated
+geographically.
+\end{proof}
+
+\begin{observation}[Loans and inheritances are separated by provenance]
+\label{obs:loans}
+A node inherited from a common ancestor has a provenance path inside one DAG
+lineage: its recipe names only ancestors of that lineage. A node borrowed
+across worlds has a provenance path that \emph{crosses} the bridge: its
+recipe names a source node in $\World_1$ and a re-ingestion in $\World_2$.
+The algebra therefore separates loans from inheritances by provenance alone,
+without any external etymological dictionary. A loan is a view whose sources
+live in two worlds; an inheritance is a view whose sources live in one
+lineage.
+\end{observation}
+
+\begin{remark}[The dispatcher is the speaker]
+Part II \cite{part2} introduced the dispatcher
+$\Disp : \Lat \times \mathrm{State} \to \Delta(\mathrm{Hosts})$ as the
+mechanism that selects which host actualizes the shared langue. In the
+geographical reading, the dispatcher is the individual speaker who chooses,
+at each utterance, which world to speak: the learned policy over hosts is the
+executive side of the linguistic community's geography. Langue never speaks;
+worlds never speak; the dispatcher speaks, and its choices are the daily
+traffic in which waves travel.
+\end{remark}
+
+% ============================================================================
+\section{The dictionary of Part Four}
+\label{sec:dictionary}
+% ============================================================================
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.6cm}
+                    >{\raggedright\arraybackslash}p{4.2cm}
+                    >{\raggedright\arraybackslash}p{6.8cm}@{}}
+\toprule
+Saussure (Part Four) & In the \textit{Course} & In HLLSet Algebra \\
+\midrule
+diversity of languages & languages differ in space & the family of worlds
+$\Wset$ over one plane: Reading~\ref{read:diversity},
+Proposition~\ref{prop:one-lattice} \\
+language vs dialect & difference of degree & one datatype (world); only LUT
+size, generation, and threshold differ \\
+geographical complexity & dialect continua, isoglosses & graded overlap and
+threshold level sets: Definition~\ref{def:isogloss},
+Proposition~\ref{prop:threshold} \\
+cause of diversity & time, not space & unsynchronized pivots; divergence is
+the product of transports: Proposition~\ref{prop:divergence} \\
+substratum & an older layer under the present & old generations readable in
+the DAG: Observation~\ref{obs:substratum} \\
+linguistic wave & innovation spreading by communication & the bridge
+$\Bridge$: Definition~\ref{def:bridge}, Proposition~\ref{prop:wave} \\
+barrier to a wave & geographical/social obstacle & missing codebook or
+threshold rejection: Reading~\ref{read:wave} \\
+borrowing vs inheritance & loans and native forms & provenance crossing two
+worlds vs one lineage: Observation~\ref{obs:loans} \\
+the speaker & who actualizes langue & the dispatcher $\Disp$ over hosts:
+Part II \cite{part2}, Remark on the dispatcher \\
+\bottomrule
+\end{tabular}
+\caption{The complete dictionary of Part Four of the \textit{Course} into
+HLLSet Algebra.}
+\label{tab:dictionary}
+\end{table}
+
+% ============================================================================
+\section{What Part IV adds to Parts I--III}
+\label{sec:adds}
+% ============================================================================
+
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{The world layer becomes a linguistic object.} The EWM
+    multi-world machinery \cite{companion2026} was built for isolation and
+    bridges; Part IV reads it as Saussure's geography: worlds are languages,
+    LUTs are lexicons, thresholds are community boundaries.
+  \item \textbf{Diversity is costless at the representation level.}
+    Proposition~\ref{prop:one-lattice} is the exact form of the
+    structuralist claim that all languages are one system seen differently.
+  \item \textbf{The cause of diversity is time, computed.}
+    Proposition~\ref{prop:divergence} turns Saussure's ``time is the primary
+    cause'' into a product of change-of-basis matrices.
+  \item \textbf{Loans and inheritances are decidable.}
+    Observation~\ref{obs:loans} separates borrowed and inherited nodes by
+    provenance, without a dictionary.
+  \item \textbf{The dispatcher finds its place.} The executive question of
+    Part II becomes the geography of the speaker.
+\end{enumerate}
+
+% ============================================================================
+\section{Conclusion and outlook to Part V}
+\label{sec:conclusion}
+% ============================================================================
+
+Part Four of the \textit{Course} has been re-founded as the multi-world
+theory of one lattice. Diversity is a family of worlds over one plane;
+complexity is graded overlap with threshold boundaries; the cause of
+diversity is time, made exact as unsynchronized pivots; waves are bridges;
+substrata are old generations; loans are crossing provenances. Geographical
+linguistics, read in this direction, is no longer a catalogue of dialects: it
+is the theory of which worlds share which frames, and how innovations cross
+between them.
+
+What Part Four leaves to Part Five is the direction of reading itself. We
+have read the DAG forward: pivots, transports, waves. Part Five of the
+\textit{Course}, Questions of Retrospective Linguistics, reads it backward:
+the two perspectives of diachronic linguistics, the search for the earliest
+language and the prototype, reconstructions, the contribution of linguistic
+evidence to anthropology and prehistory, and the distinction of language
+families from linguistic types. In the algebra these become time travel
+through old frames: reading the present against the first recorded basis,
+with the spill as the error of the journey; reconstruction as a view whose
+provenance points into the past; and the family/type distinction as ancestry
+in the DAG versus similarity in the current fiber. Part V will close the
+series, and with it the circle: the \textit{Course} interpreted by the
+algebra, and the algebra interpreted by the \textit{Course}.
+
+\section*{Acknowledgments}
+This paper was created in collaboration with, and with the assistance of, an
+AI system---DeepSeek (deepseek-v4-pro). The world-layer reading of
+geographical diversity, the transport-product reading of divergence, the
+provenance reading of loans, and several of the formulations emerged in
+dialogue with the assistant, whose drafts the authors revised and take full
+responsibility for in their final form.
+
+\begin{thebibliography}{99}
+
+\bibitem{saussure1916} F.~de Saussure,
+\textit{Cours de linguistique g\'en\'erale}, Payot, Paris, 1916.
+(Edited posthumously by C.~Bally and A.~Sechehaye, with A.~Riedlinger.)
+
+\bibitem{harris1983} F.~de Saussure,
+\textit{Course in General Linguistics}, translated and annotated by
+Roy Harris, Duckworth, London, 1983.
+
+\bibitem{baskin1959} F.~de Saussure,
+\textit{Course in General Linguistics}, translated by Wade Baskin,
+Philosophical Library, New York, 1959.
+
+\bibitem{saussure1977} F.~de Sossyur,
+\textit{Trudy po yazykoznaniyu} [Works in Linguistics], edited by
+A.~A.~Kholodovich, translation of the \textit{Cours} by A.~M.~Sukhotin,
+Progress, Moscow, 1977.
+(Authors' working copy; used for verification of the readings.)
+
+\bibitem{part1} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part I: General Principles},
+SAUSSURE PUB series, 2026.
+
+\bibitem{part2} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part II: Synchronic Linguistics},
+SAUSSURE PUB series, 2026.
+
+\bibitem{part3} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part III: Diachronic Linguistics},
+SAUSSURE PUB series, 2026.
+
+\bibitem{ewm2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Emerging World Models: A Structural Framework for Self-Organizing
+World Representations}, EWM PUB series, 2026.
+
+\bibitem{companion2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{The EWM Lattice and Its Worlds}, EWM PUB series, 2026.
+
+\bibitem{state2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Transformations and Trajectories of a Content-Addressed State
+Machine}, EWM PUB series, 2026.
+
+\bibitem{attention2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Attention on Lattice Traversal Is All You Need}, EWM PUB series, 2026.
+
+\bibitem{langue2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Langue as a Lattice: Closing the Circle from Statistical to
+Structural Linguistics through Content-Addressed Algebras}, EWM PUB series,
+2026.
+
+\bibitem{birkhoff1940} G.~Birkhoff,
+\textit{Lattice Theory}, American Mathematical Society, 1940.
+
+\bibitem{maclane1971} S.~Mac Lane,
+\textit{Categories for the Working Mathematician}, Springer, 1971.
+
+\bibitem{hjelmslev1961} L.~Hjelmslev,
+\textit{Prolegomena to a Theory of Language}, University of Wisconsin Press,
+1961.
+
+\bibitem{harris1954} Z.~S.~Harris,
+\textit{Distributional Structure}, Word, 10(2--3):146--162, 1954.
+
+\bibitem{firth1957} J.~R.~Firth,
+\textit{A Synopsis of Linguistic Theory, 1930--1955}, Studies in Linguistic
+Analysis, 1957.
+
+\bibitem{vaswani2017} A.~Vaswani, N.~Shazeer, N.~Parmar, J.~Uszkoreit,
+L.~Jones, A.~N.~Gomez, \L.~Kaiser, and I.~Polosukhin,
+\textit{Attention Is All You Need}, NeurIPS, 2017.
+
+\end{thebibliography}
+
+\end{document}

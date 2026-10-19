@@ -98,8 +98,9 @@ are sign pairs $(\Ing,\Mat)$ delimited by the coverage round-trip; identity is
 content addressability (the $8{:}45$ Geneva--Paris express is one node under
 many material compositions); reality is position in the frame. The two kinds
 of relation are then separated: syntagmatic relations (in praesentia) are the
-D/R/N decomposition along the materialized chain, and associative relations
-(in absentia) are the BSS profile against the frame. The mechanism of language
+document coverage reading along the materialized chain, and associative
+relations (in absentia) are the BSS profile against the frame. The mechanism
+of language
 becomes the dispatcher composing the two readings; the subdivisions of grammar
 (morphology, syntax, lexicology) become one algebra over one plane, which is
 Saussure's claim that they interpenetrate, proved structurally. The paper
@@ -137,6 +138,14 @@ what Saussure calls its value. Everything else in Part Two---concrete
 entities, identities, realities, syntagmatic and associative relations, the
 mechanism of language, the subdivisions of grammar---is re-founded around
 this single definition.
+
+The Introduction of the \textit{Course}---langue and parole, and the object
+of linguistics---was read in the EWM direction in \cite{langue2026}; Part I
+promised its reverse reading here. It is delivered in
+Section~\ref{sec:mechanism}: langue is the shared lattice read through the
+current frame, parole is the stream of host outputs that actualizes it, and
+the dispatcher is the executive that chooses which parole speaks. The
+distinction is re-founded from the algebra side, not assumed.
 
 \subsection{Method, unchanged}
 
@@ -187,13 +196,13 @@ $\Mat : \Lat \dashrightarrow \Ctx$ is the partial inverse that restores an
 ordered token context through the door.
 \end{definition}
 
-\begin{definition}[BSS; D/R/N; frames; generations; keys]
+\begin{definition}[BSS; document coverage; frames; generations; keys]
 \label{def:frame}
 Against a reference $B_w \subseteq \Plane$, the \textbf{directed soft key} is
 $\BSS_w(X) = |X \cap B_w| / |B_w|$. For a context $X$ read against a document
-$D$, the \textbf{D/R/N decomposition} is
+$D$, the \textbf{document coverage reading} is
 \[
-  N = |D \setminus X|, \qquad R = |D \cap X|, \qquad \Cov = R/|D|.
+  N_D = |D \setminus X|, \qquad R_D = |D \cap X|, \qquad \Cov = R_D/|D|.
 \]
 A \textbf{basis frame} is a reduced (RREF) GF(2) basis $F=(B_1,\dots,B_k)$ of
 a span of observed nodes, stamped with a \textbf{generation} $\Gen$ that
@@ -218,7 +227,9 @@ The \textbf{synchronic fiber} at time $t$ is $\Sync(t) = (\Lat, F(t),
 The \textbf{sign} is the pair $\Sign = (\Ing,\Mat)$; for a node $A \in \Lat$,
 the signifier is the bit-set $A$ and the signified is its differential value
 plus the materialized context $\Mat(A)$. The round-trip is guarded:
-$\Mat(\Ing(\Ctx)) = \Ctx$ up to order iff $\Cov(\Ctx)=1$ \cite{langue2026}.
+$\Mat(\Ing(\Ctx)) = \Ctx$ up to order iff $\Cov(\Ctx; D)=1$, where the
+coverage is read against the document $D$ from which the context $\Ctx$ was
+drawn \cite{langue2026}.
 \end{definition}
 
 Throughout, $F=(B_1,\dots,B_k)$ is a fixed frame of a fixed fiber
@@ -286,19 +297,21 @@ express's identity persists because ingestion is deterministic and the plane
 is shared.
 \end{reading}
 
-\begin{proposition}[Identity is content addressability]
+\begin{proposition}[Identity is content addressability, and it is stable]
 \label{prop:identity}
 For any two token contexts $X, Y \subseteq \Tok$,
 \[
-  \Ing(X) = \Ing(Y)
-  \qquad\Longrightarrow\qquad
   X \sim Y
+  \qquad\Longleftrightarrow\qquad
+  \Ing(X) = \Ing(Y)
 \]
-where $\sim$ is sign identity. The converse is the definition of an IICA
-morphism on its image: within one host and one door, a node names one
-materialized context up to order. Hence identity is stable across hosts,
-tokenizers, and times, while its \emph{value} (Section~\ref{sec:value}) may
-change with the frame.
+where $\sim$ is sign identity: two occurrences are the same sign exactly
+when they ingest to the same node. Because $\Ing$ is deterministic (same
+content, same node), immutable (the node is never rewritten), and
+content-addressed (the node is named by its content alone), the
+equivalence is stable across hosts, tokenizers, and times. Its
+\emph{value} (Section~\ref{sec:value}) may change with the frame; its
+identity cannot.
 \end{proposition}
 
 \begin{remark}[Content addressability is not hashing]
@@ -429,8 +442,8 @@ $N \subseteq \Lat$ is a finite set of nodes and $R$ is a set of binary
 relations on them---containment, disjointness, xor-adjacency, agreement of
 frame coordinates, and the like. The \textbf{co-occurrence profile} of a node
 $n \in N$ is the vector of co-occurrence counts of $n$ with the other nodes
-of $N$ across materialized contexts (the $R$ values of the D/R/N reading,
-accumulated over windows).
+of $N$ across materialized contexts (the $R_D$ values of the document
+coverage reading, accumulated over windows).
 \end{definition}
 
 \begin{observation}[Similar concepts: two maps, not one]
@@ -597,8 +610,9 @@ Let $F$ be a frame. Every node $X \in \spanof{F}$ is a sum of basis vectors,
 \]
 and nothing else is said about it: its entire description is the difference
 pattern $c$. The basis vectors themselves are not positive terms either, since
-any basis of the same span describes the same system of values and no
-structural property prefers one (coordinate freedom, Part I
+any basis of the same span describes the same system of values up to a
+linear isomorphism of $\mathrm{GF}(2)^k$, and no structural property
+prefers one basis over another (coordinate freedom, Part I
 \cite{part1}). Hence, within the span, there are only differences: each sign
 is a position in a field of oppositions, and the field has no absolute origin.
 \end{theorem}
@@ -666,7 +680,7 @@ associative reading is against the frame.
 Fix a fiber $\Sync(t)$ with frame $F$. For a context $X$ read against a
 document $D$, the \textbf{syntagmatic reading} is
 \[
-  \Synt(X; D) \;=\; (N, R, \Cov)
+  \Synt(X; D) \;=\; (N_D, R_D, \Cov)
   \;=\;
   \bigl(|D \setminus X|,\; |D \cap X|,\; |D \cap X|/|D|\bigr).
 \]
@@ -688,9 +702,11 @@ layers: (i) the \emph{chain} is the ordered token context restored by
 materialization $\Mat$; (ii) \emph{composition} is the join: the syntagm
 $X \cup Y$ is the union of the constituent nodes; (iii) \emph{contrast in
 the chain} is the ring sum $X \xor Y$, the exact phrase-level difference
-between two syntagms. The D/R/N numbers are the syntagmatic measurement:
-novelty is what the chain adds, retention is what it confirms, coverage is
-how much of the document the syntagm accounts for.
+between two syntagms. The coverage numbers $N_D, R_D, \Cov$ are the
+syntagmatic measurement: novelty $N_D$ is what the document holds beyond the
+syntagm (the part the chain does not cover), retention $R_D$ is what the
+syntagm confirms, coverage is how much of the document the syntagm accounts
+for.
 \end{proposition}
 
 \begin{observation}[Solidarities are coverage guards]
@@ -742,11 +758,13 @@ interpreted by the interplay of the two kinds of relation
 \label{read:mechanism}
 The mechanism is the composition of the two readings. The dispatcher
 \[
-  \Disp : \Lat \times \mathrm{State} \;\longrightarrow\; \Delta(\mathrm{Hosts})
+  \Disp : \Lat \times \mathrm{State}
+  \;\longrightarrow\;
+  \mathrm{Dist}(\mathrm{Hosts})
 \]
-reads the lattice state, which contains both axes: the trajectory numbers
-$N,R,\Cov$ (syntagmatic) and the frame profile or hard key (associative). It
-then selects which host actualizes the shared langue.
+reads the lattice state, which contains both axes: the coverage numbers
+$N_D,R_D,\Cov$ (syntagmatic) and the frame profile or hard key (associative).
+It then selects which host actualizes the shared langue.
 
 The hosts, however, are not abstract labels. In the multi-LLM scenario from
 which the EWM architecture arose, a user works simultaneously with several

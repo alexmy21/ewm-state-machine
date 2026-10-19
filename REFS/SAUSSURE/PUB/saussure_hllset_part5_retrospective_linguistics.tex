@@ -1,0 +1,695 @@
+% ============================================================================
+%  Saussure in HLLSet Algebra --- Part V: Questions of Retrospective Linguistics
+%  A computational exegesis of Ferdinand de Saussure's
+%  Course in General Linguistics, Part Five, in the Boolean lattice
+%  and GF(2) ring of HLLSet Algebra
+% ----------------------------------------------------------------------------
+%  Series:  Saussure in HLLSet Algebra (reverse direction of influence)
+%  Build:   pdflatex saussure_hllset_part5_retrospective_linguistics.tex
+%           (run twice)
+%  Notation follows Part I:
+%    saussure_hllset_part1_general_principles.tex
+%  Part II:
+%    saussure_hllset_part2_synchronic_linguistics.tex
+%  Part III:
+%    saussure_hllset_part3_diachronic_linguistics.tex
+%  Part IV:
+%    saussure_hllset_part4_geographical_linguistics.tex
+%  and the EWM PUB series.
+% ============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{amscd}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\definecolor{hlblue}{RGB}{0,80,160}
+\hypersetup{colorlinks=true,linkcolor=hlblue,urlcolor=hlblue,citecolor=hlblue}
+
+% ---- theorems (aligned with the PUB series and Parts I--IV) ----------------
+\newtheorem{principle}{Principle}[section]
+\newtheorem{theorem}[principle]{Theorem}
+\newtheorem{definition}[principle]{Definition}
+\newtheorem{proposition}[principle]{Proposition}
+\newtheorem{corollary}[principle]{Corollary}
+\newtheorem{remark}[principle]{Remark}
+\theoremstyle{remark}
+\newtheorem{observation}[principle]{Observation}
+\newtheorem{reading}[principle]{Reading}
+
+% ---- shorthands (aligned with Parts I--IV and the PUB series) ---------------
+\newcommand{\Plane}{\ensuremath{\mathbb{B}}}            % bit plane
+\newcommand{\Lat}{\ensuremath{\mathcal{B}}}              % HLLSet (Boolean) lattice
+\newcommand{\Tok}{\ensuremath{\mathcal{T}}}              % token space
+\newcommand{\HLL}{\ensuremath{H}}                        % an HLLSet
+\newcommand{\xor}{\ensuremath{\Delta}}                   % ring addition
+\newcommand{\BSS}{\ensuremath{\mathsf{BSS}}}             % BSS measure
+\newcommand{\res}{\ensuremath{\mathrm{res}}}             % residual
+\newcommand{\spanof}[1]{\ensuremath{\langle #1\rangle}}  % GF(2) span
+\newcommand{\supp}{\ensuremath{\mathrm{supp}}}           % support
+\newcommand{\Ctx}{\ensuremath{\mathcal{C}}}              % token context
+\newcommand{\Ing}{\ensuremath{\mu}}                      % ingestion morphism
+\newcommand{\Mat}{\ensuremath{\rho}}                     % materialization morphism
+\newcommand{\Lang}{\ensuremath{\mathcal{L}}}             % langue (the lattice system)
+\newcommand{\Par}{\ensuremath{\mathcal{P}}}              % parole (usage)
+\newcommand{\Sign}{\ensuremath{\mathcal{S}}}             % the sign relation
+\newcommand{\Cov}{\ensuremath{\mathrm{cov}}}             % coverage
+\newcommand{\Disp}{\ensuremath{\mathcal{D}}}             % the dispatcher
+\newcommand{\Sync}{\ensuremath{\mathsf{Syn}}}            % synchronic fiber
+\newcommand{\Dia}{\ensuremath{\mathsf{Dia}}}             % diachronic trajectory
+\newcommand{\Gen}{\ensuremath{\gamma}}                   % basis generation
+\newcommand{\cover}{\ensuremath{\mathrm{cover}}}         % frame cover
+\newcommand{\Val}{\ensuremath{\mathcal{V}}}              % value (differential)
+\newcommand{\Synt}{\ensuremath{\mathsf{Synt}}}           % syntagmatic reading
+\newcommand{\Ass}{\ensuremath{\mathsf{Ass}}}             % associative reading
+\newcommand{\Dep}{\ensuremath{\mathsf{Dep}}}             % departed
+\newcommand{\Ret}{\ensuremath{\mathsf{Ret}}}             % retained
+\newcommand{\New}{\ensuremath{\mathsf{New}}}             % new
+\newcommand{\Trans}{\ensuremath{\mathsf{Tr}}}            % recorded transition
+\newcommand{\Piv}{\ensuremath{\mathsf{Piv}}}             % pivot
+\newcommand{\Ana}{\ensuremath{\mathsf{Ana}}}             % analogical fourth
+\newcommand{\Change}{\ensuremath{\mathbf{M}}}            % change-of-basis matrix
+\newcommand{\World}{\ensuremath{\mathsf{W}}}             % a world
+\newcommand{\Iota}{\ensuremath{\iota}}                   % interpretation map
+\newcommand{\Bridge}{\ensuremath{\Phi}}                  % bridge between worlds
+\newcommand{\Wset}{\ensuremath{\Omega}}                  % family of worlds
+% ---- new shorthands for Part V ---------------------------------------------
+\newcommand{\Recon}{\ensuremath{\mathsf{R}}}             % reconstruction operator
+\newcommand{\Proto}{\ensuremath{\mathsf{P}}}             % proto-node (reconstruction)
+\newcommand{\Fam}{\ensuremath{\mathsf{Fam}}}             % language family
+\newcommand{\Typ}{\ensuremath{\mathsf{Typ}}}             % linguistic type
+
+% ---- title -----------------------------------------------------------------
+\title{\textbf{Saussure in HLLSet Algebra}\\[4pt]
+\large Part V: Questions of Retrospective Linguistics\\[4pt]
+\large A Computational Exegesis of the \textit{Course in General Linguistics},\\
+Part Five, in the Boolean Lattice and GF(2) Ring of HLLSet Algebra\\[6pt]
+\normalsize Fifth paper in the series \textit{Saussure in HLLSet Algebra}}
+
+\author{Alex Mylnikov \and Alexandr Mylnikov Jr. \and Deependra Kumar}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Part V closes the series by re-founding Part Five of the \textit{Course},
+\emph{Questions of Retrospective Linguistics}, as time travel through old
+frames. The two perspectives of diachronic linguistics become the two
+directions of the commit DAG: the prospective reading follows the pivots
+forward, the retrospective reading inverts the transport matrices backward.
+The inversion is exact on the old span---the map $c \mapsto c\Change$ is
+injective---and partial elsewhere, where the spill against the earliest frame
+measures the error of reading the present through the past's lens. The search
+for the earliest language and the prototype is re-founded as a coordinate
+fact: the prototype is the projection of the present frame into the first
+recorded basis, and the first basis is itself an arbitrary origin by the
+coordinate-freedom theorem of Part~I. Reconstruction becomes an executable
+inverse problem: the proto-node of a set of descendants is their meet,
+$\Proto = \bigcap_i X_i$, a view whose provenance points into the past; the
+reconstruction is exact exactly when nothing has departed, and the spill of
+$\Proto$ against the earliest frame measures what the descendants can no
+longer witness. The contribution of linguistic evidence to anthropology and
+prehistory is delimited with the same discipline: the DAG certifies shared
+ancestry of frames and shared nodes, and nothing else. Language families and
+linguistic types are then separated: a family is ancestry in the DAG, a type
+is similarity in the current fiber, and the algebra computes both without
+forcing them to agree. The paper, and the series, close with Saussure's own
+conclusion re-founded: the unique and true object of linguistics is langue
+envisaged in itself and for itself---and the lattice is exactly that object.
+\end{abstract}
+
+\noindent\textbf{Keywords:} Saussure; retrospective linguistics; prospective
+method; reconstruction; prototype; language family; linguistic type; time
+travel; old frames; transport inversion; meet; provenance; HLLSet; Boolean
+lattice; GF(2) ring; computational exegesis.
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+% ============================================================================
+
+\subsection{Where Part V stands in the series}
+
+Part I \cite{part1} re-founded the general principles; Part II \cite{part2}
+the synchronic theory of value; Part III \cite{part3} the diachronic theory
+of the pivot; Part IV \cite{part4} the geographical theory of worlds and
+waves. Part Five of the \textit{Course}, Questions of Retrospective
+Linguistics, is where Saussure turns the method around: instead of following
+the course of time, the linguist goes backward, reconstructing what the
+present can no longer show directly \cite[Part V]{harris1983}. Part V of this
+series re-founds that backward method in the algebra, and with it closes the
+series.
+
+\subsection{Method, unchanged}
+
+The method is that of Parts I--IV \cite{part1,part2,part3,part4}: no
+metaphor, principles as theorems or invariants, ambiguity recorded as data.
+The translation note of Part I applies unchanged; references to the
+\textit{Course} are by part, chapter, and section.
+
+\subsection{Roadmap}
+
+Section~\ref{sec:prelim} fixes the standing definitions and adds the
+retrospective layer (prospective and retrospective readings, the
+reconstruction operator). Section~\ref{sec:ch1} re-founds the two
+perspectives of diachronic linguistics as the two directions of the DAG.
+Section~\ref{sec:ch2} re-founds the search for the earliest language and the
+prototype as projection into the first basis. Section~\ref{sec:ch3} is the
+center: reconstruction as the meet of descendants, with its exactness
+criterion. Section~\ref{sec:ch4} delimits the anthropological evidence.
+Section~\ref{sec:ch5} separates families from types. Section
+\ref{sec:conclusion} closes the series with Saussure's own conclusion
+re-founded. Section~\ref{sec:dictionary} collects the dictionary of Part
+Five.
+
+% ============================================================================
+\section{Preliminaries: the whole inheritance and the retrospective layer}
+\label{sec:prelim}
+% ============================================================================
+
+We restate the standing definitions with their labels; proofs and motivation
+are in \cite{part1,part2,part3,part4}.
+
+\begin{definition}[Standing definitions]
+\label{def:standing}
+The \textbf{plane} is $\Plane=\{0,\dots,32767\}$; the \textbf{lattice} is
+$\Lat=\mathcal{P}(\Plane)$ under $\cup,\cap,\subseteq$ and the Boolean ring
+$\xor=\Delta$, $\cap$. $\Ing:\Tok\to\Lat$ is an \textbf{IICA morphism};
+$\Mat:\Lat\dashrightarrow\Ctx$ materializes through the door. A
+\textbf{basis frame} $F=(B_1,\dots,B_k)$ is a row-echelon GF(2) basis with
+distinct leading bits, stamped with a generation $\Gen$; hard keys, soft
+keys, and spill are as in Parts I--III. The \textbf{synchronic fiber} is
+$\Sync(t)=(\Lat,F(t),\Gen(t))$; a \textbf{pivot} is the extension/rotation
+of Part III; the \textbf{transport} across a pivot is $c' = c\Change$ with
+the change-of-basis matrix $\Change$ \cite{part3}. A \textbf{world} and a
+\textbf{bridge} are as in Part IV \cite{part4}.
+\end{definition}
+
+\subsection{The retrospective layer}
+
+\begin{definition}[Prospective and retrospective readings]
+\label{def:perspectives}
+The \textbf{prospective reading} of a lineage is the forward traversal of the
+commit DAG: at each pivot, transport coordinates forward,
+$c(t{+}1) = c(t)\Change(t{+}1)$. The \textbf{retrospective reading} is the
+backward traversal: given the present coordinates $c(t)$, recover the past
+coordinates $c(t{-}1)$ of any node that was already in the old span, and
+project nodes outside the old span onto the old frame with a measured error.
+\end{definition}
+
+\begin{definition}[Reconstruction operator]
+\label{def:recon}
+Let $X_1,\dots,X_n$ be nodes (descendants) in the current lattice. The
+\textbf{reconstruction} of their common ancestor is the meet
+\[
+  \Recon(X_1,\dots,X_n)
+  \;=\;
+  \Proto
+  \;=\;
+  \bigcap_{i=1}^n X_i,
+\]
+read as a \emph{view}: a recipe whose sources are the descendants and whose
+provenance points into the past. The \textbf{reconstruction spill} is
+$s(\Proto) = |\Proto \setminus \cover(F_0)|$ against the earliest recorded
+frame $F_0$ of the lineage.
+\end{definition}
+
+\begin{proposition}[Backward reading is exact on the old span]
+\label{prop:backward}
+Let $F(t{-}1)=(B_1,\dots,B_k)$ and $F(t)=(B'_1,\dots,B'_{k'})$ be two frames
+of a monotone ring, $k' \ge k$, with change-of-basis matrix $\Change$
+($k \times k'$). Then:
+\begin{enumerate}[leftmargin=*,nosep]
+  \item the rows of $\Change$ are the coordinates of the old basis in the new
+    basis; they are linearly independent, so the map
+    $c \mapsto c\Change$ is injective;
+  \item consequently, for every node $X \in \spanof{F(t{-}1)}$, the past
+    coordinates are uniquely recoverable from the present coordinates: the
+    equation $c' = c\Change$ has at most one solution $c$, and it has one
+    exactly when $c'$ lies in the image (i.e.\ when $X$ was in the old
+    span);
+  \item for $X \notin \spanof{F(t{-}1)}$, no past coordinates exist, and the
+    old-frame projection has spill
+    $|X \setminus \cover(F(t{-}1))|$, the measured error of reading the
+    present through the past's lens.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+(1) The old basis vectors are linearly independent over GF(2), so their
+coordinate vectors are linearly independent; hence $\Change$ has full row
+rank $k$, and left multiplication by $\Change$ is injective. (2) Immediate
+from (1). (3) A node outside the old span has no old hard key; the spill is
+the part of it that the old frame cannot see, as in Part III
+\cite{part3,state2026}.
+\end{proof}
+
+% ============================================================================
+\section{Chapter I: The two perspectives of diachronic linguistics}
+\label{sec:ch1}
+% ============================================================================
+
+Saussure distinguishes two ways of doing diachronic linguistics: the
+\emph{prospective} method follows the course of time from past documents to
+the present; the \emph{retrospective} method goes backward from the present
+to the past, and it is the method of reconstruction \cite[Part V,
+ch.~I]{harris1983}.
+
+\begin{reading}[The two directions of the DAG]
+\label{read:perspectives}
+The prospective perspective is the forward traversal of the commit DAG: it
+sees the pivots as they happen, and transports coordinates forward. The
+retrospective perspective is the backward traversal: it sees the present
+fiber and asks which earlier fiber could have produced it, inverting
+transports by Proposition~\ref{prop:backward}.
+\end{reading}
+
+\begin{observation}[The two methods have different exactness]
+The prospective reading is exact by construction: every pivot and every
+transport is recorded. The retrospective reading is exact only on the old
+span, and partial outside it, where the spill measures the error. Saussure's
+distinction between the two methods is therefore, in the algebra, a
+distinction between forward determinism and backward inversion with a
+measured residual---not a symmetrical pair of viewpoints.
+\end{observation}
+
+% ============================================================================
+\section{Chapter II: Earliest languages and prototypes}
+\label{sec:ch2}
+% ============================================================================
+
+Saussure's chapter II deflates the search for the first language: no living
+language is ``older'' than another in any absolute sense, and the prototype
+reconstructed by comparison is a projection, not a reality that was ever
+spoken \cite[Part V, ch.~II]{harris1983}.
+
+\begin{reading}[The first basis is an arbitrary origin]
+\label{read:origin}
+The earliest frame $F_0$ of a lineage is the first committed generation in
+the DAG. It is an \emph{origin} only because the record starts there, not
+because the plane has an origin: by the coordinate-freedom theorem of Part I
+\cite{part1}, any re-coordination of the plane is an automorphism, and no
+structural property prefers one first basis over another. The prototype is
+the projection of the present into $F_0$, with the spill as the error.
+\end{reading}
+
+\begin{observation}[No language is older than another]
+\label{obs:no-oldest}
+For every lineage, the first commit is arbitrary: it is the point where the
+record begins, and a different beginning would be an isomorphic coordinate
+choice. The question ``which language is oldest'' therefore has no
+algebraic meaning: all lineages are equally old, because age is a property
+of the record, not of the lattice. Saussure's deflation of the question is
+re-founded as the arbitrariness of the origin.
+\end{observation}
+
+\begin{proposition}[The prototype is a projection]
+\label{prop:prototype}
+Let $F_0$ be the first recorded frame of a lineage and $X$ a present node.
+The \textbf{prototype reading} of $X$ is its hard key in $F_0$ when
+$X \in \spanof{F_0}$, and its soft profile plus spill
+$|X \setminus \cover(F_0)|$ otherwise. The prototype of a language is the
+collection of such readings: a view of the present through the first frame,
+never an original that was stored then.
+\end{proposition}
+
+% ============================================================================
+\section{Chapter III: Reconstructions}
+\label{sec:ch3}
+% ============================================================================
+
+Saussure's chapter III is the heart of Part Five: reconstruction is
+comparative, the starred form is a hypothesis about \emph{relations}, and its
+value lies in the correspondences it summarizes, not in any claim about
+substance \cite[Part V, ch.~III]{harris1983}.
+
+\begin{reading}[Reconstruction is a meet]
+\label{read:recon}
+The comparative method places descendant forms side by side and asks what
+they have in common. In the lattice, the descendants are nodes
+$X_1,\dots,X_n$, and what they have in common is the largest node contained
+in all of them---the meet $\Proto = \bigcap_i X_i$. The starred form is
+$\Proto$ read as a view: a recipe over the descendants' provenance, stamped
+with the present generation, and explicitly \emph{not} an original.
+\end{reading}
+
+\begin{proposition}[Exactness of reconstruction]
+\label{prop:recon}
+Suppose the true ancestor $A$ exists in the DAG and each descendant
+$X_i$ was formed from $A$ by joins (additions of bits), so $A \subseteq X_i$
+for all $i$. Then:
+\begin{enumerate}[leftmargin=*,nosep]
+  \item $A \subseteq \Proto$: the reconstruction never claims less than the
+    ancestor;
+  \item $\Proto \setminus A$ is the innovation shared by \emph{all}
+    descendants (the convergent addition), which reconstruction cannot
+    distinguish from inheritance;
+  \item $A \setminus \Proto$ is the part of the ancestor that departed in at
+    least one descendant, which the descendants alone cannot recover;
+  \item reconstruction is exact ($\Proto = A$) if and only if nothing
+    departed, i.e.\ $A \setminus \Proto = \varnothing$.
+\end{enumerate}
+The reconstruction spill of Definition~\ref{def:recon} measures the part of
+$\Proto$ that the earliest frame cannot see, and the difference
+$\Proto \setminus A$ and $A \setminus \Proto$ are the two directions of the
+reconstruction's uncertainty.
+\end{proposition}
+
+\begin{proof}
+(1) $A \subseteq X_i$ for all $i$ implies $A \subseteq \bigcap_i X_i =
+\Proto$. (2) If a bit lies in every descendant but not in $A$, it was added
+convergently in all lines; the meet cannot tell addition from inheritance.
+(3) A bit of $A$ missing from some descendant is missing from the meet. (4)
+Immediate from (1)--(3).
+\end{proof}
+
+\begin{corollary}[Correspondences are transported coordinate agreements]
+\label{cor:correspondences}
+When the descendants live in different worlds or different generations, the
+comparative method first transports their hard keys to a common reference
+frame (an ancestor frame if one is shared); a \emph{correspondence} between
+two descendants is the equality of transported coordinates on a set of
+oppositions. The reconstruction $\Proto$ is then the node whose transported
+coordinates are the meet of the descendants' coordinates---the exact summary
+of the correspondences, and nothing more.
+\end{corollary}
+
+\begin{remark}[The starred form is a hypothesis, not a sound]
+Saussure insists that a reconstruction is a set of relations, not a claim
+about how the proto-language sounded. The algebra agrees precisely: $\Proto$
+is a view---an expression over the descendants---and it is never stored as an
+original. Its generation stamp is the present generation in which the
+hypothesis is evaluated, and its provenance points into the past without
+claiming that the node itself was ever an observed original.
+\end{remark}
+
+% ============================================================================
+\section{Chapter IV: Linguistic evidence in anthropology and prehistory}
+\label{sec:ch4}
+% ============================================================================
+
+Saussure's chapter IV asks what linguistics can contribute to anthropology
+and prehistory, and answers with characteristic discipline: linguistic
+evidence is structural, and it must not be made to prove what only other
+sciences can prove \cite[Part V, ch.~IV]{harris1983}.
+
+\begin{reading}[The DAG certifies ancestry, nothing else]
+\label{read:anthropology}
+The algebra's evidence is of exactly three kinds: shared nodes (cognates),
+shared frames (a common system of oppositions), and shared pivots (a common
+history of changes). From these it can certify common ancestry of frames and
+the order of divergences. It cannot certify anything about the speakers'
+genes, pots, or migrations, because bits, generations, and provenance carry
+no such information.
+\end{reading}
+
+\begin{observation}[The discipline of the lattice]
+\label{obs:discipline}
+The lattice disciplines the inference in both directions. It \emph{forces}
+the linguist to say exactly what is shared---a node, a frame, a pivot---and
+it \emph{forbids} conclusions that the shared objects do not support.
+Saussure's caution about linguistic evidence is therefore not a stylistic
+preference; it is a type discipline: an inference is valid only if it is a
+function of the DAG, the worlds, and the provenance, and nothing else.
+\end{observation}
+
+% ============================================================================
+\section{Chapter V: Language families and linguistic types}
+\label{sec:ch5}
+% ============================================================================
+
+Saussure's last chapter separates two classifications that are constantly
+confused: the \emph{family} is genealogical, the \emph{type} is structural.
+They can and do diverge \cite[Part V, ch.~V]{harris1983}.
+
+\begin{reading}[Families are ancestry; types are profiles]
+\label{read:family-type}
+A family is a property of the DAG: two worlds belong to the same family when
+their frames descend from a common ancestor frame. A type is a property of
+the current fiber: two worlds are of the same type when their soft-key
+profiles against a reference frame are close. The two computations use
+disjoint data and need not agree.
+\end{reading}
+
+\begin{definition}[Family and type]
+\label{def:family-type}
+The \textbf{family} of a world $\World$ is
+\[
+  \Fam(\World) \;=\;\{\,\World' : F(\World) \text{ and } F(\World')
+  \text{ descend from a common ancestor frame}\,\},
+\]
+an ancestry relation in the frame DAG. The \textbf{type} of a world against
+a reference frame $F$ is its profile
+\[
+  \Typ_F(\World) \;=\;\bigl(\BSS_{B_1}(\mathcal{N}(\World)),\dots,
+  \BSS_{B_k}(\mathcal{N}(\World))\bigr),
+\]
+a similarity relation in the current fiber. Family is a fact of provenance;
+type is a fact of the present.
+\end{definition}
+
+\begin{proposition}[Families and types are independent]
+\label{prop:family-type}
+Two unrelated worlds may be type-identical (convergence): their histories
+differ but their present profiles coincide. Two related worlds may be
+type-distant (divergence): their histories coincide up to a point but their
+profiles have drifted apart. The algebra computes both and never forces them
+to agree; Saussure's warning against confusing family and type is re-founded
+as the independence of the ancestry relation and the profile metric.
+\end{proposition}
+
+\begin{proof}
+Ancestry is determined by the DAG; type is determined by BSS against a
+fixed frame. The two functions have different domains (history vs present)
+and different data (provenance vs soft keys); nothing in the definitions
+couples them.
+\end{proof}
+
+% ============================================================================
+\section{Conclusion of the series: langue in itself and for itself}
+\label{sec:conclusion}
+% ============================================================================
+
+Saussure closes the \textit{Course} with the sentence that defined a
+century: linguistics has for its unique and true object \emph{la langue
+envisag\'ee en elle-m\^eme et pour elle-m\^eme}---language studied in itself
+and for itself \cite[Conclusion]{harris1983}. The series closes by
+re-founding that sentence, and it does so with an exactness that no
+philosophical commentary could offer.
+
+\emph{In itself.} The lattice $\Lat$ over the plane $\Plane$ is studied in
+itself: its Boolean structure and its GF(2) ring, its frames, generations,
+pivots, and transports. Nothing outside the lattice is needed to state its
+laws; the panchronic axioms of Part I are the exact form of ``in itself.''
+
+\emph{For itself.} The lattice is not the servant of any host, any
+vocabulary, any speaker. It is the system of differences that Parts I--V
+re-founded chapter by chapter: the sign as $(\Ing,\Mat)$, arbitrariness as
+coordinate freedom, value as the hard key, the pivot as the diachronic
+event, analogy as the fourth proportional, worlds as languages, bridges as
+waves, reconstruction as the meet. The algebra interprets the
+\textit{Course}; the \textit{Course} interprets the algebra; and the object
+of both is one and the same: langue, as a lattice, in itself and for itself.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.2cm}
+                    >{\raggedright\arraybackslash}p{4.2cm}
+                    >{\raggedright\arraybackslash}p{7.2cm}@{}}
+\toprule
+Part of the \textit{Course} & In the \textit{Course} & In HLLSet Algebra (this series) \\
+\midrule
+Introduction & langue and parole; the object of linguistics & the morphism
+step and the lattice as langue \cite{langue2026}; folded into Part II \\
+Part One & general principles & sign, arbitrariness, linearity,
+immutability/mutability, synchrony/diachrony \cite{part1} \\
+Part Two & synchronic linguistics & value as the hard key; differences
+without positive terms; syntagmatic/associative readings \cite{part2} \\
+Part Three & diachronic linguistics & the pivot; sound change, analogy, folk
+etymology, agglutination; diachronic units \cite{part3} \\
+Part Four & geographical linguistics & worlds, codebooks, thresholds;
+diversity, continua, substrata, waves \cite{part4} \\
+Part Five & retrospective linguistics; conclusion & time travel through old
+frames; reconstruction as the meet; families vs types; langue in itself and
+for itself \cite{part5} \\
+\bottomrule
+\end{tabular}
+\caption{The complete architecture of the series: the \textit{Course} in
+General Linguistics, re-founded part by part in HLLSet Algebra.}
+\label{tab:series}
+\end{table}
+
+% ============================================================================
+\section{The dictionary of Part Five}
+\label{sec:dictionary}
+% ============================================================================
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.4cm}
+                    >{\raggedright\arraybackslash}p{4.2cm}
+                    >{\raggedright\arraybackslash}p{7.0cm}@{}}
+\toprule
+Saussure (Part Five) & In the \textit{Course} & In HLLSet Algebra \\
+\midrule
+prospective method & follow the course of time & forward traversal of the
+DAG; transports $c' = c\Change$: Definition~\ref{def:perspectives} \\
+retrospective method & go backward from the present & backward inversion on
+the old span, projection with spill elsewhere:
+Proposition~\ref{prop:backward} \\
+earliest language & no language is older than another & the first commit is
+an arbitrary origin: Observation~\ref{obs:no-oldest} \\
+prototype & a projection, not a reality & the present read against the first
+basis $F_0$: Proposition~\ref{prop:prototype} \\
+reconstruction & comparative; the starred form & the meet
+$\Proto = \bigcap_i X_i$, a view with past provenance:
+Definition~\ref{def:recon}, Proposition~\ref{prop:recon} \\
+correspondences & the relations reconstruction summarizes & transported
+coordinate agreements: Corollary~\ref{cor:correspondences} \\
+linguistic evidence in prehistory & structural, disciplined & shared nodes,
+frames, pivots certify ancestry, nothing else:
+Observation~\ref{obs:discipline} \\
+language family & genealogical & ancestry in the frame DAG:
+Definition~\ref{def:family-type} \\
+linguistic type & structural similarity & soft-key profile in the current
+fiber: Definition~\ref{def:family-type} \\
+family vs type & they can diverge & independence of ancestry and profile:
+Proposition~\ref{prop:family-type} \\
+the conclusion of the \textit{Course} & langue in itself and for itself & the
+lattice in itself and for itself: Section~\ref{sec:conclusion} \\
+\bottomrule
+\end{tabular}
+\caption{The complete dictionary of Part Five of the \textit{Course} into
+HLLSet Algebra.}
+\label{tab:dictionary}
+\end{table}
+
+% ============================================================================
+\section{What Part V adds, and what the series as a whole adds}
+\label{sec:adds}
+% ============================================================================
+
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{Backward reading becomes a computation.}
+    Proposition~\ref{prop:backward} gives the retrospective method its exact
+    domain: injective inversion on the old span, measured spill outside it.
+  \item \textbf{Reconstruction becomes an executable inverse problem.}
+    Definition~\ref{def:recon} and Proposition~\ref{prop:recon} turn the
+    starred form into a meet with a proven exactness criterion and a measured
+    uncertainty in both directions ($\Proto \setminus A$ and
+    $A \setminus \Proto$).
+  \item \textbf{The prototype is demystified.} The first basis is an
+    arbitrary origin by Part I's coordinate freedom; the prototype is a
+    projection, exactly as Saussure insisted.
+  \item \textbf{Family and type are separated as datatypes.}
+    Definition~\ref{def:family-type} and Proposition~\ref{prop:family-type}
+    make the genealogical/structural distinction a difference of data, not
+    of emphasis.
+  \item \textbf{The series closes the circle.} The \textit{Course} has been
+    read out of the algebra in five parts; the algebra has been read out of
+    the \textit{Course} in the five EWM papers \cite{ewm2026,companion2026,
+    state2026,attention2026,langue2026}; the two directions meet in one
+    construction, and the closing object is Saussure's own: langue, in
+    itself and for itself.
+\end{enumerate}
+
+\section*{Acknowledgments}
+This paper was created in collaboration with, and with the assistance of, an
+AI system---DeepSeek (deepseek-v4-pro). The meet reading of reconstruction,
+the injectivity reading of the retrospective method, the family/type
+separation, and several of the formulations emerged in dialogue with the
+assistant, whose drafts the authors revised and take full responsibility for
+in their final form.
+
+\begin{thebibliography}{99}
+
+\bibitem{saussure1916} F.~de Saussure,
+\textit{Cours de linguistique g\'en\'erale}, Payot, Paris, 1916.
+(Edited posthumously by C.~Bally and A.~Sechehaye, with A.~Riedlinger.)
+
+\bibitem{harris1983} F.~de Saussure,
+\textit{Course in General Linguistics}, translated and annotated by
+Roy Harris, Duckworth, London, 1983.
+
+\bibitem{baskin1959} F.~de Saussure,
+\textit{Course in General Linguistics}, translated by Wade Baskin,
+Philosophical Library, New York, 1959.
+
+\bibitem{saussure1977} F.~de Sossyur,
+\textit{Trudy po yazykoznaniyu} [Works in Linguistics], edited by
+A.~A.~Kholodovich, translation of the \textit{Cours} by A.~M.~Sukhotin,
+Progress, Moscow, 1977.
+(Authors' working copy; used for verification of the readings.)
+
+\bibitem{part1} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part I: General Principles},
+SAUSSURE PUB series, 2026.
+
+\bibitem{part2} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part II: Synchronic Linguistics},
+SAUSSURE PUB series, 2026.
+
+\bibitem{part3} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part III: Diachronic Linguistics},
+SAUSSURE PUB series, 2026.
+
+\bibitem{part4} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part IV: Geographical Linguistics},
+SAUSSURE PUB series, 2026.
+
+\bibitem{part5} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part V: Questions of Retrospective
+Linguistics}, SAUSSURE PUB series, 2026.
+
+\bibitem{ewm2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Emerging World Models: A Structural Framework for Self-Organizing
+World Representations}, EWM PUB series, 2026.
+
+\bibitem{companion2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{The EWM Lattice and Its Worlds}, EWM PUB series, 2026.
+
+\bibitem{state2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Transformations and Trajectories of a Content-Addressed State
+Machine}, EWM PUB series, 2026.
+
+\bibitem{attention2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Attention on Lattice Traversal Is All You Need}, EWM PUB series, 2026.
+
+\bibitem{langue2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Langue as a Lattice: Closing the Circle from Statistical to
+Structural Linguistics through Content-Addressed Algebras}, EWM PUB series,
+2026.
+
+\bibitem{birkhoff1940} G.~Birkhoff,
+\textit{Lattice Theory}, American Mathematical Society, 1940.
+
+\bibitem{maclane1971} S.~Mac Lane,
+\textit{Categories for the Working Mathematician}, Springer, 1971.
+
+\bibitem{hjelmslev1961} L.~Hjelmslev,
+\textit{Prolegomena to a Theory of Language}, University of Wisconsin Press,
+1961.
+
+\bibitem{harris1954} Z.~S.~Harris,
+\textit{Distributional Structure}, Word, 10(2--3):146--162, 1954.
+
+\bibitem{firth1957} J.~R.~Firth,
+\textit{A Synopsis of Linguistic Theory, 1930--1955}, Studies in Linguistic
+Analysis, 1957.
+
+\bibitem{vaswani2017} A.~Vaswani, N.~Shazeer, N.~Parmar, J.~Uszkoreit,
+L.~Jones, A.~N.~Gomez, \L.~Kaiser, and I.~Polosukhin,
+\textit{Attention Is All You Need}, NeurIPS, 2017.
+
+\end{thebibliography}
+
+\end{document}

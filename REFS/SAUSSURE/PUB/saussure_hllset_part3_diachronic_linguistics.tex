@@ -1,0 +1,1107 @@
+% ============================================================================
+%  Saussure in HLLSet Algebra --- Part III: Diachronic Linguistics
+%  A computational exegesis of Ferdinand de Saussure's
+%  Course in General Linguistics, Part Three, in the Boolean lattice
+%  and GF(2) ring of HLLSet Algebra
+% ----------------------------------------------------------------------------
+%  Series:  Saussure in HLLSet Algebra (reverse direction of influence)
+%  Build:   pdflatex saussure_hllset_part3_diachronic_linguistics.tex
+%           (run twice)
+%  Notation follows Part I:
+%    saussure_hllset_part1_general_principles.tex
+%  and Part II:
+%    saussure_hllset_part2_synchronic_linguistics.tex
+%  and the EWM PUB series.
+% ============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{amscd}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\definecolor{hlblue}{RGB}{0,80,160}
+\hypersetup{colorlinks=true,linkcolor=hlblue,urlcolor=hlblue,citecolor=hlblue}
+
+% ---- theorems (aligned with the PUB series, Part I, and Part II) -----------
+\newtheorem{principle}{Principle}[section]
+\newtheorem{theorem}[principle]{Theorem}
+\newtheorem{definition}[principle]{Definition}
+\newtheorem{proposition}[principle]{Proposition}
+\newtheorem{corollary}[principle]{Corollary}
+\newtheorem{remark}[principle]{Remark}
+\theoremstyle{remark}
+\newtheorem{observation}[principle]{Observation}
+\newtheorem{reading}[principle]{Reading}
+
+% ---- shorthands (aligned with Parts I--II and the PUB series) ---------------
+\newcommand{\Plane}{\ensuremath{\mathbb{B}}}            % bit plane
+\newcommand{\Lat}{\ensuremath{\mathcal{B}}}              % HLLSet (Boolean) lattice
+\newcommand{\Tok}{\ensuremath{\mathcal{T}}}              % token space
+\newcommand{\HLL}{\ensuremath{H}}                        % an HLLSet
+\newcommand{\xor}{\ensuremath{\Delta}}                   % ring addition
+\newcommand{\BSS}{\ensuremath{\mathsf{BSS}}}             % BSS measure
+\newcommand{\res}{\ensuremath{\mathrm{res}}}             % residual
+\newcommand{\spanof}[1]{\ensuremath{\langle #1\rangle}}  % GF(2) span
+\newcommand{\supp}{\ensuremath{\mathrm{supp}}}           % support
+\newcommand{\Ctx}{\ensuremath{\mathcal{C}}}              % token context
+\newcommand{\Ing}{\ensuremath{\mu}}                      % ingestion morphism
+\newcommand{\Mat}{\ensuremath{\rho}}                     % materialization morphism
+\newcommand{\Lang}{\ensuremath{\mathcal{L}}}             % langue (the lattice system)
+\newcommand{\Par}{\ensuremath{\mathcal{P}}}              % parole (usage)
+\newcommand{\Sign}{\ensuremath{\mathcal{S}}}             % the sign relation
+\newcommand{\Cov}{\ensuremath{\mathrm{cov}}}             % coverage
+\newcommand{\Disp}{\ensuremath{\mathcal{D}}}             % the dispatcher
+\newcommand{\Sync}{\ensuremath{\mathsf{Syn}}}            % synchronic fiber
+\newcommand{\Dia}{\ensuremath{\mathsf{Dia}}}             % diachronic trajectory
+\newcommand{\Gen}{\ensuremath{\gamma}}                   % basis generation
+\newcommand{\cover}{\ensuremath{\mathrm{cover}}}         % frame cover
+\newcommand{\Val}{\ensuremath{\mathcal{V}}}              % value (differential)
+\newcommand{\Synt}{\ensuremath{\mathsf{Synt}}}           % syntagmatic reading
+\newcommand{\Ass}{\ensuremath{\mathsf{Ass}}}             % associative reading
+% ---- new shorthands for Part III -------------------------------------------
+\newcommand{\Dep}{\ensuremath{\mathsf{Dep}}}             % departed
+\newcommand{\Ret}{\ensuremath{\mathsf{Ret}}}             % retained
+\newcommand{\New}{\ensuremath{\mathsf{New}}}             % new
+\newcommand{\Trans}{\ensuremath{\mathsf{Tr}}}            % recorded transition
+\newcommand{\Piv}{\ensuremath{\mathsf{Piv}}}             % pivot
+\newcommand{\Ana}{\ensuremath{\mathsf{Ana}}}             % analogical fourth
+\newcommand{\Change}{\ensuremath{\mathbf{M}}}            % change-of-basis matrix
+
+% ---- title -----------------------------------------------------------------
+\title{\textbf{Saussure in HLLSet Algebra}\\[4pt]
+\large Part III: Diachronic Linguistics\\[4pt]
+\large A Computational Exegesis of the \textit{Course in General Linguistics},\\
+Part Three, in the Boolean Lattice and GF(2) Ring of HLLSet Algebra\\[6pt]
+\normalsize Third paper in the series \textit{Saussure in HLLSet Algebra}}
+
+\author{Alex Mylnikov \and Alexandr Mylnikov Jr. \and Deependra Kumar}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Part III of the series releases the exclusion that Part II imposed: time.
+Part Three of the \textit{Course}, \emph{Diachronic Linguistics}, is re-founded
+as the theory of the \textbf{pivot}. The center of the exegesis is the
+generation change of the basis frame. A phonetic change is a pivot of the
+ring---an \emph{extension} (a new opposition is born) and a \emph{rotation}
+(old oppositions are re-pivoted)---and its ``absolute regularity'' is the
+determinism of the Gaussian step, while its ``blindness'' is the fact that the
+pivot reads only bit positions, never values. Analogy, the counterpart of
+sound change, is the \emph{fourth proportional of GF(2)}: given three nodes
+$A,B,C$ of the span, the analogical fourth is
+$D = A \xor B \xor C$, the unique node with $A \xor B = C \xor D$; it creates
+inside the span and never moves the basis. Folk etymology is a \emph{false}
+fourth proportional, whose error the algebra measures exactly as
+$C \xor C'$. Agglutination is the promotion of a \emph{view} to an
+\emph{original}: a frequently welded join is re-ingested as a new unit,
+and---because the span is closed under $\xor$ but not under $\cup$---
+agglutination is the second source of basis growth. Diachronic units,
+identities, and realities close the part: a diachronic unit is a path of
+values across generations, diachronic identity is IICA persistence, and
+diachronic reality is the recorded transition. The paper closes with the
+complete dictionary of Part Three and the residual handed to Part~IV:
+geographical diversity.
+\end{abstract}
+
+\noindent\textbf{Keywords:} Saussure; diachronic linguistics; sound change;
+phonetic change; analogy; folk etymology; agglutination; diachronic unit;
+diachronic identity; pivot; basis frame; generation; change of basis; GF(2)
+ring; Boolean lattice; HLLSet; computational exegesis.
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+% ============================================================================
+
+\subsection{Where Part III stands in the series}
+
+Part I of this series \cite{part1} re-founded Part One of the
+\textit{Course}---the sign, arbitrariness, linearity, immutability and
+mutability, and the static/evolutionary distinction---as theorems and
+invariants of HLLSet Algebra. Part II \cite{part2} re-founded Part Two,
+Synchronic Linguistics, as the differential theory of value: relative to a
+basis frame $F=(B_1,\dots,B_k)$, the hard key $c \in \mathrm{GF}(2)^k$ is the
+exact compression of a node's value, identity and value coincide on the span,
+and ``only differences, without positive terms'' became the completeness and
+difference theorems of \cite{part2}. Both papers held one variable fixed: \emph{the
+frame}. Part II said so explicitly: the spill was treated as a boundary, not
+as a cause, and the residual handed to Part III was named---the pivot itself
+\cite{part2}.
+
+Part Three of the \textit{Course}, \emph{Diachronic Linguistics}, is where
+Saussure lets time in. Its subject is not relations between coexisting terms
+but relations between \emph{successive} terms: sound changes, their
+grammatical consequences, analogy, folk etymology, agglutination, and the
+diachronic counterparts of units, identities, and realities. Part III of this
+series re-founds each of those chapters in the algebra, around a single
+executable event: the \textbf{pivot}, the recomputation of the basis frame
+that increments the generation $\Gen$ and re-coordinates every cached value.
+The thesis of this paper is one sentence: \textbf{diachronic linguistics is
+the theory of the pivot and its two species---the blind pivot (sound change)
+and the exact non-pivot (analogy)}. Everything else in Part Three is a
+corollary of that distinction.
+
+\subsection{Method, unchanged}
+
+The method is that of Parts I and II \cite{part1,part2}: no metaphor,
+principles as theorems or invariants, and ambiguity recorded as data. The
+translation note of Part I applies unchanged: we cite Roy Harris's
+translation \cite{harris1983}, keep the standard pair
+\emph{signifier}/\emph{signified} (Harris: \emph{signal}/\emph{signification}),
+and retain the Russian edition \cite{saussure1977} for verification.
+References to the \textit{Course} are by part, chapter, and section.
+
+\subsection{What Part Three contains, and the roadmap}
+
+Part Three of the \textit{Course} has eight chapters: (I) general
+observations on the diachronic perspective; (II) sound changes; (III)
+grammatical consequences of phonetic evolution; (IV) analogy; (V) analogy and
+evolution; (VI) popular etymology; (VII) agglutination; (VIII) diachronic
+units, identities, and realities, with the appended discussion of subjective
+and objective analysis folded into Chapter~VIII here.
+
+Section~\ref{sec:prelim} fixes the standing definitions inherited from Parts I
+and II and adds the diachronic layer: transitions, pivots, and the
+change-of-basis transport. Section~\ref{sec:ch1} re-founds the general
+observations (the diachronic perspective as the trajectory). Section
+\ref{sec:ch2} is the center: sound change as the pivot, regularity as
+determinism, blindness as bit-level reading. Section~\ref{sec:ch3} derives the
+grammatical consequences (bonds broken by transport). Section~\ref{sec:ch4}
+is the second center: analogy as the fourth proportional of GF(2). Section
+\ref{sec:ch5} separates the two forces of evolution. Section~\ref{sec:ch6}
+re-founds folk etymology as a false fourth proportional. Section
+\ref{sec:ch7} re-founds agglutination as the promotion of a view to an
+original. Section~\ref{sec:ch8} closes with diachronic units, identities, and
+realities. Sections \ref{sec:dictionary}--\ref{sec:conclusion} collect the
+dictionary, state what Part III adds, and hand the geographical residual to
+Part IV.
+
+% ============================================================================
+\section{Preliminaries: the synchronic inheritance and the diachronic layer}
+\label{sec:prelim}
+% ============================================================================
+
+We restate, with their labels, the standing definitions of Parts I and II;
+proofs and motivation are in \cite{part1,part2}. We then add the diachronic
+layer: transitions, pivots, and transport.
+
+\begin{definition}[Plane, lattice, ring]
+\label{def:plane}
+The \textbf{plane} is $\Plane = \{0,\dots,32767\}$; the \textbf{HLLSet
+lattice} is $\Lat = \mathcal{P}(\Plane)$, a Boolean lattice under
+$\cup,\cap,\subseteq$ and a Boolean ring under $\xor$ (written $\Delta$) and
+$\cap$. Cardinalities are $|X|$; the complement of $X$ in $\Plane$ is
+$\overline{X}$.
+\end{definition}
+
+\begin{definition}[IICA morphism; ingestion; materialization]
+\label{def:iica}
+$\Ing : \Tok \to \Lat$ is an \textbf{IICA morphism} if it is idempotent
+(deterministic), immutable, and content-addressed; it extends to finite token
+sets by $\Ing(X)=\bigcup_{t\in X}\Ing(\{t\})$. \textbf{Materialization}
+$\Mat : \Lat \dashrightarrow \Ctx$ is the partial inverse that restores an
+ordered token context through the door \cite{attention2026}.
+\end{definition}
+
+\begin{definition}[BSS; frames; generations; keys; spill]
+\label{def:frame}
+Against a reference $B_w \subseteq \Plane$, the \textbf{directed soft key} is
+$\BSS_w(X) = |X \cap B_w| / |B_w|$. A \textbf{basis frame} is a row-echelon
+GF(2) basis $F=(B_1,\dots,B_k)$ with distinct leading bits, spanning a set of
+observed nodes, and stamped with a \textbf{generation} $\Gen$ that increments
+on recomputation. Relative to $F$, each $X \in \spanof{F}$ has a unique
+\textbf{hard key} $c \in \mathrm{GF}(2)^k$ with
+\[
+  X \;=\; \bigoplus_{i : c_i = 1} B_i,
+\]
+the \textbf{soft key} $w_i = \BSS_{B_i}(X)$ for $i=1,\dots,k$, and the
+\textbf{spill} $s = |X \setminus \cover(F)|$, where
+$\cover(F) = \bigcup_i B_i$ \cite{state2026}.
+\end{definition}
+
+\begin{definition}[Synchronic fiber; diachronic trajectory]
+\label{def:syn-dia}
+The \textbf{synchronic fiber} at time $t$ is $\Sync(t) = (\Lat, F(t),
+\Gen(t))$; the \textbf{diachronic structure} is the family $\Dia = \{\Sync(t)
+: t \in T\}$ with the recorded transitions between consecutive fibers.
+\end{definition}
+
+\begin{definition}[The sign]
+\label{def:sign}
+The \textbf{sign} is the pair $\Sign = (\Ing,\Mat)$; for a node $A \in \Lat$,
+the signifier is the bit-set $A$ and the signified is its differential value
+plus the materialized context $\Mat(A)$ \cite{part1,part2}.
+\end{definition}
+
+\subsection{The diachronic layer}
+
+Part III needs three objects that Parts I and II used but did not isolate:
+the transition, the pivot, and the transport.
+
+\begin{definition}[Transition; the D/R/N triad]
+\label{def:transition}
+Let $H(t{-}1)$ be the committed base of the previous turn and $S(t)$ the state
+after the join of turn $t$. The \textbf{recorded transition} is
+\[
+  \Trans(t) \;=\; \bigl(\,S(t),\; H(t{-}1),\;
+  \Dep,\; \Ret,\; \New\,\bigr),
+\]
+where the three components are the sets
+\[
+  \Dep \;=\; H(t{-}1) \setminus S(t), \qquad
+  \Ret \;=\; H(t{-}1) \cap S(t), \qquad
+  \New \;=\; S(t) \setminus H(t{-}1),
+\]
+the \textbf{departed}, \textbf{retained}, and \textbf{new} parts of the
+transition; they partition $H(t{-}1) \cup S(t)$. The \textbf{coverage} of the
+transition is $\Cov(t) = |\Ret|/|S(t)|$ when $|S(t)|>0$.
+\end{definition}
+
+\begin{remark}[One letter, two roles, now separated]
+\label{rem:drn}
+Following the EWM series, the letters $D/R/N$ are reserved for the
+transition decomposition of Definition~\ref{def:transition}
+(departed/retained/new) \cite{state2026}. The reading of a context $X$
+against a document $D$---the numbers $N_D=|D\setminus X|$,
+$R_D=|D\cap X|$, $\Cov=R_D/|D|$---is called the \emph{coverage reading}
+throughout the series, in Parts I and II as here. The two roles share one
+letter no longer.
+\end{remark}
+
+\begin{definition}[Pivot: extension and rotation]
+\label{def:pivot}
+Let $F(t{-}1)$ be a frame of generation $\Gen(t{-}1)$, and let $Y$ be the
+original HLLSet of turn $t$. Reduce $Y$ against $F(t{-}1)$ by one Gaussian
+step, obtaining the \textbf{residual} $\res = \res_{F(t{-}1)}(Y)$.
+\begin{itemize}[leftmargin=*,nosep]
+  \item If $\res = \varnothing$, the turn is an \textbf{in-span event}:
+    $F(t)=F(t{-}1)$ and $\Gen(t)=\Gen(t{-}1)$.
+  \item If $\res \neq \varnothing$, the turn is a \textbf{pivot}. Let $p$ be
+    the leading bit of $\res$. \textbf{Extension} adds $B_{k+1}=\res$ as a new
+    basis vector with pivot $p$; \textbf{rotation} replaces every existing
+    basis vector $B_i$ that contains $p$ by $B_i \xor \res$. The new frame
+    $F(t)$ is the resulting row-echelon basis with distinct leading bits, and
+    $\Gen(t)=\Gen(t{-}1)+1$.
+\end{itemize}
+\end{definition}
+
+\begin{proposition}[The pivot is exact]
+\label{prop:pivot}
+Let $F(t{-}1)$, $Y$, and $\res$ be as in Definition~\ref{def:pivot}.
+\begin{enumerate}[leftmargin=*,nosep]
+  \item $\res \neq \varnothing$ if and only if $Y \notin \spanof{F(t{-}1)}$.
+  \item After a pivot, $\dim \spanof{F(t)} = \dim \spanof{F(t{-}1)} + 1$; the
+    old span is contained in the new span, and every old basis vector keeps
+    unique coordinates in $F(t)$.
+  \item The pivot map $(F, Y) \mapsto F'$ is deterministic: in a fixed
+    coordinate order of the plane, the same basis and the same incoming bits
+    always produce the same extension and the same rotation.
+  \item Spill $|Y \setminus \cover(F(t{-}1))| > 0$ implies
+    $\res \neq \varnothing$, but the converse can fail: a node may lie inside
+    the cover yet outside the span (the meet obstruction
+    \cite{state2026}). The exact trigger of the pivot is $\res \neq
+    \varnothing$, not positive spill.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+(1) is the definition of the residual: the remainder vanishes exactly for
+span elements. (2) The leading bit $p$ of $\res$ is, by construction, not a
+leading bit of $F(t{-}1)$, so $\res$ is linearly independent of the old
+basis; the span grows by exactly one, and monotonicity of the span gives the
+containment. (3) The Gaussian step and the rotation rule are deterministic
+functions of the bit patterns involved. (4) Every span element is a subset of
+$\cover(F)$ (an XOR of subsets is a subset of their union), so a bit outside
+the cover forces $Y \notin \spanof{F}$; the converse fails because
+$B_i \cap B_j \subseteq \cover(F)$ while $B_i \cap B_j \notin \spanof{F}$ in
+general.
+\end{proof}
+
+\begin{definition}[Change-of-basis transport]
+\label{def:transport}
+Let $F(t{-}1)=(B_1,\dots,B_k)$ and $F(t)=(B'_1,\dots,B'_{k'})$ be two frames
+of a monotone ring, so $\spanof{F(t{-}1)} \subseteq \spanof{F(t)}$. The
+\textbf{change-of-basis matrix} $\Change = \Change(t)$ is the
+$k \times k'$ matrix over $\mathrm{GF}(2)$ whose $i$-th row is the coordinate
+vector of $B_i$ in $F(t)$. A hard key $c$ at $t{-}1$ \textbf{transports} to
+the hard key
+\[
+  c' \;=\; c \,\Change
+\]
+at $t$ (row-vector convention), and this transport is exact.
+\end{definition}
+
+\begin{proposition}[Exact transport]
+\label{prop:transport}
+With the notation of Definition~\ref{def:transport}, if
+$X = \bigoplus_{i:c_i=1} B_i$, then
+$X = \bigoplus_{j:c'_j=1} B'_j$ with $c' = c\Change$. Consequently the
+coordinates of a fixed node change with the frame, but the change is a
+deterministic linear map recorded in the ring, and every reading is valid
+relative to the generation in which it was taken.
+\end{proposition}
+
+\begin{proof}
+Each old basis vector expands uniquely in the new basis; substituting these
+expansions into $X$ and collecting coefficients gives $c' = c\Change$ by
+linearity over $\mathrm{GF}(2)$.
+\end{proof}
+
+% ============================================================================
+\section{Chapter I: General observations}
+\label{sec:ch1}
+% ============================================================================
+
+Saussure opens Part Three by delimiting the diachronic perspective: it studies
+relations between \emph{successive} terms that replace one another in time,
+not relations between coexisting terms; its facts are events, not states
+\cite[Part III, ch.~I]{harris1983}.
+
+\begin{reading}[The diachronic perspective]
+\label{read:ch1}
+The relations between coexisting terms are the fiber readings of Part II
+(hard keys, soft keys, containment). The relations between successive terms
+are the recorded transitions $\Trans(t)$. The diachronic perspective is the
+reading of the trajectory $\Dia$ through its transitions, exactly as the
+synchronic perspective is the reading of one fiber $\Sync(t)$.
+\end{reading}
+
+\begin{observation}[Events are not states]
+\label{obs:events}
+A synchronic fact is a state: it can be read, and re-read, inside one fiber.
+A diachronic fact is an event: it happens once, between two fibers, and is
+recorded. The two perspectives of Part I---the axis of simultaneities and the
+axis of successions---are not two ways of looking at the same object; they
+are two different types of object. The algebra makes this a type distinction:
+$\Sync(t)$ is a triple $(\Lat, F(t), \Gen(t))$; $\Trans(t)$ is a five-tuple
+of nodes with a direction.
+\end{observation}
+
+\begin{proposition}[The diachronic law is the recorded transition]
+\label{prop:dia-law}
+Each transition $\Trans(t)$ is \emph{imperative}---it happened, and the commit
+DAG records it---but \emph{not general}---no identity of the lattice forces
+it, and it holds of that transition alone. This is Part I's Theorem on the
+two kinds of law \cite{part1}, restated with the transition record made
+explicit: the diachronic laws are exactly the recorded transitions, and the
+synchronic laws are exactly the identities of the fiber.
+\end{proposition}
+
+% ============================================================================
+\section{Chapter II: Sound changes as pivots}
+\label{sec:ch2}
+% ============================================================================
+
+Saussure's chapter on sound changes makes two claims that have puzzled
+readers. First, sound changes are \emph{absolutely regular}: a sound change
+is not an isolated accident but a law holding of every occurrence of the
+sound in question, under stated conditions. Second, sound changes are
+\emph{blind}: they alter the material of words without any regard for grammar
+or meaning \cite[Part III, ch.~II]{harris1983}.
+
+\begin{reading}[Sound change is a pivot]
+\label{read:sound}
+A sound change is a pivot of Definition~\ref{def:pivot}: a turn whose
+original $Y$ is not in the span forces the frame to recompute. The
+\emph{extension} is the birth of a new opposition (a new distinctive
+coordinate); the \emph{rotation} is the re-pivoting of the old oppositions
+that contain the new pivot bit. The generation $\Gen$ increments, and every
+hard key in the span is re-coordinated.
+\end{reading}
+
+\begin{observation}[A sound change is local in the plane, global in the frame]
+\label{obs:local-global}
+Let $X$ be a signifier before the change and $X'$ the same signifier after.
+A sound change replaces one sound by another; in the algebra the replaced
+sound was mapped by $\Ing$ to one bit $b$, and the new sound is mapped to a
+different bit $b' \notin X$. The surrounding bits---everything the previous
+state of the HLLSet had set around $b$---are retained, so
+\[
+  X' \;=\; (X \setminus \{b\}) \cup \{b'\},
+  \qquad
+  X \xor X' \;=\; \{b, b'\},
+  \qquad
+  \BSS_X(X') \;=\; \frac{|X|-1}{|X|} \;=\; 1 - \frac{1}{|X|}.
+\]
+The two versions are therefore almost identical as lattice nodes: their
+symmetric difference has cardinality $2$, and their directed similarity is
+$1 - 1/|X|$, arbitrarily close to $1$ as the node grows. The minor bit
+change survives at the lattice level: the new form stays in the same
+neighbourhood of the Boolean lattice, and the retained bits keep it
+co-occurring with its old context. Yet these same two bits, when $b'$ lies
+outside the span, force a pivot: the generation increments and every hard
+key in the fiber is re-coordinated. A sound change is thus local in the
+plane---two bits---and global in the frame---all values. It is the chess
+move of Part I made literal: one piece moves, the whole position is
+re-valued.
+\end{observation}
+
+\begin{proposition}[Phonetic change as extension and rotation]
+\label{prop:sound}
+Let $\res \neq \varnothing$ be the residual of turn $t$. Then the pivot acts
+as follows. (i) \emph{Extension:} the span dimension grows by one; the
+residual becomes a new basis vector, a new distinctive opposition.
+(ii) \emph{Rotation:} exactly the old basis vectors containing the new pivot
+bit are replaced by their XOR with the residual; the others are untouched.
+The stored nodes are never rewritten---IICA immutability---so a sound change
+is a change of the frame around the signs, never of the signs themselves.
+\end{proposition}
+
+\begin{proof}
+This is the Gaussian step of \cite{state2026}, restated in the language of
+Definition~\ref{def:pivot}. The rotation count is the number of old
+oppositions that re-index themselves through the new one; it is zero exactly
+when no old basis vector contains the pivot bit.
+\end{proof}
+
+\begin{proposition}[Regularity and blindness, re-founded]
+\label{prop:regularity}
+(i) \emph{Absolute regularity.} The pivot map of Proposition~\ref{prop:pivot}
+is a function: in a fixed coordinate order, the same basis and the same
+incoming bits always produce the same extension and rotation. Saussure's
+``absolute regularity'' is therefore determinism of the Gaussian step.
+(ii) \emph{Blindness.} The pivot reads only bit positions---the leading bits,
+the membership of the pivot bit in old vectors, the XOR rule. It never
+consults the LUT, the materialized context, the hard keys, or any value.
+A sound change is blind because it is a computation on the plane, not on the
+system of values.
+\end{proposition}
+
+\begin{remark}[The trigger of sound change is a residual]
+\label{rem:trigger}
+The exact trigger of a sound change is $\res \neq \varnothing$
+(Proposition~\ref{prop:pivot}(4)), stated uniformly in Part I \cite{part1}
+and here. A node with positive spill is visibly new (bits no opposition can
+express); a node inside the cover but outside the span---the meet
+obstruction---is invisibly new, and it pivots just the same. Saussure's
+sound changes have the same two faces: some are visible to speakers (a new
+sound appears), others are visible only to the system (a distinction
+reorganizes without new material).
+\end{remark}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Object & Before the pivot ($F(0)$, $\Gen=0$) & After the pivot ($F(1)$, $\Gen=1$) \\
+\midrule
+Plane & \multicolumn{2}{l}{$\{0,1,2,3\}$} \\
+Basis & $B_1=\{0,1\},\ B_2=\{1,2,3\}$ &
+      $B_1=\{0,1\},\ B_3=\{0,2\},\ B'_2=\{0,1,3\}$ \\
+Incoming original & $Y=\{0,2\}$ & residual $\res=Y=\{0,2\}$, pivot bit $2$ \\
+Extension & --- & $B_3 = \res$ \\
+Rotation & --- & $B'_2 = B_2 \xor \res = \{0,1,3\}$ \\
+Node $X = B_1 \xor B_2 = \{0,2,3\}$ & hard key $(1,1)$ & hard key $(1,1,1)$ \\
+Transport & --- & $B_1 \mapsto (1,0,0)$, \ $B_2 \mapsto (0,1,1)$ \\
+\bottomrule
+\end{tabular}
+\caption{A miniature sound change on a four-bit plane. The pivot extends the
+basis by the residual and rotates the one old basis vector containing the new
+pivot bit; the stored node $X$ is untouched while its hard key changes from
+$(1,1)$ to $(1,1,1)$.}
+\label{tab:pivot}
+\end{table}
+
+\begin{remark}[The cost of a sound change]
+The rotation count and rotation mass of \cite{state2026} are the exact
+measures of a sound change's cost: how many oppositions had to re-index
+themselves through the new one. A change with rotation zero adds a new
+distinction without disturbing any old one---the diachronic analogue of a
+purely additive sound. A change with large rotation is the diachronic
+analogue of a systematic shift: many old distinctions are re-drawn at once.
+\end{remark}
+
+% ============================================================================
+\section{Chapter III: Grammatical consequences of phonetic evolution}
+\label{sec:ch3}
+% ============================================================================
+
+Saussure's chapter III traces what sound change does to grammar: it breaks
+grammatical bonds, produces alternations, and never creates new grammatical
+forms---only destroys or re-arranges \cite[Part III, ch.~III]{harris1983}.
+
+\begin{reading}[Bonds are coordinate coincidences]
+\label{read:bonds}
+In Part II, the associative series of a node $X$ is the set of nodes sharing
+a coordinate with it, and syntagmatic solidarities are coverage guards. A
+\emph{grammatical bond} between two nodes is a shared coordinate in the
+current frame. The pivot re-coordinates the whole span, so bonds break or
+form without any node being rewritten.
+\end{reading}
+
+\begin{proposition}[Bonds under transport]
+\label{prop:bonds}
+Let $X, Y \in \spanof{F(t{-}1)}$ have hard keys $c, d$, and let $\Change$ be
+the change-of-basis matrix of the pivot. In the new frame, $X$ and $Y$ share
+coordinate $j$ exactly when
+\[
+  (c \,\Change)_j \;=\; (d \,\Change)_j .
+\]
+A pivot therefore breaks a bond $(X,Y,i)$ whenever $c_i = d_i$ but
+$(c\Change)_j \neq (d\Change)_j$ for every $j$; and it creates a bond
+whenever $c_i \neq d_i$ for all $i$ but some transported coordinates agree.
+The grammatical consequences of sound change are exactly these breakings and
+creations, computed by one matrix multiplication.
+\end{proposition}
+
+\begin{proof}
+Immediate from Proposition~\ref{prop:transport}: the new coordinates are
+$c\Change$ and $d\Change$, and coordinate agreement is equality of the
+corresponding entries.
+\end{proof}
+
+\begin{corollary}[Alternation is one node, two generation-stamped values]
+\label{cor:alternation}
+An alternation---two forms of ``the same'' unit in complementary contexts---is
+a single stored node whose value changed under a pivot, read against two
+generation stamps. The node is one (IICA); its coordinates are two
+(transport). This is the sheet of paper of Part II \cite{part2} moving through
+time: one cannot change the value without changing the sign's position in the
+system, and one cannot change the stored node at all.
+\end{corollary}
+
+\begin{remark}[Sound change destroys, never builds]
+Saussure insists that phonetic evolution never creates grammatical forms. The
+algebra gives the reason: a pivot only re-coordinates existing nodes; it
+introduces no new node. Creation is the work of the other force, analogy,
+to which we now turn.
+\end{remark}
+
+% ============================================================================
+\section{Chapter IV: Analogy as the fourth proportional}
+\label{sec:ch4}
+% ============================================================================
+
+Saussure's chapter IV introduces the second diachronic force. Analogy needs a
+model and its regular imitation: it takes \emph{three} terms to create a
+\emph{fourth}, by the proportion
+\[
+  \text{or{\=a}tor} : \text{or{\=a}t{\=o}rem} \;=\;
+  \text{hon{\=o}s} : \text{hon{\=o}rem},
+\]
+and the created form is a grammatical, intelligent construction---unlike sound
+change, which is blind \cite[Part III, ch.~IV]{harris1983}.
+
+\begin{reading}[Analogy is the parallelogram law]
+\label{read:analogy}
+The analogical proportion $A : B \;{::}\; C : D$ is read as the equality of
+differences
+\[
+  A \xor B \;=\; C \xor D .
+\]
+The proportion is then an equation in the Boolean ring, and it has a unique
+solution for the fourth term: $D = A \xor B \xor C$.
+\end{reading}
+
+\begin{definition}[Analogical fourth]
+\label{def:analogy}
+For nodes $A, B, C \in \Lat$, the \textbf{analogical fourth} is
+\[
+  \Ana(A,B,C) \;=\; A \xor B \xor C .
+\]
+The proportion $A:B \;{::}\; C:D$ \textbf{holds} exactly when
+$A \xor B = C \xor D$, equivalently $D = \Ana(A,B,C)$.
+\end{definition}
+
+\begin{theorem}[The analogy theorem]
+\label{thm:analogy}
+Let $F$ be a frame and $A,B,C \in \spanof{F}$ with hard keys $a,b,c$. Then:
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \emph{Existence and uniqueness.} $D = \Ana(A,B,C)$ is the unique node
+    of $\Lat$ with $A \xor B = C \xor D$.
+  \item \emph{Closure.} $D \in \spanof{F}$, with hard key
+    $d = a \xor b \xor c$ (coordinatewise XOR).
+  \item \emph{Symmetry.} The proportion is its own mirror: also
+    $A \xor C = B \xor D$ holds.
+  \item \emph{Conservatism.} The frame is untouched:
+    $\Gen$ does not increment, and the span does not change. Analogy creates a
+    node; it creates no opposition.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+(1) In the group $(\Lat,\xor)$, the equation $A \xor B = C \xor D$ has the
+unique solution $D = A \xor B \xor C$ (add $C$ to both sides; in GF(2),
+$C \xor C = \varnothing$). (2) The span is a vector subspace over GF(2), so it
+is closed under XOR; expanding in the basis gives $d = a \xor b \xor c$.
+(3) $A \xor C = A \xor C \xor (B \xor B) = (A \xor B) \xor (B \xor C)$,
+while $B \xor D = B \xor A \xor B \xor C = A \xor C$. (4) No pivot is
+involved: $D$ is computed from the existing basis, so $F$ and $\Gen$ are
+unchanged.
+\end{proof}
+
+\begin{proposition}[Analogy and sound change are type-distinct]
+\label{prop:two-forces}
+Sound change is a \emph{basis event}: the span changes, the generation
+increments, stored nodes are untouched, and their values change. Analogy is a
+\emph{span event}: the span is untouched, the generation is unchanged, and a
+new node appears with a value in the existing system of oppositions.
+Saussure's ``analogy is the counterpart of phonetic change'' is, in the
+algebra, a type distinction between the only two kinds of diachronic event.
+\end{proposition}
+
+\begin{remark}[Why analogy feels intelligent]
+Analogy is the one diachronic operation that uses the system of values
+itself---the hard keys---as its raw material. A pivot uses only bits; the
+analogical fourth uses coordinates. Intelligence, in Saussure's sense, is
+exactly this: the operation consults the relations, not the substance.
+\end{remark}
+
+% ============================================================================
+\section{Chapter V: Analogy and evolution}
+\label{sec:ch5}
+% ============================================================================
+
+Saussure's chapter V asks how analogy, which is a grammatical and conscious
+procedure, can be a factor of \emph{evolution}---a force of change like sound
+change \cite[Part III, ch.~V]{harris1983}.
+
+\begin{proposition}[Analogy is conservative in the system, innovative in the lexicon]
+\label{prop:analogy-evolution}
+Let $D = \Ana(A,B,C)$ be an analogical creation. Then
+$\res_F(D) = \varnothing$ and $|D \setminus \cover(F)| = 0$ for the frame in
+which $A,B,C$ lie: an analogical creation never forces a pivot, never adds a
+bit outside the frame cover, and never changes the system of oppositions. It
+is \emph{conservative} in the system---it reuses the community's existing
+coordinates---and \emph{innovative} in the lexicon---it names a node that may
+never have been uttered before. Once the creation is used in parole and
+committed, it enters the record as a new original; but the frame, and with it
+the grammar, stays exactly as it was.
+\end{proposition}
+
+\begin{proof}
+Theorem~\ref{thm:analogy}(2) gives $D \in \spanof{F}$; hence the residual is
+empty. Every span element is a subset of the cover, so the spill is zero.
+Committing $D$ adds a node to the store, not a direction to the span.
+\end{proof}
+
+\begin{proposition}[The two forces decompose the record]
+\label{prop:decomposition}
+Every diachronic event is of exactly one of two kinds: a \emph{pivot}
+(Definition~\ref{def:pivot}), which increments the generation and changes the
+system of oppositions; or an \emph{in-span commit}, which records a node
+without changing the frame. Sound change is a pivot; analogy is an in-span
+commit; agglutination (Section~\ref{sec:ch7}) can be either, depending on
+whether the weld escapes the span. The commit DAG labels each commit with its
+generation increment, so the two forces are separable in the record itself.
+\end{proposition}
+
+\begin{remark}[The speaker's only creative act]
+Part I re-founded ``the language changes although the speakers do not change
+it'' as a two-layer observation \cite{part1}. Part III now locates the
+speaker's contribution precisely. Speakers do not pivot (the pivot is the
+system's response to residue); speakers \emph{do} analogize---and even then
+they build with the frame the community already shares. The individual
+creative act is real, and it is exactly as conservative as Saussure said.
+\end{remark}
+
+% ============================================================================
+\section{Chapter VI: Popular etymology as a false fourth proportional}
+\label{sec:ch6}
+% ============================================================================
+
+Saussure's chapter VI treats folk etymology: an opaque form is re-analyzed by
+being compared, wrongly, with something familiar. Unlike analogy, it is
+isolated and limited in scope, and it rests on an incorrect evaluation of the
+old form \cite[Part III, ch.~VI]{harris1983}.
+
+\begin{reading}[Folk etymology is a false analogy]
+\label{read:folk}
+A folk etymology is an analogy computed from a \emph{mis-identified} term:
+the speaker takes the triple $(A,B,C')$ where $C'$ is not the true third term
+$C$ but a node confused with it by soft-key resemblance. The result is the
+false fourth proportional $D' = \Ana(A,B,C')$.
+\end{reading}
+
+\begin{definition}[False fourth proportional]
+\label{def:folk}
+Let $C$ be the true third term and $C'$ a node mis-identified with $C$. The
+\textbf{folk-etymological creation} is
+\[
+  D' \;=\; \Ana(A,B,C') \;=\; A \xor B \xor C' .
+\]
+Its \textbf{error} is the symmetric difference between the false and the true
+fourth:
+\[
+  D \xor D' \;=\; (A \xor B \xor C) \xor (A \xor B \xor C')
+  \;=\; C \xor C'.
+\]
+\end{definition}
+
+\begin{proposition}[The algebra measures the incorrect evaluation]
+\label{prop:folk}
+(i) $D' = D$ if and only if $C' = C$: the folk etymology is exact exactly
+when the identification is exact, and then it simply is analogy.
+(ii) The error of the creation equals the error of the identification:
+$D \xor D' = C \xor C'$. (iii) The false creation carries no provenance
+support for the re-analysis: the recipe's sources are the nodes it actually
+uses, and the historical relation it claims is not among them.
+\end{proposition}
+
+\begin{proof}
+(i) and (ii) are immediate from the group law of $\xor$. (iii) A view records
+the provenance of the expression actually computed; the claimed relation to
+$C$ appears in no source, so the objective analysis (Section~\ref{sec:ch8})
+does not confirm it.
+\end{proof}
+
+\begin{remark}[Why folk etymology is isolated]
+Analogy is systematic because it is computed in the span, with the shared
+coordinates: the same proportion holds for every node with the same keys.
+Folk etymology is isolated because it is computed from a soft-key confusion
+that is local to one form: the mis-identification $C' \approx_{\BSS} C$ need
+not transfer to any other triple. Saussure's limitation of scope is, in the
+algebra, the non-functoriality of the confusion map.
+\end{remark}
+
+% ============================================================================
+\section{Chapter VII: Agglutination as the promotion of a view}
+\label{sec:ch7}
+% ============================================================================
+
+Saussure's chapter VII treats agglutination: two elements that occur side by
+side in the chain merge into one unanalyzable unit. It works only within
+syntagmas, it is involuntary, and together with analogy it is the main source
+of new forms \cite[Part III, ch.~VII]{harris1983}.
+
+\begin{reading}[Agglutination welds a view into an original]
+\label{read:agglutination}
+In the EWM storage discipline \cite{state2026}, only originals and base
+HLLSets are materialized; every compound is a \emph{view}---a recipe plus
+provenance, recreated on read. Agglutination is the event that breaks the
+discipline on purpose: a compound that the chain keeps producing is promoted
+to an \emph{original}---the join is registered as a stored node with its own
+content address, and thereafter it behaves as a unit.
+\end{reading}
+
+\begin{definition}[Weld]
+\label{def:weld}
+Let $A, B \in \Lat$ be nodes whose co-occurrence in materialized contexts is
+systematically high (the retention reading of the D/R/N triad, accumulated
+over windows). The \textbf{weld} of $A$ and $B$ is the registration of
+\[
+  O \;=\; A \cup B
+\]
+as a new original: a node that was previously only a view expression
+\texttt{union} over sources $A,B$ now has its own stored bits and its own
+content address.
+\end{definition}
+
+\begin{proposition}[Agglutination can pivot]
+\label{prop:agglutination}
+Let $A, B \in \spanof{F}$. Then
+\[
+  A \cup B \;=\; A \xor B \xor (A \cap B),
+\]
+so the weld $O = A \cup B$ lies in the span if and only if the meet
+$A \cap B$ lies in the span. A weld of in-span nodes therefore \emph{forces a
+pivot exactly when the meet is not representable}. Agglutination is thus the
+second source of basis growth: sound change pivots by residue, agglutination
+pivots by meet.
+\end{proposition}
+
+\begin{proof}
+The identity $A \cup B = A \xor B \xor (A \cap B)$ holds in any Boolean ring.
+Since $A \xor B \in \spanof{F}$ (span closed under XOR), membership of the
+union in the span is equivalent to membership of the meet; the rest is
+Proposition~\ref{prop:pivot}(1).
+\end{proof}
+
+\begin{remark}[Three forces, two of which move the basis]
+The diachronic forces now have exact types. Sound change: a pivot by
+residue, blind, moves the basis. Agglutination: a pivot by meet, syntagmatic,
+involuntary, moves the basis when the weld escapes the span, and records an
+in-span original otherwise. Analogy: never a pivot, associative, intelligent,
+populates the lexicon within the span. Saussure's chapter VII observation
+that agglutination, unlike analogy, works only within syntagmas is the type
+statement: agglutination is a join (a chain operation), analogy is a XOR (a
+frame operation).
+\end{remark}
+
+% ============================================================================
+\section{Chapter VIII: Diachronic units, identities, realities}
+\label{sec:ch8}
+% ============================================================================
+
+Saussure closes Part Three with the diachronic counterparts of Part Two's
+units, identities, and realities, and the appended distinction between
+subjective and objective analysis \cite[Part III, ch.~VIII]{harris1983}.
+
+\begin{reading}[Diachronic unit, identity, reality]
+\label{read:dia-unit}
+The synchronic unit is a node read in one fiber. The diachronic unit is the
+\emph{path} of that node's values across generations. Diachronic identity is
+the persistence of the node itself; diachronic reality is the recorded
+transition.
+\end{reading}
+
+\begin{definition}[Diachronic unit]
+\label{def:dia-unit}
+A \textbf{diachronic unit} is a pair $(X, [t_1,t_2])$: a stored node $X$
+together with the interval of generations over which it is referenced, read
+as the value trajectory
+\[
+  c(t) \;=\; \text{hard key of } X \text{ in } F(t),
+  \qquad t_1 \le t \le t_2,
+\]
+with the transport matrices $c(t{+}1) = c(t)\Change(t{+}1)$ connecting
+consecutive values. It is a path in the trajectory $\Dia$, not a node of the
+lattice.
+\end{definition}
+
+\begin{proposition}[Diachronic identity is IICA persistence]
+\label{prop:dia-identity}
+A node at $t_1$ and a node at $t_2$ are diachronically identical if and only
+if they are the same bit-set,
+\[
+  X(t_1) \;=\; X(t_2) .
+\]
+Their values may differ: the hard keys $c(t_1)$ and $c(t_2)$ are equal if and
+only if no pivot between $t_1$ and $t_2$ moved them, i.e.\
+$c(t_1)\Change = c(t_1)$. Identity is content; value is coordinates. The
+distinction of Part II---identity and value coincide within one fiber---now
+has its diachronic counterpart: across fibers, identity persists while value
+shifts.
+\end{proposition}
+
+\begin{proof}
+The first assertion is content addressability (IICA): the same bits name the
+same node, and different bits name different nodes. The second is
+Proposition~\ref{prop:transport}: values change exactly by the transport
+matrices of the intervening pivots.
+\end{proof}
+
+\begin{proposition}[Subjective and objective analysis]
+\label{prop:subjective-objective}
+The \textbf{subjective analysis} of a sign is its reading in the current
+frame: the soft key and the hard key of $F(t)$---what a speaker of the
+current system can see. The \textbf{objective analysis} is the provenance
+chain: the view recipe, the commit DAG, and the transport matrices---what the
+record shows. A pivot separates the two: subjectively, ``the same word'' has
+simply changed its value; objectively, the change is a recorded transition
+with a generation stamp. The algebra keeps both, and falsifies neither.
+\end{proposition}
+
+\begin{remark}[The residual of Part Three]
+Part Three leaves one residual, and it is the same one Saussure leaves: the
+\emph{cause} of sound change. The algebra records that a pivot happened, how
+many oppositions it rotated, and what it did to every value; it does not, and
+cannot, say why the residue arrived---why this community, at this time,
+produced this new material. The trigger is parole (the external stream), and
+parole is outside the system by construction. The algebra turns Saussure's
+``sound changes have no internal cause'' into a type boundary: the pivot is
+inside the system; its occasion is not.
+\end{remark}
+
+% ============================================================================
+\section{The dictionary of Part Three}
+\label{sec:dictionary}
+% ============================================================================
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.4cm}
+                    >{\raggedright\arraybackslash}p{4.2cm}
+                    >{\raggedright\arraybackslash}p{7.0cm}@{}}
+\toprule
+Saussure (Part Three) & In the \textit{Course} & In HLLSet Algebra \\
+\midrule
+diachronic perspective & successive terms, not coexisting & the trajectory
+read through the transitions $\Trans(t)$: Reading~\ref{read:ch1} \\
+diachronic fact & an event & the recorded transition
+$\Trans(t)=(S(t),H(t{-}1),\Dep,\Ret,\New)$: Definition~\ref{def:transition} \\
+diachronic law & imperative but not general & the recorded transition itself:
+Proposition~\ref{prop:dia-law} \\
+sound change & absolutely regular, blind & the pivot (extension + rotation):
+Definitions~\ref{def:pivot}; Proposition~\ref{prop:sound} \\
+regularity & no exceptions & determinism of the Gaussian step:
+Proposition~\ref{prop:regularity}(i) \\
+blindness & no regard for grammar/meaning & the pivot reads bits, never
+values: Proposition~\ref{prop:regularity}(ii) \\
+grammatical consequences & bonds broken, alternations & transport
+$c' = c\Change$ breaks/creates coordinate coincidences:
+Proposition~\ref{prop:bonds}; alternation = two generation-stamped values:
+Corollary~\ref{cor:alternation} \\
+analogy & three terms create a fourth & $\Ana(A,B,C)=A\xor B\xor C$, the
+fourth proportional: Definition~\ref{def:analogy}, Theorem~\ref{thm:analogy} \\
+analogy vs sound change & intelligent vs blind & span event vs basis event:
+Proposition~\ref{prop:two-forces} \\
+analogy and evolution & conservative and innovative & zero spill, zero
+residual, new lexicon node: Proposition~\ref{prop:analogy-evolution}; the
+record decomposes into pivots and in-span commits:
+Proposition~\ref{prop:decomposition} \\
+folk etymology & incorrect evaluation of an old form & false fourth
+proportional $D'=\Ana(A,B,C')$ with error $C\xor C'$:
+Definition~\ref{def:folk}, Proposition~\ref{prop:folk} \\
+agglutination & syntagmatic neighbours merge & promotion of a view to an
+original (weld $O=A\cup B$): Definition~\ref{def:weld}; pivots iff the meet
+is unrepresentable: Proposition~\ref{prop:agglutination} \\
+diachronic unit & not the synchronic unit & a path of values across
+generations: Definition~\ref{def:dia-unit} \\
+diachronic identity & same essence across time & IICA persistence of the
+bit-set: Proposition~\ref{prop:dia-identity} \\
+diachronic reality & the event itself & the recorded transition; objective
+analysis (provenance + DAG) vs subjective analysis (current frame):
+Proposition~\ref{prop:subjective-objective} \\
+\bottomrule
+\end{tabular}
+\caption{The complete dictionary of Part Three of the \textit{Course} into
+HLLSet Algebra.}
+\label{tab:dictionary}
+\end{table}
+
+% ============================================================================
+\section{What Part III adds to Parts I and II}
+\label{sec:adds}
+% ============================================================================
+
+Part I named the generation mechanism; Part II held the frame fixed. Part III
+turns the generation mechanism into a datatype. Five additions matter.
+
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{The pivot is now the diachronic unit.} Definition~\ref{def:pivot}
+    makes precise what Parts I and II only pointed at: the recomputation of
+    the frame, split into extension and rotation, stamped with $\Gen$.
+  \item \textbf{Sound change is a theorem, not an image.}
+    Propositions~\ref{prop:sound} and \ref{prop:regularity} give the exact
+    sense in which a sound change is regular (deterministic) and blind
+    (bit-level). The miniature of Table~\ref{tab:pivot} is checkable by hand.
+  \item \textbf{Analogy is a theorem of GF(2).} Theorem~\ref{thm:analogy} is
+    the parallelogram law: the analogical fourth is $A \xor B \xor C$, unique,
+    in-span, generation-preserving. Saussure's proportion stops being an
+    observation about speakers and becomes an operation of the ring.
+  \item \textbf{The two forces are type-separated, and a third is located.}
+    Sound change = basis event; analogy = span event
+    (Proposition~\ref{prop:two-forces}); agglutination = view promotion that
+    pivots exactly when the meet is unrepresentable
+    (Proposition~\ref{prop:agglutination}).
+  \item \textbf{The exact pivot trigger.} Proposition~\ref{prop:pivot}(4)
+    records the exact trigger of a sound change: $\res \neq \varnothing$.
+    Positive spill is the visible sufficient sign; the meet obstruction is
+    the invisible case; and the series now states the refined condition
+    uniformly in Parts I and III.
+\end{enumerate}
+
+% ============================================================================
+\section{Conclusion and outlook to Part IV}
+\label{sec:conclusion}
+% ============================================================================
+
+Part Three of the \textit{Course} has been re-founded as the theory of the
+pivot and its two species. Diachronic linguistics is the reading of the
+trajectory through recorded transitions; sound change is the blind,
+deterministic pivot; its grammatical consequences are transports of
+coordinates; analogy is the exact fourth proportional of GF(2); folk
+etymology is the same operation with a mis-identified term, and the algebra
+measures the mis-identification; agglutination is the promotion of a view to
+an original, the syntagmatic source of new oppositions; diachronic units,
+identities, and realities are paths, IICA persistence, and recorded
+transitions. Saussure's diachronic linguistics, read in this direction, is no
+longer a classification of changes: it is the executable theory of a system
+whose frame moves.
+
+What Part Three deliberately leaves untouched is \emph{where} the changes
+happen. The plane is one, shared by all speakers; nothing has been said about
+which communities pivot together, which share a frame, and which do not. Part
+Four of the \textit{Course}, Geographical Linguistics, is exactly that
+question: the diversity of languages, the complications of geographical
+diversity, its causes, and the propagation of linguistic waves. In the
+algebra these become the theory of worlds: hash configurations and codebooks
+as dialects, the BSS threshold and the LUT as the boundary of a community,
+the dispatcher as the speaker who actualizes the shared langue, and the
+bridge of \cite{companion2026} as the wave that crosses from one world to
+another. Part IV will re-found geographical linguistics as the multi-world
+theory of one lattice; Part V will then close the series with retrospective
+linguistics, in which reconstruction becomes time travel through old frames.
+
+\section*{Acknowledgments}
+This paper was created in collaboration with, and with the assistance of, an
+AI system---DeepSeek (deepseek-v4-pro). The pivot reading of sound change,
+the fourth-proportional reading of analogy, the view-promotion reading of
+agglutination, and several of the formulations emerged in dialogue with the
+assistant, whose drafts the authors revised and take full responsibility for
+in their final form.
+
+\begin{thebibliography}{99}
+
+\bibitem{saussure1916} F.~de Saussure,
+\textit{Cours de linguistique g\'en\'erale}, Payot, Paris, 1916.
+(Edited posthumously by C.~Bally and A.~Sechehaye, with A.~Riedlinger.)
+
+\bibitem{harris1983} F.~de Saussure,
+\textit{Course in General Linguistics}, translated and annotated by
+Roy Harris, Duckworth, London, 1983.
+
+\bibitem{baskin1959} F.~de Saussure,
+\textit{Course in General Linguistics}, translated by Wade Baskin,
+Philosophical Library, New York, 1959.
+
+\bibitem{saussure1977} F.~de Sossyur,
+\textit{Trudy po yazykoznaniyu} [Works in Linguistics], edited by
+A.~A.~Kholodovich, translation of the \textit{Cours} by A.~M.~Sukhotin,
+Progress, Moscow, 1977.
+(Authors' working copy; used for verification of the readings.)
+
+\bibitem{part1} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part I: General Principles},
+SAUSSURE PUB series, 2026.
+
+\bibitem{part2} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Saussure in HLLSet Algebra, Part II: Synchronic Linguistics},
+SAUSSURE PUB series, 2026.
+
+\bibitem{ewm2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Emerging World Models: A Structural Framework for Self-Organizing
+World Representations}, EWM PUB series, 2026.
+
+\bibitem{companion2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{The EWM Lattice and Its Worlds}, EWM PUB series, 2026.
+
+\bibitem{state2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Transformations and Trajectories of a Content-Addressed State
+Machine}, EWM PUB series, 2026.
+
+\bibitem{attention2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Attention on Lattice Traversal Is All You Need}, EWM PUB series, 2026.
+
+\bibitem{langue2026} A.~Mylnikov, A.~Mylnikov Jr., and D.~Kumar,
+\textit{Langue as a Lattice: Closing the Circle from Statistical to
+Structural Linguistics through Content-Addressed Algebras}, EWM PUB series,
+2026.
+
+\bibitem{birkhoff1940} G.~Birkhoff,
+\textit{Lattice Theory}, American Mathematical Society, 1940.
+
+\bibitem{maclane1971} S.~Mac Lane,
+\textit{Categories for the Working Mathematician}, Springer, 1971.
+
+\bibitem{hjelmslev1961} L.~Hjelmslev,
+\textit{Prolegomena to a Theory of Language}, University of Wisconsin Press,
+1961.
+
+\bibitem{harris1954} Z.~S.~Harris,
+\textit{Distributional Structure}, Word, 10(2--3):146--162, 1954.
+
+\bibitem{firth1957} J.~R.~Firth,
+\textit{A Synopsis of Linguistic Theory, 1930--1955}, Studies in Linguistic
+Analysis, 1957.
+
+\bibitem{vaswani2017} A.~Vaswani, N.~Shazeer, N.~Parmar, J.~Uszkoreit,
+L.~Jones, A.~N.~Gomez, \L.~Kaiser, and I.~Polosukhin,
+\textit{Attention Is All You Need}, NeurIPS, 2017.
+
+\end{thebibliography}
+
+\end{document}
