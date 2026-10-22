@@ -19,6 +19,7 @@
 \usepackage{amscd}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{placeins}
 \usepackage{hyperref}
 \usepackage[margin=1in]{geometry}
 \usepackage{enumitem}
@@ -189,11 +190,17 @@ $\overline{X}$.
 
 \begin{definition}[IICA morphism; ingestion; materialization]
 \label{def:iica}
-$\Ing : \Tok \to \Lat$ is an \textbf{IICA morphism} if it is idempotent
-(deterministic), immutable, and content-addressed; it extends to finite token
-sets by $\Ing(X)=\bigcup_{t\in X}\Ing(\{t\})$. \textbf{Materialization}
+$\Ing : \Tok \to \Lat$ maps each token to its \textbf{bit-set} (the bit
+positions it activates, a node of the lattice) and is an \textbf{IICA
+morphism} if it is idempotent (deterministic), immutable, and
+content-addressed; the bit positions are HLLSet-agnostic, and the morphism
+extends to finite token sets by
+$\Ing(X)=\bigcup_{t\in X}\Ing(\{t\})$. \textbf{Materialization}
 $\Mat : \Lat \dashrightarrow \Ctx$ is the partial inverse that restores an
-ordered token context through the door.
+ordered token context through the door, by reading each set bit and
+disambiguating through the LUT fiber of that bit which tokens set it.
+(The LUT, multi-hashing, and the global gates $G_1,G_2,G_3$ are introduced
+in Part I, Section~2.)
 \end{definition}
 
 \begin{definition}[BSS; document coverage; frames; generations; keys]
@@ -351,10 +358,14 @@ real in a language is what speakers recognize as a value among other values
 
 \begin{reading}[Reality]
 \label{read:reality}
-The reality of a node in a fiber is its position in the frame. If
-$X \in \spanof{F}$, its reality is its hard key $c$. If $X \notin \spanof{F}$,
-its reality is partial: the soft key profile $w$ says how much of each
-opposition it covers, and the spill $s$ is the size of the part that has no
+The reality of a node in a fiber is its position in the frame. Recognition
+has two modes. The \emph{hard key} $c$ recognizes a node by matching a
+linear composition over the ring basis: it exists exactly when
+$X \in \spanof{F}$, and it is the node's reality in full. The \emph{soft
+key} profile $w$ recognizes by matching bit-vectors directly---each
+coordinate is the BSS overlap of $X$ with one basis vector---so it is
+always defined, for every node; when $X \notin \spanof{F}$ the soft key is
+the partial reality, and the spill $s$ is the size of the part that has no
 reality in this system yet.
 \end{reading}
 
@@ -395,18 +406,17 @@ sheet itself is never cut.
 
 \begin{remark}[Bit positions do not move; nodes do]
 \label{rem:bit-agnostic}
-The distinction deserves emphasis because it is easily lost in the
-set-theoretic notation. When the lattice forms $A \cup B = C$, the new node
-$C$ is a set of the same positions that already belonged to $A$ or to $B$.
-No position migrates, and no token changes its address: the ``moving'' of
-tokens and bit positions into the new HLLSet is a staying-in-place. The
-sound side of the sign is therefore coupled to the thought side at the level
-of the \emph{node}---a node and its value change together---while the
-underlying sheet, the position assignment fixed once by ingestion, is common
-to all nodes and never changes. Saussure's ``one cannot cut the front without
-cutting the back'' is realized as: one cannot form a new node without
-forming, at the same time, a new value; but one never cuts the positions
-themselves.
+One point deserves plain statement, because the set-theoretic notation can
+obscure it. When the lattice forms $A \cup B = C$, the new node $C$ is
+simply the set of positions that already belonged to $A$ or to $B$. No
+position migrates and no token changes its address: the bits that enter
+$C$ were already where they are. The sound side of the sign is therefore
+coupled to the thought side at the level of the \emph{node}---a node and
+its value are formed together---while the underlying sheet, the position
+assignment fixed once by ingestion, is common to all nodes and never
+changes. Saussure's ``one cannot cut the front without cutting the back''
+becomes: one cannot form a new node without forming, at the same time, a
+new value; but one never cuts the positions themselves.
 \end{remark}
 
 \subsection{Conceptual value}
@@ -512,6 +522,20 @@ GF(2) (Definition~\ref{def:frame}). For the difference, expand both nodes in
 the basis and use $B_i \xor B_i = \varnothing$, so only coordinates that
 differ survive.
 \end{proof}
+
+\begin{remark}[The basis is an ontology; value is itself an HLLSet]
+\label{rem:ontology}
+Theorem~\ref{thm:complete} shows that the basis is an \emph{ontology} in
+exactly the sense in which a system of labels is: a finite set of relations
+among nodes, not a claim about semantic correctness. Semantic correctness is
+a judgment for speakers; the lattice records only relations. A
+human-readable ontology (meaningful labels) and the ring basis are therefore
+isomorphic presentations of the same object---both are systems of
+oppositions, the labels being one presentation and the basis vectors the
+other. And because any collection of HLLSets has a natural presentation as a
+single HLLSet (its union), value itself---conceptual as well as material---is
+an HLLSet, stamped with its provenance.
+\end{remark}
 
 \begin{corollary}[The value table is the lexicon]
 \label{cor:lexicon}
@@ -920,6 +944,7 @@ HLLSet Algebra.}
 \end{table}
 
 % ============================================================================
+\FloatBarrier
 \section{What Part II adds to Part I}
 \label{sec:adds}
 % ============================================================================

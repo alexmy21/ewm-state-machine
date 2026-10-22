@@ -25,6 +25,7 @@
 \usepackage{amscd}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{placeins}
 \usepackage{hyperref}
 \usepackage[margin=1in]{geometry}
 \usepackage{enumitem}
@@ -184,8 +185,11 @@ are in \cite{part1,part2,part3,part4}.
 \label{def:standing}
 The \textbf{plane} is $\Plane=\{0,\dots,32767\}$; the \textbf{lattice} is
 $\Lat=\mathcal{P}(\Plane)$ under $\cup,\cap,\subseteq$ and the Boolean ring
-$\xor=\Delta$, $\cap$. $\Ing:\Tok\to\Lat$ is an \textbf{IICA morphism};
-$\Mat:\Lat\dashrightarrow\Ctx$ materializes through the door. A
+$\xor=\Delta$, $\cap$. $\Ing:\Tok\to\Lat$ maps each token to its
+\textbf{bit-set} and is an \textbf{IICA morphism};
+$\Mat:\Lat\dashrightarrow\Ctx$ materializes through the door, reading each
+set bit through the LUT. (The LUT, multi-hashing, and the global gates
+$G_1,G_2,G_3$ are introduced in Part I, Section~2.) A
 \textbf{basis frame} $F=(B_1,\dots,B_k)$ is a row-echelon GF(2) basis with
 distinct leading bits, stamped with a generation $\Gen$; hard keys, soft
 keys, and spill are as in Parts I--III. The \textbf{synchronic fiber} is
@@ -371,6 +375,47 @@ Let $F_0,\dots,F_t$ be the frames of a lineage and $X$ a present node.
     witness, and that only hypothesis---never the record---can supply.
 \end{enumerate}
 \end{proposition}
+
+\begin{remark}[Chinese: a politically fixed written frame]
+\label{rem:chinese}
+Saussure's immutability rests on collective inertia: no one, not even the
+community, can change the language by decree. The classical exception is
+Chinese, whose \emph{written} language was fixed by a single political act:
+the First Emperor, Qin Shi Huang, unified the script across the empire (the
+\emph{shu tong wen} reform of 221~BC). In the algebra this is not a
+counterexample but a different social contract: one decree imposed one shared
+codebook---one written world---over the empire, and the written frame it
+fixed has served as a reference frame ever since, over a span that few
+lineages possess. The prototype question therefore takes a distinctive form
+in Chinese: because the written record is an unusually long, stable frame,
+retrospective reading through old written frames is possible over millennia,
+while the spoken lineages beneath it continued to depart, retain, and
+renew---exactly as the frame-transition model describes. Stated in the
+language of the series: written Chinese is an \emph{encoding} of spoken
+Chinese. The script is the shared codebook---the one vocabulary-aware
+step---through which the many spoken worlds are transcribed, and the bridge
+across which their encodings travel. Mutually unintelligible spoken
+varieties can be read, compared, and reconstructed against the same written
+frame, exactly as distinct worlds in Part IV communicate through a bridge
+that carries encodings, not content. The written frame does not replace the
+spoken lineages; it encodes them. The series' own diagram is thereby
+confirmed, with written Chinese as the encoding on both sides of the door:
+\[
+  \text{spoken language}
+  \;\to\;
+  \text{written Chinese}
+  \;\xrightarrow{\;\Ing\;}\;
+  \Lat
+  \;\xrightarrow{\;\Mat\;}\;
+  \text{written Chinese}
+  \;\to\;
+  \text{spoken dialect},
+\]
+where the first arrow is transcription into the script and the last is
+reading aloud in another variety. The lattice never sees the sounds; it sees
+the written encodings, and the written frame is the single shared encoding
+through which the spoken worlds pass.
+\end{remark}
 
 % ============================================================================
 \section{Chapter III: Reconstructions}
@@ -580,7 +625,25 @@ General Linguistics, re-founded part by part in HLLSet Algebra.}
 \label{tab:series}
 \end{table}
 
+\emph{One confirmation remains, and it is not an argument but a fact about
+the series itself.} The five papers were produced as langue itself is
+produced. Each paper is a parole---a particular utterance of a shared
+system---and the system, the notation and the definitions and the method
+rules, is the langue that made the utterances commensurable. The terms
+acquired their value only through opposition: hard key against soft key,
+pivot against analogy, family against type. The convention was chosen freely
+and then held fixed; when a letter became overloaded it was not rewritten but
+re-coordinated, with the record of the change kept. Observations that the
+current frame could not yet express arrived as residues and forced pivots,
+and each pivot re-valued the whole without overwriting anything. The drafts
+were proposals; the authors, as the community of the series, fixed their
+value. The series therefore does not merely claim that structural
+linguistics is computable: the making of the series is itself a small, real,
+non-trivial instance of the structuralist process, and Saussure's theory is
+confirmed not only by what the papers say, but by how they came to be.
+
 % ============================================================================
+\FloatBarrier
 \section{The dictionary of Part Five}
 \label{sec:dictionary}
 % ============================================================================
@@ -628,6 +691,7 @@ HLLSet Algebra.}
 \end{table}
 
 % ============================================================================
+\FloatBarrier
 \section{What Part V adds, and what the series as a whole adds}
 \label{sec:adds}
 % ============================================================================

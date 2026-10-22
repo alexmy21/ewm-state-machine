@@ -21,6 +21,7 @@
 \usepackage{amscd}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{placeins}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning}
 \usepackage{hyperref}
@@ -206,11 +207,14 @@ $\overline{X}$.
 
 \begin{definition}[IICA morphism; ingestion; materialization]
 \label{def:iica}
-$\Ing : \Tok \to \Lat$ is an \textbf{IICA morphism} if it is idempotent
+$\Ing : \Tok \to \Lat$ maps each token to its \textbf{bit-set} and is an
+\textbf{IICA morphism} if it is idempotent
 (deterministic), immutable, and content-addressed; it extends to finite token
 sets by $\Ing(X)=\bigcup_{t\in X}\Ing(\{t\})$. \textbf{Materialization}
 $\Mat : \Lat \dashrightarrow \Ctx$ is the partial inverse that restores an
-ordered token context through the door \cite{attention2026}.
+ordered token context through the door, reading each set bit through the LUT
+fiber that disambiguates it \cite{attention2026}. (The LUT, multi-hashing,
+and the global gates $G_1,G_2,G_3$ are introduced in Part I, Section~2.)
 \end{definition}
 
 \begin{definition}[BSS; frames; generations; keys; spill]
@@ -963,6 +967,7 @@ HLLSet Algebra.}
 \end{table}
 
 % ============================================================================
+\FloatBarrier
 \section{What Part III adds to Parts I and II}
 \label{sec:adds}
 % ============================================================================

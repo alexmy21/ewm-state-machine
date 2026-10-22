@@ -18,6 +18,7 @@
 \usepackage{amscd}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{placeins}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning}
 \usepackage{hyperref}
@@ -57,6 +58,7 @@
 \newcommand{\Sign}{\ensuremath{\mathcal{S}}}             % the sign relation
 \newcommand{\Cov}{\ensuremath{\mathrm{cov}}}             % coverage
 \newcommand{\Disp}{\ensuremath{\mathcal{D}}}             % the dispatcher
+\newcommand{\Lut}{\ensuremath{\mathsf{Lut}}}             % the LUT (reverse index)
 \newcommand{\Sync}{\ensuremath{\mathsf{Syn}}}            % synchronic fiber
 \newcommand{\Dia}{\ensuremath{\mathsf{Dia}}}             % diachronic trajectory
 \newcommand{\Gen}{\ensuremath{\gamma}}                   % basis generation
@@ -229,15 +231,57 @@ $\Plane$ is $\overline{X} = \Plane \setminus X$.
 
 \begin{definition}[IICA morphism, ingestion, materialization]
 \label{def:iica}
-A map $\Ing : \Tok \to \Lat$ from tokens to nodes is an \textbf{IICA
+A map $\Ing : \Tok \to \Lat$ from tokens to their \textbf{bit-sets} (nodes of
+the lattice) is an \textbf{IICA
 morphism} if it is (i) \emph{idempotent}, read as deterministic: the same token
-always maps to the same node; (ii) \emph{immutable}: once fixed, the image is
-never rewritten; (iii) \emph{content-addressed}: the image is named by its
-content alone. It extends to finite token sets by union:
+always maps to the same bit positions; (ii) \emph{immutable}: once fixed, the
+image is never rewritten; (iii) \emph{content-addressed}: the image is named by
+its content alone. The bit positions are \emph{HLLSet-agnostic}: a token sets
+the same positions whatever HLLSet it occurs in, and an HLLSet is nothing but
+the union of the positions its tokens set. The morphism extends to finite
+token sets by union:
 $\Ing(X) = \bigcup_{t \in X} \Ing(\{t\})$. \textbf{Materialization}
 $\Mat : \Lat \dashrightarrow \Ctx$ is the partial inverse that restores, from a
-node, an ordered token context through the door \cite{attention2026}.
+node, an ordered token context through the door: it reads each set bit and
+disambiguates, through the LUT fiber of that bit, which tokens set it
+\cite{attention2026}.
 \end{definition}
+
+\paragraph{LUT, multi-hashing, and the global gates.}
+Three ideas from the reference system are used throughout the series, and
+they are introduced here so that the EWM papers need not be read first.
+
+\textbf{The LUT.} Ingestion alone is not reversible: a set bit does not
+remember which token set it. The \textbf{LUT} (look-up table) is the reverse
+index that restores the memory: each bit position $b$ keeps the fiber
+$\Lut[b]$---the set of tokens that can set $b$ under the chosen morphism.
+Materialization reads the set bits of a node and disambiguates through these
+fibers: exactly on the tokens that built the node, and with collateral
+candidates only at collided bits.
+
+\textbf{Multi-hashing: $n$-grams and $n$-seeds.} One hash is a single, lossy
+measurement: linear order is lost and collisions are possible. The system
+therefore measures a stream \emph{several times}, through independent
+channels: the shared $1$-gram channel, windowed $n$-gram channels (which keep
+local order as micro-context), and $n$-seed channels (the same content under
+different seeds). The idea is not the hash but the \emph{redundancy}: several
+independent measurements of the same stream, so that what one channel loses,
+another retains.
+
+\textbf{The global gates $G_1, G_2, G_3$.} The three canonical channels are
+realized as three global gates: disjoint regions of the plane (up to hash
+collisions), one per channel---$G_1$ the shared default, $G_2$ the $n$-gram
+channel, $G_3$ the $n$-seed channel. Any multi-hash HLLSet $H$ is decomposed
+by intersecting it with the gates,
+\[
+  H \;=\; (H \cap G_1) \;\sqcup\; (H \cap G_2) \;\sqcup\; (H \cap G_3),
+\]
+mutually exclusive up to hash collisions: as regions of the plane the gates
+are disjoint, $G_i \cap G_j = \varnothing$ for $i \neq j$, and only a
+collided token can set a bit in an unexpected gate. This decomposition is
+the workhorse of materialization and of the bridge between worlds in
+Part IV: each part of $H$ carries a different channel's witness, and the
+parts can be read separately because they are disjoint.
 
 \begin{proposition}[Ingestion is join-preserving; the morphism step]
 \label{prop:join}
@@ -350,7 +394,11 @@ is assigned to the differential value, not to a ``meaning,'' because Saussure
 himself defines value negatively---a sign is what the others are not---and the
 algebra makes that definition executable as a coordinate vector in a basis.
 Full treatment of value is the subject of Part II; here only its role as the
-second face of the sign is needed.
+second face of the sign is needed. Third, Saussure's own examples are words,
+and a word is a token; the reading must not collapse the two. The signifier
+is the HLLSet node that the token collection ingests to---even when that node
+is a single activated bit. A token is parole's currency; a node, however
+small, is langue's.
 
 \begin{observation}[Two-sidedness without psychologism]
 Saussure's insistence that both faces are psychological becomes, in the
@@ -481,7 +529,12 @@ The algebra preserves exactly this: the GF(2) span builds complex nodes by
 linear combination of basis vectors, and materialization returns the chain. The
 one thing the lattice forgets---linear \emph{order}---is the one thing the
 door restores, which is why the sign relation needs both morphisms and not one
-\cite{attention2026}.
+\cite{attention2026}. Even the forgetting is not absolute: the windowed
+$n$-gram encoding used for ordered streams keeps \emph{micro-context}---each
+$n$-gram is a small local order---and materialization can reassemble the
+original order from these micro-contexts by de Bruijn-style assembly, exactly
+as a de Bruijn graph reconstructs a sequence from its $n$-grams
+\cite{state2026}.
 \end{remark}
 
 % ============================================================================
@@ -607,7 +660,12 @@ paradox dissolves:
 paradox but a type distinction: speakers can write only to the contract layer
 (by joining tokens), never to a node directly; the value layer changes globally
 whenever the frame pivots, and it is precisely this global, uncommanded change
-that is experienced as the drift of the language.
+that is experienced as the drift of the language. The whole discussion is one
+instance of the fundamental equation of the state machine,
+$H(t) = (S(t), H(t{-}1), D, R, N)$ \cite{state2026}: the commit stack has
+exactly these two layers---the emerging state and the committed base---and
+change is never overwriting; the new substitutes for the old by departing
+from it, while the old remains recorded.
 \end{observation}
 
 \begin{remark}[The defencelessness of the system]
@@ -842,6 +900,7 @@ HLLSet Algebra.}
 \end{table}
 
 % ============================================================================
+\FloatBarrier
 \section{What the reversal changes}
 \label{sec:reversal}
 % ============================================================================

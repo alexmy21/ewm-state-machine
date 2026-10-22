@@ -23,6 +23,7 @@
 \usepackage{amscd}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{placeins}
 \usepackage{hyperref}
 \usepackage[margin=1in]{geometry}
 \usepackage{enumitem}
@@ -181,9 +182,13 @@ are in \cite{part1,part2,part3}.
 \label{def:standing}
 The \textbf{plane} is $\Plane=\{0,\dots,32767\}$; the \textbf{lattice} is
 $\Lat=\mathcal{P}(\Plane)$ under $\cup,\cap,\subseteq$ and the Boolean ring
-$\xor=\Delta$, $\cap$. $\Ing:\Tok\to\Lat$ is an \textbf{IICA morphism}
+$\xor=\Delta$, $\cap$. $\Ing:\Tok\to\Lat$ maps each token to its
+\textbf{bit-set} and is an \textbf{IICA morphism}
 (idempotent, immutable, content-addressed); $\Mat:\Lat\dashrightarrow\Ctx$
-materializes through the door. A \textbf{basis frame} $F=(B_1,\dots,B_k)$ is
+materializes through the door, reading each set bit through the LUT. (The
+LUT, multi-hashing, and the global gates $G_1,G_2,G_3$ are introduced in
+Part I, Section~2.) A
+\textbf{basis frame} $F=(B_1,\dots,B_k)$ is
 a row-echelon GF(2) basis of observed nodes with distinct leading bits,
 stamped with a generation $\Gen$; the hard key of $X\in\spanof{F}$ is
 $c\in\mathrm{GF}(2)^k$ with $X=\bigoplus_{i:c_i=1}B_i$, the soft key is
@@ -551,6 +556,7 @@ HLLSet Algebra.}
 \end{table}
 
 % ============================================================================
+\FloatBarrier
 \section{What Part IV adds to Parts I--III}
 \label{sec:adds}
 % ============================================================================
